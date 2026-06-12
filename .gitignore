@@ -1,0 +1,40 @@
+# Environment
+.env
+.env.local
+*.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+
+# Node
+node_modules/
+dist/
+build/
+*.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Data volumes
+data/
+temp_dicom/
+*.dcm
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db

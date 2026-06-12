@@ -1,0 +1,22 @@
+{
+  "Name": "Synapse-Cloud-PACS",
+  "DicomAet": "ORTHANC_CLOUD",
+  "DicomPort": 4242,
+  "HttpPort": 8042,
+  "RemoteAccessAllowed": true,
+  "AuthenticationEnabled": false,
+  "DicomServerEnabled": false,
+  "Plugins": [
+    "/usr/share/orthanc/plugins",
+    "/usr/local/share/orthanc/plugins"
+  ],
+  "DicomWeb": {
+    "Enable": true,
+    "Root": "/dicom-web/",
+    "EnableWado": true,
+    "WadoRoot": "/wado",
+    "Ssl": false,
+    "QidoCaseSensitive": false,
+    "Host": "0.0.0.0"
+  }
+}

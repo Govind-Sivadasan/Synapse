@@ -1,0 +1,129 @@
+# Synapse Setup Guide
+
+## Prerequisites
+
+- Docker Desktop 4.x+ with Docker Compose v2
+- Minimum **4 CPU cores** and **8 GB RAM**
+- Ports available: 3000, 8000, 8080, 8042, 8043, 11112, 11434
+
+## Installation
+
+### 1. Clone and configure
+
+```bash
+cd d:\PROJECTS\Synapse
+cp .env.example .env
+```
+
+Review `.env` and adjust secrets for non-development deployments.
+
+### 2. Start all services
+
+```bash
+docker compose up --build
+```
+
+First startup takes several minutes (image pulls, Keycloak init, Ollama image).
+
+### 3. Pull Ollama model (first time only)
+
+```bash
+docker exec synapse-ollama ollama pull qwen2.5:7b-instruct
+```
+
+### 4. Verify health
+
+```bash
+curl http://localhost:8000/api/v1/health
+```
+
+Expected: JSON with `postgresql`, `redis`, `orthanc_onprem`, `orthanc_cloud`, `keycloak`, `ollama` components.
+
+### 5. Access the UI
+
+1. Open http://localhost:3000
+2. Login with `admin` / `admin123`
+3. Navigate to **System Health** to verify all services
+
+## Service Reference
+
+| Container | Purpose | Internal Host |
+|-----------|---------|---------------|
+| synapse-postgres | Application database | postgres:5432 |
+| synapse-redis | Celery broker + pub/sub | redis:6379 |
+| synapse-keycloak | Authentication (OIDC) | keycloak:8080 |
+| synapse-orthanc-onprem | Source PACS simulation | orthanc-onprem:4242/8042 |
+| synapse-orthanc-cloud | Destination PACS (DICOMweb only) | orthanc-cloud:8042 |
+| synapse-backend | FastAPI + DIMSE listener | backend:8000/11112 |
+| synapse-celery-routing | Real-time routing workers | — |
+| synapse-celery-migration | Bulk migration workers | — |
+| synapse-frontend | React SPA | frontend:80 |
+| synapse-ollama | LLM inference for chatbot | ollama:11434 |
+
+## DIMSE Connectivity Test
+
+From a machine with `storescu` (DCMTK) or pynetdicom:
+
+```bash
+# C-ECHO test
+echoscu localhost 11112 -aec SYNAPSE -aet STORESCU
+
+# C-STORE test (requires a .dcm file)
+storescu localhost 11112 -aec SYNAPSE -aet STORESCU test.dcm
+```
+
+## Database Migrations
+
+Migrations run automatically on backend startup. To run manually:
+
+```bash
+docker exec synapse-backend alembic upgrade head
+docker exec synapse-backend python scripts/seed_data.py
+```
+
+## Local Development (without Docker)
+
+### Backend
+
+```bash
+cd backend
+python -m venv .venv
+.venv\Scripts\activate        # Windows
+pip install -r requirements.txt
+alembic upgrade head
+uvicorn app.main:app --reload
+```
+
+Requires local PostgreSQL and Redis, or use Docker for infra only:
+
+```bash
+docker compose up postgres redis keycloak orthanc-onprem orthanc-cloud -d
+```
+
+### Frontend
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Open http://localhost:5173
+
+## Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| Keycloak login fails | Wait 60s for realm import; check http://localhost:8080 |
+| Health shows `degraded` | Individual components may still be starting; wait and refresh |
+| DIMSE port not listening | Check backend logs: `docker logs synapse-backend` |
+| Celery tasks not processing | Verify workers: `docker logs synapse-celery-routing` |
+| Ollama unhealthy | Model not pulled yet; run `ollama pull` command above |
+
+## Next Implementation Steps
+
+1. Complete routing rules and tag morphing REST APIs
+2. Implement `RoutingEngine` + `DICOMwebClient.stow_rs()`
+3. Wire Celery `route_study` task to routing engine
+4. Build migration job APIs and UI
+5. Integrate chatbot with Ollama

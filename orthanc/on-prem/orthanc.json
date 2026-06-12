@@ -1,0 +1,24 @@
+{
+  "Name": "Synapse-OnPrem-PACS",
+  "DicomAet": "ORTHANC_ONPREM",
+  "DicomPort": 4242,
+  "HttpPort": 8042,
+  "RemoteAccessAllowed": true,
+  "AuthenticationEnabled": false,
+  "DicomModalities": {
+    "SYNAPSE": ["SYNAPSE", "synapse-backend", 11112]
+  },
+  "Plugins": [
+    "/usr/share/orthanc/plugins",
+    "/usr/local/share/orthanc/plugins"
+  ],
+  "DicomWeb": {
+    "Enable": true,
+    "Root": "/dicom-web/",
+    "EnableWado": true,
+    "WadoRoot": "/wado",
+    "Ssl": false,
+    "QidoCaseSensitive": false,
+    "Host": "0.0.0.0"
+  }
+}
