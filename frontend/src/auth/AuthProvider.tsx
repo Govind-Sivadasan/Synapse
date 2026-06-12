@@ -1,5 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import LoadingScreen from "../components/ui/LoadingScreen";
 import keycloak from "./keycloak";
+import { bindKeycloakTokenPersistence, logoutFromKeycloak } from "./logout";
 
 interface AuthContextValue {
   isAuthenticated: boolean;
@@ -8,7 +10,7 @@ interface AuthContextValue {
   roles: string[];
   username: string;
   login: () => void;
-  logout: () => void;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -18,9 +20,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    bindKeycloakTokenPersistence();
     keycloak
       .init({ onLoad: "login-required", checkLoginIframe: false })
       .then((authenticated) => {
+        bindKeycloakTokenPersistence();
         setIsAuthenticated(authenticated);
         setIsLoading(false);
       })
@@ -34,11 +38,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     roles: keycloak.realmAccess?.roles ?? [],
     username: keycloak.tokenParsed?.preferred_username ?? "",
     login: () => keycloak.login(),
-    logout: () => keycloak.logout({ redirectUri: window.location.origin }),
+    logout: logoutFromKeycloak,
   };
 
   if (isLoading) {
-    return <div style={{ padding: "2rem" }}>Loading authentication...</div>;
+    return <LoadingScreen />;
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

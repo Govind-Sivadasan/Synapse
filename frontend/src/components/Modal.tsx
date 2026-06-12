@@ -1,3 +1,4 @@
+import { X } from "lucide-react";
 import { ReactNode } from "react";
 
 interface Props {
@@ -16,8 +17,8 @@ export default function Modal({ title, open, onClose, children, wide }: Props) {
       <div className={`modal ${wide ? "modal-wide" : ""}`} onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h3>{title}</h3>
-          <button type="button" className="btn-secondary" onClick={onClose}>
-            Close
+          <button type="button" className="modal-close" onClick={onClose} aria-label="Close">
+            <X size={20} />
           </button>
         </div>
         <div className="modal-body">{children}</div>

@@ -2,6 +2,7 @@
   "realm": "synapse",
   "enabled": true,
   "displayName": "Synapse DICOM Router",
+  "loginTheme": "synapse",
   "registrationAllowed": false,
   "loginWithEmailAllowed": true,
   "duplicateEmailsAllowed": false,
@@ -38,8 +39,14 @@
       "standardFlowEnabled": true,
       "implicitFlowEnabled": false,
       "serviceAccountsEnabled": false,
+      "rootUrl": "http://localhost:3000",
+      "baseUrl": "http://localhost:3000",
       "redirectUris": [
+        "http://localhost:3000",
+        "http://localhost:3000/",
         "http://localhost:3000/*",
+        "http://localhost:5173",
+        "http://localhost:5173/",
         "http://localhost:5173/*"
       ],
       "webOrigins": [
@@ -49,7 +56,7 @@
       ],
       "protocol": "openid-connect",
       "attributes": {
-        "post.logout.redirect.uris": "http://localhost:3000/*"
+        "post.logout.redirect.uris": "http://localhost:3000##http://localhost:3000/##http://localhost:3000/*##http://localhost:5173##http://localhost:5173/##http://localhost:5173/*##+"
       }
     },
     {

@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "../api/client";
+import PageHeader from "../components/ui/PageHeader";
+import { PageLoading } from "../components/ui/LoadingScreen";
 import { SystemConfig } from "../types/api";
 
 export default function Settings() {
@@ -28,12 +30,15 @@ export default function Settings() {
     },
   });
 
-  if (isLoading || !form) return <p>Loading settings...</p>;
-  if (error) return <p className="alert alert-error">Error: {(error as Error).message}</p>;
+  if (isLoading || !form) return <PageLoading label="Loading settings…" />;
+  if (error) return <div className="alert alert-error">Error: {(error as Error).message}</div>;
 
   return (
     <div>
-      <h2>System Configuration</h2>
+      <PageHeader
+        title="System Configuration"
+        description="DIMSE listener, retry policy, and global routing parameters."
+      />
       {message && <div className="alert alert-success">{message}</div>}
 
       <div className="card">

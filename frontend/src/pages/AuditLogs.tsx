@@ -1,7 +1,10 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "../api/client";
+import { RefreshCw } from "lucide-react";
 import DataTable from "../components/DataTable";
+import PageHeader from "../components/ui/PageHeader";
+import { PageLoading } from "../components/ui/LoadingScreen";
 import { AuditLog, AuditLogList } from "../types/api";
 
 const EVENT_TYPES = [
@@ -33,10 +36,16 @@ export default function AuditLogs() {
 
   return (
     <div>
-      <div className="header-bar">
-        <h2 style={{ margin: 0 }}>Audit Logs</h2>
-        <button onClick={() => refetch()}>Refresh</button>
-      </div>
+      <PageHeader
+        title="Audit Logs"
+        description="Immutable record of configuration changes, routing events, and user activity."
+        actions={
+          <button type="button" onClick={() => refetch()}>
+            <RefreshCw size={16} />
+            Refresh
+          </button>
+        }
+      />
 
       <div className="card">
         <div className="form-grid" style={{ marginBottom: "1rem" }}>
@@ -60,7 +69,7 @@ export default function AuditLogs() {
         </div>
 
         {isLoading ? (
-          <p>Loading audit logs...</p>
+          <PageLoading label="Loading audit logs…" />
         ) : (
           <>
             <p style={{ fontSize: "0.875rem", color: "#64748b" }}>

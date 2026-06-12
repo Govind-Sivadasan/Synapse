@@ -3,6 +3,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "../api/client";
 import DataTable from "../components/DataTable";
 import Modal from "../components/Modal";
+import PageHeader from "../components/ui/PageHeader";
+import StatusBadge from "../components/ui/StatusBadge";
+import { PageLoading } from "../components/ui/LoadingScreen";
 import { Node } from "../types/api";
 
 const emptyForm = {
@@ -86,13 +89,14 @@ export default function Nodes() {
 
   return (
     <div>
-      <div className="header-bar">
-        <h2 style={{ margin: 0 }}>Node Configuration</h2>
-        <button onClick={openCreate}>Add Node</button>
-      </div>
+      <PageHeader
+        title="Node Configuration"
+        description="Register source DIMSE endpoints and destination DICOMweb PACS nodes."
+        actions={<button type="button" onClick={openCreate}>Add Node</button>}
+      />
 
       {isLoading ? (
-        <p>Loading nodes...</p>
+        <PageLoading label="Loading nodes…" />
       ) : (
         <div className="card">
           <DataTable
@@ -107,9 +111,7 @@ export default function Nodes() {
                 key: "is_active",
                 header: "Status",
                 render: (n) => (
-                  <span className={`badge ${n.is_active ? "badge-active" : "badge-inactive"}`}>
-                    {n.is_active ? "Active" : "Inactive"}
-                  </span>
+                  <StatusBadge status={n.is_active ? "active" : "inactive"} label={n.is_active ? "Active" : "Inactive"} />
                 ),
               },
               {

@@ -3,6 +3,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "../api/client";
 import DataTable from "../components/DataTable";
 import Modal from "../components/Modal";
+import PageHeader from "../components/ui/PageHeader";
+import StatusBadge from "../components/ui/StatusBadge";
+import { PageLoading } from "../components/ui/LoadingScreen";
 import { DICOM_TAGS, OPERATORS, TagMorphingRule } from "../types/api";
 
 const emptyForm = {
@@ -103,13 +106,14 @@ export default function TagMorphing() {
 
   return (
     <div>
-      <div className="header-bar">
-        <h2 style={{ margin: 0 }}>Tag Morphing Rules</h2>
-        <button onClick={openCreate}>Add Rule</button>
-      </div>
+      <PageHeader
+        title="Tag Morphing Rules"
+        description="Rewrite DICOM metadata before STOW-RS upload to cloud destinations."
+        actions={<button type="button" onClick={openCreate}>Add Rule</button>}
+      />
 
       {isLoading ? (
-        <p>Loading rules...</p>
+        <PageLoading label="Loading rules…" />
       ) : (
         <div className="card">
           <DataTable
@@ -131,9 +135,7 @@ export default function TagMorphing() {
                 key: "is_active",
                 header: "Status",
                 render: (r) => (
-                  <span className={`badge ${r.is_active ? "badge-active" : "badge-inactive"}`}>
-                    {r.is_active ? "Active" : "Disabled"}
-                  </span>
+                  <StatusBadge status={r.is_active ? "active" : "inactive"} label={r.is_active ? "Active" : "Disabled"} />
                 ),
               },
               {
