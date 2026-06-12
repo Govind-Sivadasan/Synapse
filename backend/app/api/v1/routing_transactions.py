@@ -3,13 +3,15 @@
 from datetime import datetime
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.keycloak import CurrentUser, require_roles
 from app.database import get_db
+from app.models.node import Node
 from app.models.routing import RoutingDestination, RoutingTransaction
+from app.routing.engine import RoutingEngine
 
 router = APIRouter(prefix="/routing-transactions", tags=["Routing Transactions"])
 
@@ -53,6 +55,19 @@ async def list_routing_transactions(
             select(RoutingDestination).where(RoutingDestination.transaction_id == txn.id)
         )
         destinations = list(dest_result.scalars().all())
+        dest_items = []
+        for d in destinations:
+            node = await db.get(Node, d.destination_node_id)
+            dest_items.append(
+                {
+                    "id": str(d.id),
+                    "destination_node_id": str(d.destination_node_id),
+                    "destination_name": node.name if node else None,
+                    "status": d.status,
+                    "retry_count": d.retry_count,
+                    "failure_reason": d.failure_reason,
+                }
+            )
         items.append(
             {
                 "id": str(txn.id),
@@ -64,17 +79,34 @@ async def list_routing_transactions(
                 "overall_status": txn.overall_status,
                 "received_at": txn.received_at.isoformat() if txn.received_at else None,
                 "completed_at": txn.completed_at.isoformat() if txn.completed_at else None,
-                "destinations": [
-                    {
-                        "id": str(d.id),
-                        "destination_node_id": str(d.destination_node_id),
-                        "status": d.status,
-                        "retry_count": d.retry_count,
-                        "failure_reason": d.failure_reason,
-                    }
-                    for d in destinations
-                ],
+                "destinations": dest_items,
             }
         )
 
     return {"total": total, "items": items}
+
+
+@router.post("/destinations/{destination_id}/retry")
+async def retry_destination_upload(
+    destination_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    _: CurrentUser = Depends(require_roles("operator", "admin")),
+) -> dict:
+    dest = await db.get(RoutingDestination, destination_id)
+    if not dest:
+        raise HTTPException(status_code=404, detail="Destination record not found")
+    if dest.status not in ("failed", "retrying"):
+        raise HTTPException(status_code=400, detail="Only failed destinations can be retried")
+
+    # Run synchronously for immediate API feedback in dev; production can use .delay()
+    try:
+        engine = RoutingEngine()
+        result = await engine.retry_destination(destination_id)
+        return {
+            "destination_id": str(result.destination_id),
+            "node_name": result.node_name,
+            "status": result.status,
+            "failure_reason": result.failure_reason,
+        }
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc

@@ -1,4 +1,4 @@
-"""Seed default PACS nodes for the hackathon simulation environment."""
+"""Seed default PACS nodes, routing rules, and tag morphing for hackathon demo."""
 
 import asyncio
 import uuid
@@ -8,6 +8,8 @@ from sqlalchemy import select
 from app.config import settings
 from app.database import async_session_factory
 from app.models.node import Node
+from app.models.routing import RoutingRule
+from app.models.tag_morphing import TagMorphingRule
 
 
 async def seed() -> None:
@@ -17,8 +19,13 @@ async def seed() -> None:
             print("Seed data already exists, skipping.")
             return
 
+        on_prem_id = uuid.uuid4()
+        cloud_id = uuid.uuid4()
+        morph_rule_id = uuid.uuid4()
+        route_rule_id = uuid.uuid4()
+
         on_prem = Node(
-            id=uuid.uuid4(),
+            id=on_prem_id,
             name="Orthanc On-Prem",
             node_type="source",
             protocol="DIMSE",
@@ -30,7 +37,7 @@ async def seed() -> None:
             is_active=True,
         )
         cloud = Node(
-            id=uuid.uuid4(),
+            id=cloud_id,
             name="Orthanc Cloud",
             node_type="destination",
             protocol="DICOMweb",
@@ -41,9 +48,33 @@ async def seed() -> None:
             auth_type="none",
             is_active=True,
         )
-        session.add_all([on_prem, cloud])
+        morph_rule = TagMorphingRule(
+            id=morph_rule_id,
+            name="CT Institution Rename",
+            condition_tag="Modality",
+            condition_operator="equals",
+            condition_value="CT",
+            target_tag="InstitutionName",
+            new_value="Cloud Demo Hospital",
+            is_active=True,
+        )
+        route_rule = RoutingRule(
+            id=route_rule_id,
+            name="Route CT to Cloud PACS",
+            condition_tag="Modality",
+            condition_operator="equals",
+            condition_value="CT",
+            destination_node_ids=[cloud_id],
+            tag_morphing_rule_ids=[morph_rule_id],
+            priority=10,
+            is_active=True,
+        )
+
+        session.add_all([on_prem, cloud, morph_rule, route_rule])
         await session.commit()
-        print(f"Seeded nodes: {on_prem.name} ({on_prem.id}), {cloud.name} ({cloud.id})")
+        print(f"Seeded nodes: {on_prem.name}, {cloud.name}")
+        print(f"Seeded routing rule: {route_rule.name} (CT -> Cloud)")
+        print(f"Seeded morphing rule: {morph_rule.name}")
 
 
 if __name__ == "__main__":

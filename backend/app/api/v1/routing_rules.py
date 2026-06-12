@@ -22,6 +22,7 @@ from app.schemas.routing_rule import (
 )
 from app.services.audit_logger import AuditLogger
 from app.services.rule_evaluator import evaluate_condition
+from app.routing.engine import invalidate_rules_cache
 from app.services.rules_cache import invalidate_routing_rules_cache
 
 router = APIRouter(prefix="/routing-rules", tags=["Routing Rules"])
@@ -85,6 +86,7 @@ async def create_routing_rule(
         ip_address=request.client.host if request.client else None,
     )
     await invalidate_routing_rules_cache()
+    invalidate_rules_cache()
     return rule
 
 
@@ -129,6 +131,7 @@ async def update_routing_rule(
         ip_address=request.client.host if request.client else None,
     )
     await invalidate_routing_rules_cache()
+    invalidate_rules_cache()
     return rule
 
 
@@ -155,6 +158,7 @@ async def delete_routing_rule(
     )
     await db.delete(rule)
     await invalidate_routing_rules_cache()
+    invalidate_rules_cache()
 
 
 @router.post("/{rule_id}/preview", response_model=RulePreviewResponse)

@@ -132,6 +132,18 @@ Open http://localhost:5173
 | `/api/v1/config` | GET, PUT | System settings (DIMSE, retries, promiscuous mode) |
 | `/api/v1/audit-logs` | GET | Filterable audit log viewer |
 
+## Phase 3: Routing E2E (DIMSE → DICOMweb)
+
+See [ROUTING_TESTING.md](ROUTING_TESTING.md).
+
+Fresh installs seed a demo rule: **Modality=CT → Orthanc Cloud** with InstitutionName morphing.
+
+```bash
+docker exec synapse-backend python scripts/test_dimse_e2e.py --host localhost --port 11112
+```
+
+Check Routing Monitor for `success` status and cloud Orthanc at http://localhost:8043.
+
 ## Phase 2: DIMSE E2E Testing
 
 See [DIMSE_TESTING.md](DIMSE_TESTING.md) for full guide.
