@@ -67,6 +67,6 @@ synapse/
 | Phase 3 | ✅ Done | Routing engine, STOW-RS upload, tag morphing, per-dest retry |
 | Phase 4 | ✅ Done | QIDO/WADO migration engine, job APIs, Migration Jobs UI |
 | Phase 5 | ✅ Done | Dashboard analytics, reports, audit export, activity feed |
-| Phase 6 | 🔲 | Chatbot service |
+| Phase 6 | ✅ Done | Ollama chatbot, context queries, PHI redaction, fallback mode |
 
-See [docs/SETUP.md](docs/SETUP.md) for detailed setup instructions.
+See [docs/SETUP.md](docs/SETUP.md) for detailed setup instructions and [docs/TEST_PLAN.md](docs/TEST_PLAN.md) for the complete real-time test plan.

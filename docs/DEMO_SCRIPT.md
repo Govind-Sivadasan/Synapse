@@ -5,6 +5,8 @@
 
 ## Pre-Demo Checklist
 
+Full validation checklist: [TEST_PLAN.md](TEST_PLAN.md) (Section 18).
+
 - [ ] `docker compose up --build` running with all services healthy
 - [ ] Ollama model pulled: `qwen2.5:7b-instruct`
 - [ ] Test DICOM datasets loaded in on-prem Orthanc
@@ -54,7 +56,7 @@ Key point: **destination PACS is never contacted via DIMSE**.
 
 1. Create migration job: On-Prem → Cloud
 2. Start job — show progress bar
-3. Pause and resume mid-job
+3. Cancel mid-job, then **Resume** a failed/partial job
 4. Show completion statistics
 5. Retry a failed study individually
 

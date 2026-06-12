@@ -150,6 +150,22 @@ export interface VolumeChart {
   migration: ChartDataPoint[];
 }
 
+export interface ChatQueryResponse {
+  answer: string;
+  phi_redacted: boolean;
+  used_fallback: boolean;
+  model: string | null;
+  suggestions: string[];
+}
+
+export interface ChatbotStatus {
+  available: boolean;
+  model: string;
+  model_ready: boolean;
+  installed_models: string[];
+  error?: string | null;
+}
+
 export interface ReportSummary {
   period_days: number;
   routing_studies: number;

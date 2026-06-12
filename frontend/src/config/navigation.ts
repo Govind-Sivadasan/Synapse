@@ -40,7 +40,7 @@ export const navSections: NavSection[] = [
       { path: "/migration-jobs", label: "Migration Jobs", icon: ArrowLeftRight, roles: ["operator", "admin"] },
       { path: "/reports", label: "Reports", icon: FileBarChart, roles: ["service_user", "operator", "admin"] },
       { path: "/audit-logs", label: "Audit Logs", icon: FileSearch, roles: ["service_user", "operator", "admin"] },
-      { path: "/chatbot", label: "Chatbot", icon: Bot, roles: ["service_user", "operator", "admin"] },
+      { path: "/chatbot", label: "Chatbot", icon: Bot, roles: ["viewer", "service_user", "operator", "admin"] },
     ],
   },
   {

@@ -1,5 +1,17 @@
 # Synapse Setup Guide
 
+## Documentation
+
+| Guide | Purpose |
+|-------|---------|
+| [TEST_PLAN.md](TEST_PLAN.md) | **Complete real-time test plan** (all phases, RBAC, checklist) |
+| [DEMO_SCRIPT.md](DEMO_SCRIPT.md) | 20-minute hackathon demo flow |
+| [DIMSE_TESTING.md](DIMSE_TESTING.md) | Phase 2 DIMSE E2E |
+| [ROUTING_TESTING.md](ROUTING_TESTING.md) | Phase 3 routing / STOW-RS |
+| [MIGRATION_TESTING.md](MIGRATION_TESTING.md) | Phase 4 bulk migration |
+| [REPORTING.md](REPORTING.md) | Phase 5 dashboard & reports |
+| [CHATBOT.md](CHATBOT.md) | Phase 6 Ollama chatbot |
+
 ## Prerequisites
 
 - Docker Desktop 4.x+ with Docker Compose v2
@@ -158,9 +170,15 @@ docker exec synapse-backend python scripts/test_dimse_e2e.py --host localhost --
 
 Verify in UI: **Routing Monitor** shows DIMSE stats and received studies.
 
-## Next Implementation Steps
+## Validation
 
-1. Implement `RoutingEngine` + `DICOMwebClient.stow_rs()`
-2. Wire Celery `route_study` task to routing engine
-3. Build migration job APIs and UI
-4. Integrate chatbot with Ollama
+After setup, run the full real-time test plan: [TEST_PLAN.md](TEST_PLAN.md).
+
+Quick smoke:
+
+```bash
+docker exec synapse-backend python -m pytest tests/ -v
+docker exec synapse-backend python scripts/test_dimse_e2e.py --host localhost --port 11112 --instances 3
+```
+
+Then verify **Routing Monitor** (`success`) and cloud Orthanc at http://localhost:8043.
