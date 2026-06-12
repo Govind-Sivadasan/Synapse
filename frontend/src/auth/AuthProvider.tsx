@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { apiFetch } from "../api/client";
 import LoadingScreen from "../components/ui/LoadingScreen";
 import keycloak from "./keycloak";
 import { bindKeycloakTokenPersistence, logoutFromKeycloak } from "./logout";
@@ -27,6 +28,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         bindKeycloakTokenPersistence();
         setIsAuthenticated(authenticated);
         setIsLoading(false);
+        if (authenticated) {
+          apiFetch("/api/v1/auth/login-audit", { method: "POST" }).catch(() => {});
+        }
       })
       .catch(() => setIsLoading(false));
   }, []);

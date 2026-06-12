@@ -114,6 +114,53 @@ export interface MigrationStudyList {
   items: MigrationStudyRecord[];
 }
 
+export interface ChartDataPoint {
+  label: string;
+  value: number;
+}
+
+export interface DashboardMetrics {
+  routing: {
+    total: number;
+    success: number;
+    failed: number;
+    partial: number;
+    no_match: number;
+    success_rate: number;
+  };
+  migration: {
+    total_jobs: number;
+    active_jobs: number;
+    completed_jobs: number;
+    studies_migrated: number;
+    studies_failed: number;
+  };
+  dimse: {
+    listening: boolean;
+    studies_assembled: number;
+    instances_received: number;
+    associations_accepted: number;
+    associations_rejected: number;
+  };
+}
+
+export interface VolumeChart {
+  days: number;
+  routing: ChartDataPoint[];
+  migration: ChartDataPoint[];
+}
+
+export interface ReportSummary {
+  period_days: number;
+  routing_studies: number;
+  routing_success_rate: number;
+  migration_studies_completed: number;
+  migration_studies_failed: number;
+  audit_events: number;
+  top_modalities: ChartDataPoint[];
+  routing_by_status: ChartDataPoint[];
+}
+
 export const DICOM_TAGS = [
   "Modality",
   "PatientID",

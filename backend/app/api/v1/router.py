@@ -4,12 +4,14 @@ from fastapi import APIRouter
 
 from app.api.v1 import (
     audit_logs,
+    auth_events,
     config,
     dashboard,
     dimse,
     health,
     migration_jobs,
     nodes,
+    reports,
     routing_rules,
     routing_transactions,
     tag_morphing,
@@ -26,4 +28,6 @@ api_router.include_router(audit_logs.router)
 api_router.include_router(dimse.router)
 api_router.include_router(routing_transactions.router)
 api_router.include_router(dashboard.router)
+api_router.include_router(reports.router)
+api_router.include_router(auth_events.router)
 api_router.include_router(migration_jobs.router)

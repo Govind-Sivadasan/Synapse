@@ -4,6 +4,7 @@ import {
   ArrowLeftRight,
   Bot,
   ClipboardList,
+  FileBarChart,
   FileSearch,
   LayoutDashboard,
   Network,
@@ -37,6 +38,7 @@ export const navSections: NavSection[] = [
     items: [
       { path: "/routing-monitor", label: "Routing Monitor", icon: Radio, roles: ["service_user", "operator", "admin"] },
       { path: "/migration-jobs", label: "Migration Jobs", icon: ArrowLeftRight, roles: ["operator", "admin"] },
+      { path: "/reports", label: "Reports", icon: FileBarChart, roles: ["service_user", "operator", "admin"] },
       { path: "/audit-logs", label: "Audit Logs", icon: FileSearch, roles: ["service_user", "operator", "admin"] },
       { path: "/chatbot", label: "Chatbot", icon: Bot, roles: ["service_user", "operator", "admin"] },
     ],

@@ -66,7 +66,7 @@ synapse/
 | Phase 2 | ✅ Done | DIMSE receiver, study assembly, E2E tests, routing monitor |
 | Phase 3 | ✅ Done | Routing engine, STOW-RS upload, tag morphing, per-dest retry |
 | Phase 4 | ✅ Done | QIDO/WADO migration engine, job APIs, Migration Jobs UI |
-| Phase 5 | 🔲 | Dashboard, audit, reporting |
+| Phase 5 | ✅ Done | Dashboard analytics, reports, audit export, activity feed |
 | Phase 6 | 🔲 | Chatbot service |
 
 See [docs/SETUP.md](docs/SETUP.md) for detailed setup instructions.
