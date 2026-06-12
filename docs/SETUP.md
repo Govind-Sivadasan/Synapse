@@ -4,6 +4,7 @@
 
 | Guide | Purpose |
 |-------|---------|
+| [RUN.md](RUN.md) | **Run script** (`run.ps1` / `run.sh`) — start, stop, dev mode, logs |
 | [TEST_PLAN.md](TEST_PLAN.md) | **Complete real-time test plan** (all phases, RBAC, checklist) |
 | [DEMO_SCRIPT.md](DEMO_SCRIPT.md) | 20-minute hackathon demo flow |
 | [DIMSE_TESTING.md](DIMSE_TESTING.md) | Phase 2 DIMSE E2E |
@@ -31,11 +32,13 @@ Review `.env` and adjust secrets for non-development deployments.
 
 ### 2. Start all services
 
-```bash
-docker compose up --build
+```powershell
+.\scripts\run.ps1 up -Detach -Build
 ```
 
-First startup takes several minutes (image pulls, Keycloak init, Ollama image).
+Or use raw Compose: `docker compose up --build`.
+
+First startup takes several minutes (image pulls, Keycloak init, Ollama model pull). See [RUN.md](RUN.md) for `dev` mode, infra-only startup, logs, health checks, and volume reset.
 
 ### 3. Ollama model (automatic)
 

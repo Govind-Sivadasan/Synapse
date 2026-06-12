@@ -16,10 +16,21 @@ Built for the **DU2 Hackathon 2026 May** programme.
 
 ## Quick Start
 
-```bash
-cp .env.example .env
-docker compose up --build
+```powershell
+# Windows — recommended
+.\scripts\run.ps1 up -Detach -Build
+
+# Or from project root
+.\run.bat up -Detach -Build
 ```
+
+```bash
+# Git Bash / WSL / macOS / Linux
+cp .env.example .env   # optional — the run script creates .env automatically
+./scripts/run.sh up --detach --build
+```
+
+See [docs/RUN.md](docs/RUN.md) for all commands (`dev`, `logs`, `health`, `down -Volumes`, etc.).
 
 | Service | URL |
 |---------|-----|

@@ -5,6 +5,7 @@ import { apiFetch } from "../api/client";
 import { useAuth } from "../auth/AuthProvider";
 import PageHeader from "../components/ui/PageHeader";
 import StatusBadge from "../components/ui/StatusBadge";
+import AutoDismissAlert from "../components/ui/AutoDismissAlert";
 import { ChatQueryResponse, ChatbotStatus } from "../types/api";
 
 interface ChatMessage {
@@ -130,9 +131,9 @@ export default function Chatbot() {
       />
 
       {isViewer && (
-        <div className="alert alert-success" style={{ marginBottom: "1rem" }}>
+        <AutoDismissAlert variant="info" style={{ marginBottom: "1rem" }}>
           PHI redaction is enabled for your viewer role. Patient IDs and Study UIDs are masked in responses.
-        </div>
+        </AutoDismissAlert>
       )}
 
       <div className="chatbot-layout">
@@ -171,9 +172,9 @@ export default function Chatbot() {
             )}
 
             {queryMutation.isError && (
-              <div className="alert alert-error">
+              <AutoDismissAlert variant="error">
                 {(queryMutation.error as Error).message}
-              </div>
+              </AutoDismissAlert>
             )}
 
             <div ref={bottomRef} />

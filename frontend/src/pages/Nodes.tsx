@@ -1,12 +1,15 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Loader2, Radio } from "lucide-react";
 import { apiFetch } from "../api/client";
 import DataTable from "../components/DataTable";
 import Modal from "../components/Modal";
 import PageHeader from "../components/ui/PageHeader";
 import StatusBadge from "../components/ui/StatusBadge";
 import { PageLoading } from "../components/ui/LoadingScreen";
-import { Node } from "../types/api";
+import AutoDismissAlert from "../components/ui/AutoDismissAlert";
+import { useConfirmDialog } from "../hooks/useConfirmDialog";
+import { Node, NodeEchoResult } from "../types/api";
 
 const emptyForm = {
   name: "",
@@ -22,10 +25,12 @@ const emptyForm = {
 
 export default function Nodes() {
   const queryClient = useQueryClient();
+  const { confirm, ConfirmDialog } = useConfirmDialog();
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Node | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState("");
+  const [echoResult, setEchoResult] = useState<{ nodeId: string; result: NodeEchoResult } | null>(null);
 
   const { data: nodes = [], isLoading } = useQuery({
     queryKey: ["nodes"],
@@ -50,6 +55,16 @@ export default function Nodes() {
   const deleteMutation = useMutation({
     mutationFn: (id: string) => apiFetch<void>(`/api/v1/nodes/${id}`, { method: "DELETE" }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["nodes"] }),
+  });
+
+  const echoMutation = useMutation({
+    mutationFn: (id: string) => apiFetch<NodeEchoResult>(`/api/v1/nodes/${id}/echo`, { method: "POST" }),
+    onSuccess: (result, nodeId) => setEchoResult({ nodeId, result }),
+    onError: (err: Error, nodeId) =>
+      setEchoResult({
+        nodeId,
+        result: { success: false, protocol: "", message: err.message },
+      }),
   });
 
   const openCreate = () => {
@@ -95,6 +110,21 @@ export default function Nodes() {
         actions={<button type="button" onClick={openCreate}>Add Node</button>}
       />
 
+      {echoResult && (
+        <AutoDismissAlert
+          variant={echoResult.result.success ? "success" : "error"}
+          onDismiss={() => setEchoResult(null)}
+        >
+          <span>
+            <strong>{nodes.find((n) => n.id === echoResult.nodeId)?.name ?? "Node"}:</strong>{" "}
+            {echoResult.result.message}
+            {echoResult.result.latency_ms != null && (
+              <span style={{ color: "var(--color-text-muted)" }}> ({echoResult.result.latency_ms} ms)</span>
+            )}
+          </span>
+        </AutoDismissAlert>
+      )}
+
       {isLoading ? (
         <PageLoading label="Loading nodes…" />
       ) : (
@@ -102,6 +132,11 @@ export default function Nodes() {
           <DataTable
             data={nodes}
             keyField="id"
+            paginate
+            pageSize={10}
+            searchable
+            searchKeys={["name", "node_type", "protocol", "host", "ae_title"]}
+            searchPlaceholder="Search nodes…"
             columns={[
               { key: "name", header: "Name" },
               { key: "node_type", header: "Type" },
@@ -117,21 +152,46 @@ export default function Nodes() {
               {
                 key: "actions",
                 header: "Actions",
-                render: (n) => (
-                  <>
-                    <button className="btn-sm" onClick={() => openEdit(n)} style={{ marginRight: "0.5rem" }}>
-                      Edit
-                    </button>
-                    <button
-                      className="btn-sm btn-danger"
-                      onClick={() => {
-                        if (confirm(`Delete node "${n.name}"?`)) deleteMutation.mutate(n.id);
-                      }}
-                    >
-                      Delete
-                    </button>
-                  </>
-                ),
+                render: (n) => {
+                  const echoing = echoMutation.isPending && echoMutation.variables === n.id;
+                  return (
+                    <div className="table-actions">
+                      <button
+                        type="button"
+                        className="btn-sm btn-secondary"
+                        disabled={echoMutation.isPending}
+                        onClick={() => {
+                          setEchoResult(null);
+                          echoMutation.mutate(n.id);
+                        }}
+                      >
+                        {echoing ? <Loader2 size={14} className="spin-icon" /> : <Radio size={14} />}
+                        {echoing ? "Testing…" : "Echo"}
+                      </button>
+                      <button type="button" className="btn-sm" onClick={() => openEdit(n)}>
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-sm btn-danger"
+                        onClick={() =>
+                          confirm({
+                            title: "Delete node",
+                            message: (
+                              <p>
+                                Delete <strong>{n.name}</strong>? This cannot be undone.
+                              </p>
+                            ),
+                            confirmLabel: "Delete",
+                            onConfirm: () => deleteMutation.mutate(n.id),
+                          })
+                        }
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  );
+                },
               },
             ]}
           />
@@ -139,7 +199,11 @@ export default function Nodes() {
       )}
 
       <Modal title={editing ? "Edit Node" : "Add Node"} open={modalOpen} onClose={() => setModalOpen(false)} wide>
-        {error && <div className="alert alert-error">{error}</div>}
+        {error && (
+          <AutoDismissAlert variant="error" onDismiss={() => setError("")}>
+            {error}
+          </AutoDismissAlert>
+        )}
         <form onSubmit={handleSubmit}>
           <div className="form-grid">
             <div className="form-field">
@@ -223,6 +287,8 @@ export default function Nodes() {
           </div>
         </form>
       </Modal>
+
+      <ConfirmDialog loading={deleteMutation.isPending} />
     </div>
   );
 }

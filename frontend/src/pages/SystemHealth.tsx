@@ -4,6 +4,7 @@ import { apiFetch } from "../api/client";
 import PageHeader from "../components/ui/PageHeader";
 import StatusBadge, { statusVariant } from "../components/ui/StatusBadge";
 import { PageLoading } from "../components/ui/LoadingScreen";
+import AutoDismissAlert from "../components/ui/AutoDismissAlert";
 
 interface HealthComponent {
   name: string;
@@ -51,7 +52,9 @@ export default function SystemHealth() {
       />
 
       {isLoading && <PageLoading label="Checking services…" />}
-      {error && <div className="alert alert-error">Error: {(error as Error).message}</div>}
+      {error && (
+        <AutoDismissAlert variant="error">Error: {(error as Error).message}</AutoDismissAlert>
+      )}
 
       {data && (
         <>

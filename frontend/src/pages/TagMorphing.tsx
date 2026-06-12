@@ -6,6 +6,8 @@ import Modal from "../components/Modal";
 import PageHeader from "../components/ui/PageHeader";
 import StatusBadge from "../components/ui/StatusBadge";
 import { PageLoading } from "../components/ui/LoadingScreen";
+import AutoDismissAlert from "../components/ui/AutoDismissAlert";
+import { useConfirmDialog } from "../hooks/useConfirmDialog";
 import { DICOM_TAGS, OPERATORS, TagMorphingRule } from "../types/api";
 
 const emptyForm = {
@@ -20,6 +22,7 @@ const emptyForm = {
 
 export default function TagMorphing() {
   const queryClient = useQueryClient();
+  const { confirm, ConfirmDialog } = useConfirmDialog();
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<TagMorphingRule | null>(null);
   const [form, setForm] = useState(emptyForm);
@@ -119,6 +122,11 @@ export default function TagMorphing() {
           <DataTable
             data={rules}
             keyField="id"
+            paginate
+            pageSize={10}
+            searchable
+            searchKeys={["name", "target_tag", "new_value", "condition_tag"]}
+            searchPlaceholder="Search morphing rules…"
             columns={[
               { key: "name", header: "Name" },
               { key: "target_tag", header: "Target Tag" },
@@ -148,9 +156,18 @@ export default function TagMorphing() {
                     </button>
                     <button
                       className="btn-sm btn-danger"
-                      onClick={() => {
-                        if (confirm(`Delete rule "${r.name}"?`)) deleteMutation.mutate(r.id);
-                      }}
+                      onClick={() =>
+                        confirm({
+                          title: "Delete tag morphing rule",
+                          message: (
+                            <p>
+                              Delete <strong>{r.name}</strong>? This cannot be undone.
+                            </p>
+                          ),
+                          confirmLabel: "Delete",
+                          onConfirm: () => deleteMutation.mutate(r.id),
+                        })
+                      }
                     >
                       Delete
                     </button>
@@ -168,7 +185,11 @@ export default function TagMorphing() {
         onClose={() => setModalOpen(false)}
         wide
       >
-        {error && <div className="alert alert-error">{error}</div>}
+        {error && (
+          <AutoDismissAlert variant="error" onDismiss={() => setError("")}>
+            {error}
+          </AutoDismissAlert>
+        )}
         <form onSubmit={(e) => { e.preventDefault(); saveMutation.mutate(form); }}>
           <div className="form-grid">
             <div className="form-field">
@@ -262,6 +283,8 @@ export default function TagMorphing() {
           </div>
         </form>
       </Modal>
+
+      <ConfirmDialog loading={deleteMutation.isPending} />
     </div>
   );
 }

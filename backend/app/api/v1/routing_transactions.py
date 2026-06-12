@@ -4,7 +4,7 @@ from datetime import datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.keycloak import CurrentUser, require_roles
@@ -19,6 +19,7 @@ router = APIRouter(prefix="/routing-transactions", tags=["Routing Transactions"]
 @router.get("")
 async def list_routing_transactions(
     study_uid: str | None = None,
+    search: str | None = None,
     status: str | None = None,
     date_from: datetime | None = None,
     date_to: datetime | None = None,
@@ -33,6 +34,16 @@ async def list_routing_transactions(
     if study_uid:
         query = query.where(RoutingTransaction.study_uid == study_uid)
         count_query = count_query.where(RoutingTransaction.study_uid == study_uid)
+    if search:
+        pattern = f"%{search.strip()}%"
+        search_filter = or_(
+            RoutingTransaction.study_uid.ilike(pattern),
+            RoutingTransaction.patient_id.ilike(pattern),
+            RoutingTransaction.modality.ilike(pattern),
+            RoutingTransaction.accession_number.ilike(pattern),
+        )
+        query = query.where(search_filter)
+        count_query = count_query.where(search_filter)
     if status:
         query = query.where(RoutingTransaction.overall_status == status)
         count_query = count_query.where(RoutingTransaction.overall_status == status)

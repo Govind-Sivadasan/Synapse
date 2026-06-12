@@ -3,7 +3,7 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.keycloak import CurrentUser, require_roles
@@ -21,6 +21,8 @@ from app.services.audit_logger import AuditLogger
 from app.workers.dispatch import enqueue_fetch_and_enqueue_studies, enqueue_migrate_study
 
 router = APIRouter(prefix="/migration-jobs", tags=["Migration Jobs"])
+
+DELETABLE_JOB_STATUSES = frozenset({"not_started", "completed", "failed", "partial", "cancelled"})
 
 
 def _job_response(job: MigrationJob, nodes: dict[UUID, Node]) -> MigrationJobResponse:
@@ -59,14 +61,28 @@ async def _load_nodes(db: AsyncSession, jobs: list[MigrationJob]) -> dict[UUID, 
 
 @router.get("", response_model=MigrationJobListResponse)
 async def list_migration_jobs(
+    search: str | None = None,
     limit: int = 50,
     offset: int = 0,
     db: AsyncSession = Depends(get_db),
     _: CurrentUser = Depends(require_roles("operator", "admin")),
 ) -> MigrationJobListResponse:
-    total = await db.scalar(select(func.count()).select_from(MigrationJob))
+    count_query = select(func.count()).select_from(MigrationJob)
+    list_query = select(MigrationJob)
+    if search:
+        pattern = f"%{search.strip()}%"
+        name_filter = or_(
+            MigrationJob.name.ilike(pattern),
+            MigrationJob.job_type.ilike(pattern),
+            MigrationJob.status.ilike(pattern),
+            MigrationJob.created_by.ilike(pattern),
+        )
+        count_query = count_query.where(name_filter)
+        list_query = list_query.where(name_filter)
+
+    total = await db.scalar(count_query) or 0
     result = await db.execute(
-        select(MigrationJob).order_by(MigrationJob.created_at.desc()).limit(limit).offset(offset)
+        list_query.order_by(MigrationJob.created_at.desc()).limit(limit).offset(offset)
     )
     jobs = list(result.scalars().all())
     nodes = await _load_nodes(db, jobs)
@@ -139,6 +155,7 @@ async def list_job_studies(
     limit: int = 100,
     offset: int = 0,
     status_filter: str | None = None,
+    search: str | None = None,
     db: AsyncSession = Depends(get_db),
     _: CurrentUser = Depends(require_roles("operator", "admin")),
 ) -> MigrationStudyListResponse:
@@ -153,6 +170,16 @@ async def list_job_studies(
     if status_filter:
         count_q = count_q.where(MigrationStudyRecord.status == status_filter)
         list_q = list_q.where(MigrationStudyRecord.status == status_filter)
+    if search:
+        pattern = f"%{search.strip()}%"
+        study_filter = or_(
+            MigrationStudyRecord.study_uid.ilike(pattern),
+            MigrationStudyRecord.patient_id.ilike(pattern),
+            MigrationStudyRecord.modality.ilike(pattern),
+            MigrationStudyRecord.failure_reason.ilike(pattern),
+        )
+        count_q = count_q.where(study_filter)
+        list_q = list_q.where(study_filter)
 
     total = await db.scalar(count_q)
     result = await db.execute(
@@ -163,6 +190,48 @@ async def list_job_studies(
         total=total or 0,
         items=[MigrationStudyRecordResponse.model_validate(s) for s in items],
     )
+
+
+@router.delete("/{job_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_migration_job(
+    job_id: UUID,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    user: CurrentUser = Depends(require_roles("operator", "admin")),
+) -> None:
+    job = await db.get(MigrationJob, job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Migration job not found")
+    if job.status == "in_progress":
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot delete a job while it is in progress. Cancel it first.",
+        )
+    if job.status not in DELETABLE_JOB_STATUSES:
+        raise HTTPException(status_code=400, detail=f"Cannot delete job in status '{job.status}'")
+
+    study_count = await db.scalar(
+        select(func.count())
+        .select_from(MigrationStudyRecord)
+        .where(MigrationStudyRecord.job_id == job_id)
+    )
+    await db.execute(delete(MigrationStudyRecord).where(MigrationStudyRecord.job_id == job_id))
+    await AuditLogger.log(
+        db,
+        "CONFIG_CHANGE",
+        user_id=user.sub,
+        user_role=",".join(user.roles),
+        entity_type="MigrationJob",
+        entity_id=job.id,
+        details={
+            "action": "delete",
+            "name": job.name,
+            "status": job.status,
+            "study_records_removed": study_count or 0,
+        },
+        ip_address=request.client.host if request.client else None,
+    )
+    await db.delete(job)
 
 
 @router.post("/{job_id}/start", response_model=MigrationJobResponse)

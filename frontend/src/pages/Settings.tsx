@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "../api/client";
 import PageHeader from "../components/ui/PageHeader";
 import { PageLoading } from "../components/ui/LoadingScreen";
+import AutoDismissAlert from "../components/ui/AutoDismissAlert";
 import { SystemConfig } from "../types/api";
 
 export default function Settings() {
@@ -26,12 +27,15 @@ export default function Settings() {
       setForm(result);
       queryClient.invalidateQueries({ queryKey: ["system-config"] });
       setMessage("Settings saved successfully.");
-      setTimeout(() => setMessage(""), 3000);
     },
   });
 
   if (isLoading || !form) return <PageLoading label="Loading settings…" />;
-  if (error) return <div className="alert alert-error">Error: {(error as Error).message}</div>;
+  if (error) {
+    return (
+      <AutoDismissAlert variant="error">Error: {(error as Error).message}</AutoDismissAlert>
+    );
+  }
 
   return (
     <div>
@@ -39,7 +43,11 @@ export default function Settings() {
         title="System Configuration"
         description="DIMSE listener, retry policy, and global routing parameters."
       />
-      {message && <div className="alert alert-success">{message}</div>}
+      {message && (
+        <AutoDismissAlert variant="success" onDismiss={() => setMessage("")}>
+          {message}
+        </AutoDismissAlert>
+      )}
 
       <div className="card">
         <h3 style={{ marginTop: 0 }}>DIMSE Listener</h3>

@@ -16,6 +16,7 @@ import BarChart from "../components/ui/BarChart";
 import MetricCard from "../components/ui/MetricCard";
 import PageHeader from "../components/ui/PageHeader";
 import { PageLoading } from "../components/ui/LoadingScreen";
+import AutoDismissAlert from "../components/ui/AutoDismissAlert";
 import { ChartDataPoint, DashboardMetrics, VolumeChart } from "../types/api";
 
 export default function Dashboard() {
@@ -51,7 +52,11 @@ export default function Dashboard() {
 
   if (isLoading) return <PageLoading label="Loading dashboard metrics…" />;
   if (error) {
-    return <div className="alert alert-error">Error loading metrics: {(error as Error).message}</div>;
+    return (
+      <AutoDismissAlert variant="error">
+        Error loading metrics: {(error as Error).message}
+      </AutoDismissAlert>
+    );
   }
 
   const routing = data!.routing;

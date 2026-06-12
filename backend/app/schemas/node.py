@@ -38,3 +38,11 @@ class NodeResponse(NodeBase):
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class NodeEchoResponse(BaseModel):
+    success: bool
+    protocol: str
+    message: str
+    status_code: int | None = None
+    latency_ms: int | None = None

@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Activity, RefreshCw, Radio, Server, Wifi, WifiOff } from "lucide-react";
 import { apiFetch } from "../api/client";
@@ -6,6 +7,8 @@ import PageHeader from "../components/ui/PageHeader";
 import MetricCard from "../components/ui/MetricCard";
 import StatusBadge from "../components/ui/StatusBadge";
 import { PageLoading } from "../components/ui/LoadingScreen";
+import Pagination from "../components/ui/Pagination";
+import TableSearch from "../components/ui/TableSearch";
 import { useWebSocket } from "../hooks/useWebSocket";
 
 interface RoutingDestination {
@@ -52,10 +55,24 @@ interface DimseStatus {
 export default function RoutingMonitor() {
   const queryClient = useQueryClient();
   const { events, connected } = useWebSocket();
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(0);
+  const pageSize = 10;
+
+  useEffect(() => {
+    setPage(0);
+  }, [search]);
 
   const { data: transactions, isLoading, refetch, isFetching } = useQuery({
-    queryKey: ["routing-transactions"],
-    queryFn: () => apiFetch<TransactionList>("/api/v1/routing-transactions?limit=50"),
+    queryKey: ["routing-transactions", search, page],
+    queryFn: () => {
+      const params = new URLSearchParams({
+        limit: String(pageSize),
+        offset: String(page * pageSize),
+      });
+      if (search) params.set("search", search);
+      return apiFetch<TransactionList>(`/api/v1/routing-transactions?${params}`);
+    },
     refetchInterval: 10000,
   });
 
@@ -141,6 +158,11 @@ export default function RoutingMonitor() {
 
       <div className="card">
         <h3 className="card-title">Routing Transactions</h3>
+        <TableSearch
+          value={search}
+          onChange={setSearch}
+          placeholder="Search study UID, patient, modality…"
+        />
         {isLoading ? (
           <PageLoading label="Loading transactions…" />
         ) : (transactions?.items ?? []).length === 0 ? (
@@ -207,6 +229,12 @@ export default function RoutingMonitor() {
             </div>
           ))
         )}
+        <Pagination
+          page={page}
+          pageSize={pageSize}
+          total={transactions?.total ?? 0}
+          onPageChange={setPage}
+        />
       </div>
 
       {dimse && dimse.recent_events.length > 0 && (
@@ -215,6 +243,11 @@ export default function RoutingMonitor() {
           <DataTable
             data={dimse.recent_events.map((e, i) => ({ ...e, _key: `${e.at}-${i}` }))}
             keyField="_key"
+            paginate
+            pageSize={8}
+            searchable
+            searchKeys={["type", "calling_ae", "study_uid"]}
+            searchPlaceholder="Search DIMSE events…"
             columns={[
               { key: "at", header: "Time", render: (e) => new Date(e.at).toLocaleString() },
               { key: "type", header: "Event" },

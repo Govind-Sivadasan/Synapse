@@ -9,9 +9,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.keycloak import CurrentUser, require_roles
 from app.database import get_db
 from app.models.node import Node
-from app.schemas.node import NodeCreate, NodeResponse, NodeUpdate
+from app.schemas.node import NodeCreate, NodeEchoResponse, NodeResponse, NodeUpdate
 from app.services.allowed_aets import refresh_allowed_calling_aets
 from app.services.audit_logger import AuditLogger
+from app.services.node_connectivity import probe_node_connectivity
 
 router = APIRouter(prefix="/nodes", tags=["Nodes"])
 
@@ -89,6 +90,19 @@ async def update_node(
     )
     await refresh_allowed_calling_aets()
     return node
+
+
+@router.post("/{node_id}/echo", response_model=NodeEchoResponse)
+async def echo_node(
+    node_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    _: CurrentUser = Depends(require_roles("admin")),
+) -> NodeEchoResponse:
+    node = await db.get(Node, node_id)
+    if not node:
+        raise HTTPException(status_code=404, detail="Node not found")
+    result = await probe_node_connectivity(node)
+    return NodeEchoResponse(**result)
 
 
 @router.delete("/{node_id}", status_code=status.HTTP_204_NO_CONTENT)

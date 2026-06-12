@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Download, RefreshCw } from "lucide-react";
 import { apiFetch, downloadFile } from "../api/client";
 import DataTable from "../components/DataTable";
+import TableSearch from "../components/ui/TableSearch";
 import BarChart from "../components/ui/BarChart";
 import PageHeader from "../components/ui/PageHeader";
 import StatusBadge from "../components/ui/StatusBadge";
@@ -37,13 +38,24 @@ export default function AuditLogs() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [exporting, setExporting] = useState(false);
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(0);
+  const pageSize = 20;
+
+  useEffect(() => {
+    setPage(0);
+  }, [eventType, userId, dateFrom, dateTo, search]);
 
   const { data, isLoading, refetch } = useQuery({
-    queryKey: ["audit-logs", eventType, userId, dateFrom, dateTo],
+    queryKey: ["audit-logs", eventType, userId, dateFrom, dateTo, search, page],
     queryFn: () => {
-      const params = new URLSearchParams({ limit: "100" });
+      const params = new URLSearchParams({
+        limit: String(pageSize),
+        offset: String(page * pageSize),
+      });
       if (eventType) params.set("event_type", eventType);
       if (userId) params.set("user_id", userId);
+      if (search) params.set("search", search);
       if (dateFrom) params.set("date_from", new Date(dateFrom).toISOString());
       if (dateTo) params.set("date_to", new Date(`${dateTo}T23:59:59`).toISOString());
       return apiFetch<AuditLogList>(`/api/v1/audit-logs?${params}`);
@@ -120,17 +132,25 @@ export default function AuditLogs() {
           </div>
         </div>
 
+        <TableSearch
+          value={search}
+          onChange={setSearch}
+          placeholder="Search event, user, entity, details…"
+        />
+
         {isLoading ? (
           <PageLoading label="Loading audit logs…" />
         ) : (
-          <>
-            <p style={{ fontSize: "0.875rem", color: "var(--color-text-secondary)", marginBottom: "0.75rem" }}>
-              Showing {logs.length} of {data?.total ?? 0} records
-            </p>
-            <DataTable
-              data={logs}
-              keyField="id"
-              columns={[
+          <DataTable
+            data={logs}
+            keyField="id"
+            serverPagination={{
+              page,
+              pageSize,
+              total: data?.total ?? 0,
+              onPageChange: setPage,
+            }}
+            columns={[
                 {
                   key: "created_at",
                   header: "Timestamp",
@@ -153,8 +173,7 @@ export default function AuditLogs() {
                   ),
                 },
               ]}
-            />
-          </>
+          />
         )}
       </div>
     </div>

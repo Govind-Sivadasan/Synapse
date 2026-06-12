@@ -3,7 +3,7 @@
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import func, select
+from sqlalchemy import String, cast, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.keycloak import CurrentUser, require_roles
@@ -20,6 +20,7 @@ async def list_audit_logs(
     user_id: str | None = None,
     date_from: datetime | None = None,
     date_to: datetime | None = None,
+    search: str | None = None,
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     db: AsyncSession = Depends(get_db),
@@ -40,6 +41,16 @@ async def list_audit_logs(
     if date_to:
         query = query.where(AuditLog.created_at <= date_to)
         count_query = count_query.where(AuditLog.created_at <= date_to)
+    if search:
+        pattern = f"%{search.strip()}%"
+        search_filter = or_(
+            AuditLog.user_id.ilike(pattern),
+            AuditLog.entity_type.ilike(pattern),
+            AuditLog.event_type.ilike(pattern),
+            cast(AuditLog.details, String).ilike(pattern),
+        )
+        query = query.where(search_filter)
+        count_query = count_query.where(search_filter)
 
     total = await db.scalar(count_query) or 0
     result = await db.execute(query.order_by(AuditLog.created_at.desc()).limit(limit).offset(offset))

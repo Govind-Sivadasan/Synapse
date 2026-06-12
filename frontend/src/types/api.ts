@@ -14,6 +14,14 @@ export interface Node {
   updated_at: string;
 }
 
+export interface NodeEchoResult {
+  success: boolean;
+  protocol: string;
+  message: string;
+  status_code?: number | null;
+  latency_ms?: number | null;
+}
+
 export interface RoutingRule {
   id: string;
   name: string;

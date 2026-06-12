@@ -6,6 +6,8 @@ import Modal from "../components/Modal";
 import PageHeader from "../components/ui/PageHeader";
 import StatusBadge from "../components/ui/StatusBadge";
 import { PageLoading } from "../components/ui/LoadingScreen";
+import AutoDismissAlert from "../components/ui/AutoDismissAlert";
+import { useConfirmDialog } from "../hooks/useConfirmDialog";
 import { DICOM_TAGS, OPERATORS, Node, RoutingRule } from "../types/api";
 
 const emptyForm = {
@@ -21,6 +23,7 @@ const emptyForm = {
 
 export default function RoutingRules() {
   const queryClient = useQueryClient();
+  const { confirm, ConfirmDialog } = useConfirmDialog();
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<RoutingRule | null>(null);
   const [form, setForm] = useState(emptyForm);
@@ -117,6 +120,11 @@ export default function RoutingRules() {
           <DataTable
             data={rules}
             keyField="id"
+            paginate
+            pageSize={10}
+            searchable
+            searchKeys={["name", "condition_tag", "condition_value"]}
+            searchPlaceholder="Search routing rules…"
             columns={[
               { key: "name", header: "Name" },
               { key: "priority", header: "Priority" },
@@ -150,9 +158,18 @@ export default function RoutingRules() {
                     </button>
                     <button
                       className="btn-sm btn-danger"
-                      onClick={() => {
-                        if (confirm(`Delete rule "${r.name}"?`)) deleteMutation.mutate(r.id);
-                      }}
+                      onClick={() =>
+                        confirm({
+                          title: "Delete routing rule",
+                          message: (
+                            <p>
+                              Delete <strong>{r.name}</strong>? This cannot be undone.
+                            </p>
+                          ),
+                          confirmLabel: "Delete",
+                          onConfirm: () => deleteMutation.mutate(r.id),
+                        })
+                      }
                     >
                       Delete
                     </button>
@@ -165,7 +182,11 @@ export default function RoutingRules() {
       )}
 
       <Modal title={editing ? "Edit Routing Rule" : "Add Routing Rule"} open={modalOpen} onClose={() => setModalOpen(false)} wide>
-        {error && <div className="alert alert-error">{error}</div>}
+        {error && (
+          <AutoDismissAlert variant="error" onDismiss={() => setError("")}>
+            {error}
+          </AutoDismissAlert>
+        )}
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -257,6 +278,8 @@ export default function RoutingRules() {
           </div>
         </form>
       </Modal>
+
+      <ConfirmDialog loading={deleteMutation.isPending} />
     </div>
   );
 }

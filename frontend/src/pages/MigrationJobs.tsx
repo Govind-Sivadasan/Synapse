@@ -1,12 +1,15 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Plus, Play, Square, RefreshCw } from "lucide-react";
+import { Loader2, Plus, Play, Square, RefreshCw, Copy, Trash2 } from "lucide-react";
 import { apiFetch } from "../api/client";
 import DataTable from "../components/DataTable";
 import Modal from "../components/Modal";
 import PageHeader from "../components/ui/PageHeader";
 import StatusBadge from "../components/ui/StatusBadge";
 import { PageLoading } from "../components/ui/LoadingScreen";
+import AutoDismissAlert from "../components/ui/AutoDismissAlert";
+import TableSearch from "../components/ui/TableSearch";
+import { useConfirmDialog } from "../hooks/useConfirmDialog";
 import { MigrationJob, MigrationJobList, MigrationStudyList, Node, TagMorphingRule } from "../types/api";
 
 const emptyForm = {
@@ -22,6 +25,144 @@ const emptyForm = {
   tag_morphing_rule_ids: [] as string[],
 };
 
+type JobForm = typeof emptyForm;
+
+function jobFormFromJob(job: MigrationJob): JobForm {
+  const config = (job.job_config ?? {}) as Record<string, unknown>;
+  const filters = (config.filters ?? {}) as Record<string, unknown>;
+  const studyUids = Array.isArray(filters.study_uids)
+    ? (filters.study_uids as string[]).join("\n")
+    : "";
+  const morphIds = Array.isArray(config.tag_morphing_rule_ids)
+    ? (config.tag_morphing_rule_ids as string[])
+    : [];
+
+  return {
+    name: `${job.name} (copy)`,
+    source_node_id: job.source_node_id,
+    destination_node_id: job.destination_node_id,
+    job_type: job.job_type,
+    modality: String(filters.modality ?? ""),
+    patient_id: String(filters.patient_id ?? ""),
+    date_from: String(filters.date_from ?? ""),
+    date_to: String(filters.date_to ?? ""),
+    study_uids: studyUids,
+    tag_morphing_rule_ids: morphIds,
+  };
+}
+
+function canDeleteJob(job: MigrationJob): boolean {
+  return job.status !== "in_progress";
+}
+
+function formatTimestamp(value: string | null): string {
+  if (!value) return "—";
+  return new Date(value).toLocaleString();
+}
+
+function JobConfigurationPanel({
+  job,
+  morphRules,
+}: {
+  job: MigrationJob;
+  morphRules: TagMorphingRule[];
+}) {
+  const config = (job.job_config ?? {}) as Record<string, unknown>;
+  const filters = (config.filters ?? {}) as Record<string, unknown>;
+  const morphIds = Array.isArray(config.tag_morphing_rule_ids)
+    ? (config.tag_morphing_rule_ids as string[])
+    : [];
+  const morphLabels = morphIds.map(
+    (id) => morphRules.find((r) => r.id === id)?.name ?? id,
+  );
+  const studyUids = Array.isArray(filters.study_uids) ? (filters.study_uids as string[]) : [];
+
+  const filterItems: { label: string; value: string }[] = [];
+  if (job.job_type === "batch") {
+    filterItems.push({
+      label: "Study UIDs",
+      value: studyUids.length ? `${studyUids.length} specified` : "None",
+    });
+  } else {
+    if (filters.modality) filterItems.push({ label: "Modality", value: String(filters.modality) });
+    if (filters.patient_id) filterItems.push({ label: "Patient ID", value: String(filters.patient_id) });
+    if (filters.date_from) filterItems.push({ label: "Date from", value: String(filters.date_from) });
+    if (filters.date_to) filterItems.push({ label: "Date to", value: String(filters.date_to) });
+    if (!filterItems.length) filterItems.push({ label: "Filters", value: "None (all matching studies)" });
+  }
+
+  return (
+    <div className="job-config-panel">
+      <h4>Job configuration</h4>
+      <div className="job-config-grid">
+        <div className="job-config-item">
+          <span>Job type</span>
+          <strong>{job.job_type}</strong>
+        </div>
+        <div className="job-config-item">
+          <span>Source</span>
+          <strong>{job.source_node_name ?? job.source_node_id}</strong>
+        </div>
+        <div className="job-config-item">
+          <span>Destination</span>
+          <strong>{job.destination_node_name ?? job.destination_node_id}</strong>
+        </div>
+        {filterItems.map((item) => (
+          <div key={item.label} className="job-config-item">
+            <span>{item.label}</span>
+            <strong>{item.value}</strong>
+          </div>
+        ))}
+        {config.qido_limit != null && (
+          <div className="job-config-item">
+            <span>QIDO limit</span>
+            <strong>{String(config.qido_limit)}</strong>
+          </div>
+        )}
+        <div className="job-config-item">
+          <span>Tag morphing</span>
+          <strong>{morphLabels.length ? morphLabels.join(", ") : "None"}</strong>
+        </div>
+        <div className="job-config-item">
+          <span>Created by</span>
+          <strong>{job.created_by}</strong>
+        </div>
+        <div className="job-config-item">
+          <span>Created at</span>
+          <strong>{formatTimestamp(job.created_at)}</strong>
+        </div>
+        <div className="job-config-item">
+          <span>Started</span>
+          <strong>{formatTimestamp(job.start_time)}</strong>
+        </div>
+        <div className="job-config-item">
+          <span>Finished</span>
+          <strong>{formatTimestamp(job.end_time)}</strong>
+        </div>
+        {job.celery_task_id && (
+          <div className="job-config-item">
+            <span>Celery task</span>
+            <code>{job.celery_task_id}</code>
+          </div>
+        )}
+      </div>
+      {job.job_type === "batch" && studyUids.length > 0 && (
+        <div className="job-config-item" style={{ marginTop: "0.75rem" }}>
+          <span>Study UID list</span>
+          <code style={{ display: "block", whiteSpace: "pre-wrap", fontSize: "0.75rem" }}>
+            {studyUids.join("\n")}
+          </code>
+        </div>
+      )}
+      <p className="job-config-note">
+        {job.status === "in_progress"
+          ? "Configuration is locked while the job is running."
+          : "Configuration is immutable after creation. Use Duplicate to create a new job with modified settings."}
+      </p>
+    </div>
+  );
+}
+
 function progressPct(job: MigrationJob): number {
   const total = job.total_studies ?? 0;
   if (!total) return 0;
@@ -30,15 +171,39 @@ function progressPct(job: MigrationJob): number {
 
 export default function MigrationJobs() {
   const queryClient = useQueryClient();
+  const { confirm, ConfirmDialog } = useConfirmDialog();
   const [modalOpen, setModalOpen] = useState(false);
+  const [isDuplicating, setIsDuplicating] = useState(false);
   const [selectedJob, setSelectedJob] = useState<MigrationJob | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState("");
   const [actionError, setActionError] = useState<string | null>(null);
+  const [actionSuccess, setActionSuccess] = useState<string | null>(null);
+  const [jobsSearch, setJobsSearch] = useState("");
+  const [jobsPage, setJobsPage] = useState(0);
+  const [studiesSearch, setStudiesSearch] = useState("");
+  const [studiesPage, setStudiesPage] = useState(0);
+  const jobsPageSize = 10;
+  const studiesPageSize = 15;
+
+  useEffect(() => {
+    setJobsPage(0);
+  }, [jobsSearch]);
+
+  useEffect(() => {
+    setStudiesPage(0);
+  }, [studiesSearch, selectedJob?.id]);
 
   const { data: jobsData, isLoading } = useQuery({
-    queryKey: ["migration-jobs"],
-    queryFn: () => apiFetch<MigrationJobList>("/api/v1/migration-jobs"),
+    queryKey: ["migration-jobs", jobsSearch, jobsPage],
+    queryFn: () => {
+      const params = new URLSearchParams({
+        limit: String(jobsPageSize),
+        offset: String(jobsPage * jobsPageSize),
+      });
+      if (jobsSearch) params.set("search", jobsSearch);
+      return apiFetch<MigrationJobList>(`/api/v1/migration-jobs?${params}`);
+    },
     refetchInterval: (query) => {
       const hasActiveJob = query.state.data?.items.some((j) => j.status === "in_progress");
       return hasActiveJob ? 3000 : 8000;
@@ -70,8 +235,15 @@ export default function MigrationJobs() {
     error: studiesError,
     refetch: refetchStudies,
   } = useQuery({
-    queryKey: ["migration-job-studies", selectedJob?.id],
-    queryFn: () => apiFetch<MigrationStudyList>(`/api/v1/migration-jobs/${selectedJob!.id}/studies`),
+    queryKey: ["migration-job-studies", selectedJob?.id, studiesSearch, studiesPage],
+    queryFn: () => {
+      const params = new URLSearchParams({
+        limit: String(studiesPageSize),
+        offset: String(studiesPage * studiesPageSize),
+      });
+      if (studiesSearch) params.set("search", studiesSearch);
+      return apiFetch<MigrationStudyList>(`/api/v1/migration-jobs/${selectedJob!.id}/studies?${params}`);
+    },
     enabled: !!selectedJob,
     refetchInterval: displayJob?.status === "in_progress" ? 3000 : false,
   });
@@ -85,6 +257,20 @@ export default function MigrationJobs() {
   const sources = nodes.filter((n) => n.is_active && n.dicomweb_url);
   const destinations = nodes.filter((n) => n.node_type === "destination" && n.is_active && n.dicomweb_url);
 
+  const openNewJobModal = () => {
+    setError("");
+    setIsDuplicating(false);
+    setForm(emptyForm);
+    setModalOpen(true);
+  };
+
+  const duplicateJob = (job: MigrationJob) => {
+    setError("");
+    setIsDuplicating(true);
+    setForm(jobFormFromJob(job));
+    setModalOpen(true);
+  };
+
   const createMutation = useMutation({
     mutationFn: (payload: object) =>
       apiFetch<MigrationJob>("/api/v1/migration-jobs", { method: "POST", body: JSON.stringify(payload) }),
@@ -92,10 +278,48 @@ export default function MigrationJobs() {
       queryClient.invalidateQueries({ queryKey: ["migration-jobs"] });
       setModalOpen(false);
       setForm(emptyForm);
+      setIsDuplicating(false);
       setError("");
     },
     onError: (err: Error) => setError(err.message),
   });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) =>
+      apiFetch(`/api/v1/migration-jobs/${id}`, { method: "DELETE" }),
+    onSuccess: (_, jobId) => {
+      setActionError(null);
+      setActionSuccess("Migration job deleted.");
+      if (selectedJob?.id === jobId) setSelectedJob(null);
+      queryClient.invalidateQueries({ queryKey: ["migration-jobs"] });
+    },
+    onError: (err: Error) => {
+      setActionSuccess(null);
+      setActionError(err.message);
+    },
+  });
+
+  const confirmDeleteJob = (job: MigrationJob) => {
+    const studyCount = job.total_studies ?? 0;
+    confirm({
+      title: "Delete migration job",
+      message: (
+        <>
+          <p>
+            Delete <strong>{job.name}</strong>?
+          </p>
+          <p>
+            {studyCount > 0
+              ? `This removes the job and ${studyCount} study record${studyCount === 1 ? "" : "s"}.`
+              : "This removes the job record."}
+          </p>
+          <p>Audit log entries are preserved.</p>
+        </>
+      ),
+      confirmLabel: "Delete",
+      onConfirm: () => deleteMutation.mutate(job.id),
+    });
+  };
 
   const patchJobInCache = (jobId: string, patch: Partial<MigrationJob>) => {
     queryClient.setQueryData<MigrationJobList>(["migration-jobs"], (old) => {
@@ -193,30 +417,44 @@ export default function MigrationJobs() {
         title="Migration Jobs"
         description="Bulk QIDO-RS discovery, WADO-RS retrieval, and STOW-RS delivery to cloud PACS."
         actions={
-          <button type="button" onClick={() => { setError(""); setModalOpen(true); }}>
+          <button type="button" onClick={openNewJobModal}>
             <Plus size={16} />
             New Job
           </button>
         }
       />
 
+      {actionSuccess && (
+        <AutoDismissAlert variant="success" onDismiss={() => setActionSuccess(null)}>
+          {actionSuccess}
+        </AutoDismissAlert>
+      )}
+
       {actionError && (
-        <div className="alert alert-error" style={{ display: "flex", justifyContent: "space-between", gap: "1rem" }}>
-          <span>{actionError}</span>
-          <button type="button" className="btn-sm btn-secondary" onClick={() => setActionError(null)}>
-            Dismiss
-          </button>
-        </div>
+        <AutoDismissAlert variant="error" onDismiss={() => setActionError(null)}>
+          {actionError}
+        </AutoDismissAlert>
       )}
 
       {isLoading ? (
         <PageLoading label="Loading migration jobs…" />
       ) : (
         <div className="card">
+          <TableSearch
+            value={jobsSearch}
+            onChange={setJobsSearch}
+            placeholder="Search jobs by name, type, status…"
+          />
           <DataTable
             data={jobs}
             keyField="id"
             emptyMessage="No migration jobs yet. Create one to migrate studies from on-prem to cloud."
+            serverPagination={{
+              page: jobsPage,
+              pageSize: jobsPageSize,
+              total: jobsData?.total ?? 0,
+              onPageChange: setJobsPage,
+            }}
             columns={[
               { key: "name", header: "Name" },
               { key: "job_type", header: "Type" },
@@ -301,6 +539,27 @@ export default function MigrationJobs() {
                           {cancelling ? "Cancelling…" : "Cancel"}
                         </button>
                       ) : null}
+                      <button
+                        type="button"
+                        className="btn-sm btn-secondary"
+                        title="Create a new job from this configuration"
+                        onClick={() => duplicateJob(j)}
+                      >
+                        <Copy size={14} />
+                        Duplicate
+                      </button>
+                      {canDeleteJob(j) && (
+                        <button
+                          type="button"
+                          className="btn-sm btn-danger"
+                          disabled={deleteMutation.isPending}
+                          title="Remove job and study records"
+                          onClick={() => confirmDeleteJob(j)}
+                        >
+                          <Trash2 size={14} />
+                          Delete
+                        </button>
+                      )}
                     </div>
                   );
                 },
@@ -353,6 +612,8 @@ export default function MigrationJobs() {
             </div>
           )}
 
+          <JobConfigurationPanel job={displayJob} morphRules={morphRules} />
+
           <div className="job-detail-actions">
             {(["not_started", "failed", "partial"].includes(displayJob.status) ||
               (displayJob.status === "completed" && (displayJob.total_studies ?? 0) === 0)) && (
@@ -388,6 +649,26 @@ export default function MigrationJobs() {
                 Cancel
               </button>
             )}
+            <button
+              type="button"
+              className="btn-secondary"
+              title="Create a new job from this configuration"
+              onClick={() => duplicateJob(displayJob)}
+            >
+              <Copy size={16} />
+              Duplicate
+            </button>
+            {canDeleteJob(displayJob) && (
+              <button
+                type="button"
+                className="btn-danger"
+                disabled={deleteMutation.isPending}
+                onClick={() => confirmDeleteJob(displayJob)}
+              >
+                <Trash2 size={16} />
+                Delete
+              </button>
+            )}
             <button type="button" className="btn-secondary" onClick={() => refetchStudies()}>
               <RefreshCw size={16} />
               Refresh studies
@@ -397,10 +678,16 @@ export default function MigrationJobs() {
           <h4 className="card-title">Study records</h4>
 
           {studiesError && (
-            <div className="alert alert-error" style={{ marginBottom: "1rem" }}>
+            <AutoDismissAlert variant="error" style={{ marginBottom: "1rem" }}>
               Failed to load studies: {(studiesError as Error).message}
-            </div>
+            </AutoDismissAlert>
           )}
+
+          <TableSearch
+            value={studiesSearch}
+            onChange={setStudiesSearch}
+            placeholder="Search study UID, patient, modality…"
+          />
 
           {studiesLoading ? (
             <PageLoading label="Loading studies…" />
@@ -408,6 +695,12 @@ export default function MigrationJobs() {
             <DataTable
               data={studiesData?.items ?? []}
               keyField="id"
+              serverPagination={{
+                page: studiesPage,
+                pageSize: studiesPageSize,
+                total: studiesData?.total ?? 0,
+                onPageChange: setStudiesPage,
+              }}
               emptyMessage={
                 displayJob.status === "in_progress" || isStarting(displayJob.id)
                   ? "Discovering studies… records will appear shortly."
@@ -461,8 +754,21 @@ export default function MigrationJobs() {
         </Modal>
       )}
 
-      <Modal title="New Migration Job" open={modalOpen} onClose={() => setModalOpen(false)} wide>
-        {error && <div className="alert alert-error">{error}</div>}
+      <Modal
+        title={isDuplicating ? "Duplicate Migration Job" : "New Migration Job"}
+        open={modalOpen}
+        onClose={() => {
+          setModalOpen(false);
+          setIsDuplicating(false);
+          setForm(emptyForm);
+        }}
+        wide
+      >
+        {error && (
+          <AutoDismissAlert variant="error" onDismiss={() => setError("")}>
+            {error}
+          </AutoDismissAlert>
+        )}
         <form onSubmit={handleSubmit}>
           <div className="form-grid">
             <div className="form-field full-width">
@@ -592,14 +898,28 @@ export default function MigrationJobs() {
           </div>
           <div className="form-actions">
             <button type="submit" disabled={createMutation.isPending}>
-              {createMutation.isPending ? "Creating…" : "Create Job"}
+              {createMutation.isPending
+                ? "Creating…"
+                : isDuplicating
+                  ? "Create Duplicate"
+                  : "Create Job"}
             </button>
-            <button type="button" className="btn-secondary" onClick={() => setModalOpen(false)}>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => {
+                setModalOpen(false);
+                setIsDuplicating(false);
+                setForm(emptyForm);
+              }}
+            >
               Cancel
             </button>
           </div>
         </form>
       </Modal>
+
+      <ConfirmDialog loading={deleteMutation.isPending} />
     </div>
   );
 }
