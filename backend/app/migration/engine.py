@@ -15,7 +15,7 @@ from app.database import async_session_factory
 from app.dicomweb.auth_handler import AuthHandler
 from app.dicomweb.client import DICOMwebClient, StowRsUploadError
 from app.dicomweb.dicom_json import parse_study_date
-from app.dicomweb.qido_rs import QidoRsError, QidoStudy, search_studies
+from app.dicomweb.qido_rs import QidoRsError, QidoStudy, resolve_modality_query_key, search_studies
 from app.dicomweb.wado_rs import WadoRsError, retrieve_study_instances
 from app.models.migration import MigrationJob, MigrationStudyRecord
 from app.models.node import Node
@@ -51,25 +51,41 @@ class MigrationEngine:
                 ]
 
             auth = AuthHandler.from_node(source)
-            all_studies: list[QidoStudy] = []
-            offset = 0
+            return await self._paginate_qido_search(source.dicomweb_url, auth, filters, limit)
 
-            while True:
-                page = await search_studies(
-                    source.dicomweb_url,
-                    auth,
-                    filters=filters,
-                    limit=limit,
-                    offset=offset,
-                )
-                if not page:
-                    break
-                all_studies.extend(page)
-                if len(page) < limit:
-                    break
-                offset += limit
+    async def _paginate_qido_search(
+        self,
+        dicomweb_url: str,
+        auth: AuthHandler,
+        filters: dict,
+        limit: int,
+    ) -> list[QidoStudy]:
+        modality_key: str | None = None
+        if filters.get("modality"):
+            modality_key = await resolve_modality_query_key(
+                dicomweb_url,
+                auth,
+                str(filters["modality"]),
+            )
 
-            return all_studies
+        all_studies: list[QidoStudy] = []
+        offset = 0
+        while True:
+            page = await search_studies(
+                dicomweb_url,
+                auth,
+                filters=filters,
+                limit=limit,
+                offset=offset,
+                modality_query_key=modality_key,
+            )
+            if not page:
+                break
+            all_studies.extend(page)
+            if len(page) < limit:
+                break
+            offset += limit
+        return all_studies
 
     async def enqueue_study_records(self, job_id: uuid.UUID, studies: list[QidoStudy]) -> int:
         async with async_session_factory() as session:

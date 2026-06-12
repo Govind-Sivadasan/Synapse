@@ -1,10 +1,10 @@
 """Celery tasks for real-time DICOM routing."""
 
-import asyncio
 import uuid
 
 import structlog
 
+from app.database import run_async_task
 from celery_app import celery_app
 
 logger = structlog.get_logger()
@@ -71,7 +71,7 @@ def route_study(
         calling_ae=calling_ae_title,
     )
     try:
-        return asyncio.run(
+        return run_async_task(
             _route_study(study_uid, dicom_files, metadata, calling_ae_title)
         )
     except Exception as exc:
@@ -87,7 +87,7 @@ def upload_to_destination(
     """Retry STOW-RS upload for a single failed destination."""
     logger.info("upload_to_destination_retry", destination_id=destination_record_id)
     try:
-        return asyncio.run(_retry_destination(destination_record_id))
+        return run_async_task(_retry_destination(destination_record_id))
     except Exception as exc:
         logger.error("upload_to_destination_failed", error=str(exc))
         raise self.retry(exc=exc, countdown=2**self.request.retries)

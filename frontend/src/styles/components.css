@@ -302,11 +302,20 @@ a:hover {
 }
 
 .metric-value {
-  font-size: 1.875rem;
+  font-size: 1.25rem;
   font-weight: 700;
   color: var(--color-text);
   letter-spacing: -0.02em;
   line-height: 1.1;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  white-space: normal;
+  text-align: left;
+  text-wrap: balance;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  display: inline-block;
 }
 
 .metric-value--primary {
@@ -473,6 +482,47 @@ button:disabled {
   color: var(--color-text-muted);
 }
 
+.connection-pill-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.connection-pill-wrap--has-tooltip .connection-pill {
+  cursor: help;
+}
+
+.connection-pill-tooltip {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  z-index: 100;
+  width: max-content;
+  max-width: 22rem;
+  padding: 0.65rem 0.75rem;
+  font-size: 0.8125rem;
+  font-weight: 400;
+  line-height: 1.45;
+  color: var(--color-text-secondary);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity var(--transition), visibility var(--transition);
+}
+
+.connection-pill-wrap--has-tooltip:hover .connection-pill-tooltip,
+.connection-pill-wrap--has-tooltip:focus-within .connection-pill-tooltip {
+  opacity: 1;
+  visibility: visible;
+}
+
+.connection-pill-tooltip code {
+  font-size: 0.75rem;
+}
+
 /* Tables */
 .table-wrap {
   overflow-x: auto;
@@ -482,8 +532,30 @@ button:disabled {
 
 .data-table {
   width: 100%;
+  min-width: 52rem;
   border-collapse: collapse;
   font-size: 0.875rem;
+}
+
+.table-actions {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.table-actions .btn-sm {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.table-cell-route {
+  display: inline-block;
+  max-width: 11rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
 }
 
 .data-table th,

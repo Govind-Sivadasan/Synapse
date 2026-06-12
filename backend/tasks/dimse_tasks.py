@@ -1,10 +1,8 @@
 """Celery tasks for DIMSE association audit logging."""
 
-import asyncio
-import uuid
-
 import structlog
 
+from app.database import run_async_task
 from celery_app import celery_app
 
 logger = structlog.get_logger()
@@ -37,5 +35,5 @@ def log_dimse_association(
     calling_ae_title: str,
     details: dict | None = None,
 ) -> dict:
-    asyncio.run(_log_association(event_type, calling_ae_title, details))
+    run_async_task(_log_association(event_type, calling_ae_title, details))
     return {"logged": True, "event_type": event_type}

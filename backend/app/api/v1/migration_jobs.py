@@ -100,7 +100,7 @@ async def create_migration_job(
         destination_node_id=payload.destination_node_id,
         job_type=payload.job_type,
         status="not_started",
-        job_config=payload.job_config.model_dump() if payload.job_config else {},
+        job_config=payload.job_config.model_dump(mode="json") if payload.job_config else {},
         created_by=user.username,
     )
     db.add(job)

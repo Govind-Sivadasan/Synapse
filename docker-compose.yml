@@ -89,18 +89,22 @@ services:
   ollama:
     image: ollama/ollama:latest
     container_name: synapse-ollama
+    entrypoint: ["/bin/sh", "/scripts/ollama-entrypoint.sh"]
+    environment:
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:7b-instruct}
     volumes:
       - ollama_data:/root/.ollama
+      - ./scripts/ollama-entrypoint.sh:/scripts/ollama-entrypoint.sh:ro
     ports:
       - "11434:11434"
     networks:
       - synapse_net
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:11434/"]
+      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1"]
       interval: 15s
       timeout: 5s
       retries: 10
-      start_period: 30s
+      start_period: 60s
 
   backend:
     build:

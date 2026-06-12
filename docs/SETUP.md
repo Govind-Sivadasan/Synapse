@@ -37,11 +37,13 @@ docker compose up --build
 
 First startup takes several minutes (image pulls, Keycloak init, Ollama image).
 
-### 3. Pull Ollama model (first time only)
+### 3. Ollama model (automatic)
 
-```bash
-docker exec synapse-ollama ollama pull qwen2.5:7b-instruct
-```
+The `ollama` service pulls `qwen2.5:7b-instruct` **only when it is not already in the `ollama_data` volume** (first run or after `docker compose down -v`). Normal `docker compose up` reuses the cached model — no manual pull needed.
+
+To verify: `docker exec synapse-ollama ollama list`
+
+To change the model, set `OLLAMA_MODEL` in `.env` and recreate the ollama container.
 
 ### 4. Verify health
 

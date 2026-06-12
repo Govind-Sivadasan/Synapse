@@ -2,7 +2,12 @@
 
 from datetime import date
 
-from app.dicomweb.dicom_json import parse_study_date, parse_study_metadata, tag_value
+from app.dicomweb.dicom_json import (
+    parse_modality_from_study,
+    parse_study_date,
+    parse_study_metadata,
+    tag_value,
+)
 from app.dicomweb.qido_rs import build_qido_params
 
 
@@ -11,11 +16,11 @@ def test_tag_value_extracts_first_value():
     assert tag_value(item, "0020000D") == "1.2.3.4"
 
 
-def test_parse_study_metadata():
+def test_parse_study_metadata_modalities_in_study():
     item = {
         "0020000D": {"vr": "UI", "Value": ["1.2.3"]},
         "00100020": {"vr": "LO", "Value": ["P001"]},
-        "00080060": {"vr": "CS", "Value": ["CT"]},
+        "00080061": {"vr": "CS", "Value": ["CT", "SR"]},
         "00080020": {"vr": "DA", "Value": ["20240115"]},
     }
     meta = parse_study_metadata(item)
@@ -23,6 +28,23 @@ def test_parse_study_metadata():
     assert meta["patient_id"] == "P001"
     assert meta["modality"] == "CT"
     assert meta["study_date"] == "2024-01-15"
+
+
+def test_parse_modality_from_study_prefers_modalities_in_study():
+    item = {
+        "00080061": {"vr": "CS", "Value": ["mr"]},
+        "00080060": {"vr": "CS", "Value": ["CT"]},
+    }
+    assert parse_modality_from_study(item) == "MR"
+
+
+def test_parse_study_metadata_series_modality_fallback():
+    item = {
+        "0020000D": {"vr": "UI", "Value": ["1.2.3"]},
+        "00080060": {"vr": "CS", "Value": ["CT"]},
+    }
+    meta = parse_study_metadata(item)
+    assert meta["modality"] == "CT"
 
 
 def test_parse_study_date():
@@ -37,7 +59,7 @@ def test_build_qido_params_with_filters():
         limit=50,
         offset=10,
     )
-    assert params["Modality"] == "CT"
+    assert params["ModalitiesInStudy"] == "CT"
     assert params["PatientID"] == "P1"
     assert params["StudyDate"] == "20240101-20241231"
     assert params["limit"] == 50

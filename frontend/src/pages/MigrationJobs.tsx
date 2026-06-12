@@ -223,7 +223,14 @@ export default function MigrationJobs() {
               {
                 key: "route",
                 header: "Route",
-                render: (j) => `${j.source_node_name ?? "?"} → ${j.destination_node_name ?? "?"}`,
+                render: (j) => {
+                  const route = `${j.source_node_name ?? "?"} → ${j.destination_node_name ?? "?"}`;
+                  return (
+                    <span className="table-cell-route" title={route}>
+                      {route}
+                    </span>
+                  );
+                },
               },
               {
                 key: "status",
@@ -256,11 +263,10 @@ export default function MigrationJobs() {
                     (j.status === "completed" && (j.total_studies ?? 0) === 0);
 
                   return (
-                    <>
+                    <div className="table-actions">
                       <button
                         type="button"
                         className={`btn-sm ${selectedJob?.id === j.id ? "" : "btn-secondary"}`}
-                        style={{ marginRight: "0.35rem" }}
                         onClick={() => openJobDetails(j)}
                       >
                         Details
@@ -295,7 +301,7 @@ export default function MigrationJobs() {
                           {cancelling ? "Cancelling…" : "Cancel"}
                         </button>
                       ) : null}
-                    </>
+                    </div>
                   );
                 },
               },
@@ -434,17 +440,19 @@ export default function MigrationJobs() {
                   header: "Actions",
                   render: (s) =>
                     s.status === "failed" ? (
-                      <button
-                        type="button"
-                        className="btn-sm"
-                        disabled={retryStudyMutation.isPending}
-                        onClick={() =>
-                          retryStudyMutation.mutate({ jobId: displayJob.id, studyId: s.id })
-                        }
-                      >
-                        <RefreshCw size={14} />
-                        Retry
-                      </button>
+                      <div className="table-actions">
+                        <button
+                          type="button"
+                          className="btn-sm"
+                          disabled={retryStudyMutation.isPending}
+                          onClick={() =>
+                            retryStudyMutation.mutate({ jobId: displayJob.id, studyId: s.id })
+                          }
+                        >
+                          <RefreshCw size={14} />
+                          Retry
+                        </button>
+                      </div>
                     ) : null,
                 },
               ]}

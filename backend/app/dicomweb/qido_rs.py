@@ -6,7 +6,7 @@ import httpx
 import structlog
 
 from app.dicomweb.auth_handler import AuthHandler
-from app.dicomweb.dicom_json import parse_study_metadata
+from app.dicomweb.dicom_json import STUDY_MODALITY_QUERY_KEYS, parse_study_metadata
 
 logger = structlog.get_logger()
 
@@ -25,13 +25,19 @@ class QidoStudy:
     study_date: str | None = None
 
 
-def build_qido_params(filters: dict | None, limit: int = 100, offset: int = 0) -> dict[str, str | int]:
+def build_qido_params(
+    filters: dict | None,
+    limit: int = 100,
+    offset: int = 0,
+    *,
+    modality_query_key: str = STUDY_MODALITY_QUERY_KEYS[0],
+) -> dict[str, str | int]:
     params: dict[str, str | int] = {"limit": limit, "offset": offset}
     if not filters:
         return params
 
     if filters.get("modality"):
-        params["Modality"] = filters["modality"]
+        params[modality_query_key] = str(filters["modality"]).strip().upper()
     if filters.get("patient_id"):
         params["PatientID"] = filters["patient_id"]
     if filters.get("date_from") and filters.get("date_to"):
@@ -44,19 +50,25 @@ def build_qido_params(filters: dict | None, limit: int = 100, offset: int = 0) -
     return params
 
 
-async def search_studies(
+async def _search_studies_page(
     dicomweb_url: str,
     auth: AuthHandler,
-    filters: dict | None = None,
-    limit: int = 100,
-    offset: int = 0,
-    timeout: float = 60.0,
+    filters: dict | None,
+    limit: int,
+    offset: int,
+    timeout: float,
+    modality_query_key: str,
 ) -> list[QidoStudy]:
     base_url = dicomweb_url.rstrip("/")
     url = f"{base_url}/studies"
     headers = {"Accept": "application/dicom+json"}
     headers.update(auth.get_headers())
-    params = build_qido_params(filters, limit=limit, offset=offset)
+    params = build_qido_params(
+        filters,
+        limit=limit,
+        offset=offset,
+        modality_query_key=modality_query_key,
+    )
 
     async with httpx.AsyncClient(timeout=timeout) as client:
         response = await client.get(url, headers=headers, params=params)
@@ -88,5 +100,88 @@ async def search_studies(
             )
         )
 
-    logger.info("qido_search_complete", count=len(studies), offset=offset, limit=limit)
     return studies
+
+
+async def search_studies(
+    dicomweb_url: str,
+    auth: AuthHandler,
+    filters: dict | None = None,
+    limit: int = 100,
+    offset: int = 0,
+    timeout: float = 60.0,
+    modality_query_key: str | None = None,
+) -> list[QidoStudy]:
+    """Search studies via QIDO-RS with cross-PACS modality matching."""
+    modality_filter = (filters or {}).get("modality")
+    keys_to_try: tuple[str, ...]
+    if modality_filter and modality_query_key:
+        keys_to_try = (modality_query_key,)
+    elif modality_filter:
+        keys_to_try = STUDY_MODALITY_QUERY_KEYS
+    else:
+        keys_to_try = (STUDY_MODALITY_QUERY_KEYS[0],)
+
+    last_error: QidoRsError | None = None
+    for key in keys_to_try:
+        try:
+            studies = await _search_studies_page(
+                dicomweb_url,
+                auth,
+                filters,
+                limit,
+                offset,
+                timeout,
+                key,
+            )
+        except QidoRsError as exc:
+            last_error = exc
+            if modality_filter and key != keys_to_try[-1]:
+                logger.info("qido_modality_query_retry", failed_key=key, error=str(exc))
+                continue
+            raise
+
+        if studies or not modality_filter or key == keys_to_try[-1]:
+            logger.info(
+                "qido_search_complete",
+                count=len(studies),
+                offset=offset,
+                limit=limit,
+                modality_query_key=key if modality_filter else None,
+            )
+            return studies
+
+        logger.info("qido_modality_query_retry", failed_key=key, next_key=keys_to_try[-1])
+
+    if last_error:
+        raise last_error
+    return []
+
+
+async def resolve_modality_query_key(
+    dicomweb_url: str,
+    auth: AuthHandler,
+    modality: str,
+    timeout: float = 60.0,
+) -> str:
+    """Pick the modality QIDO parameter supported by the source PACS."""
+    filters = {"modality": modality}
+    for key in STUDY_MODALITY_QUERY_KEYS:
+        try:
+            page = await _search_studies_page(
+                dicomweb_url,
+                auth,
+                filters,
+                limit=1,
+                offset=0,
+                timeout=timeout,
+                modality_query_key=key,
+            )
+            if page:
+                return key
+        except QidoRsError as exc:
+            if key != STUDY_MODALITY_QUERY_KEYS[-1] and exc.status_code >= 400:
+                logger.info("qido_modality_query_unsupported", key=key, status=exc.status_code)
+                continue
+            raise
+    return STUDY_MODALITY_QUERY_KEYS[0]

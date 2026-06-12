@@ -76,6 +76,13 @@ export default function Chatbot() {
 
   const suggestions = suggestionsData?.suggestions ?? [];
 
+  const statusTooltip =
+    status && !status.available
+      ? "offline"
+      : status && !status.model_ready
+        ? "pulling"
+        : null;
+
   return (
     <div className="chatbot-page">
       <PageHeader
@@ -83,14 +90,39 @@ export default function Chatbot() {
         description="Ask about routing status, migration jobs, and system health. Read-only — powered by Ollama."
         actions={
           status && (
-            <div className="connection-pill" style={{ marginRight: 0 }}>
-              <Sparkles size={14} />
-              {status.available && status.model_ready ? (
-                <span style={{ color: "var(--color-success)" }}>Ollama ready</span>
-              ) : status.available ? (
-                <span style={{ color: "var(--color-warning)" }}>Model not pulled</span>
-              ) : (
-                <span>Offline — fallback mode</span>
+            <div
+              className={`connection-pill-wrap${statusTooltip ? " connection-pill-wrap--has-tooltip" : ""}`}
+              style={{ marginRight: 0 }}
+            >
+              <div
+                className="connection-pill"
+                tabIndex={statusTooltip ? 0 : undefined}
+                aria-describedby={statusTooltip ? "ollama-status-tooltip" : undefined}
+              >
+                <Sparkles size={14} />
+                {status.available && status.model_ready ? (
+                  <span style={{ color: "var(--color-success)" }}>Ollama ready</span>
+                ) : status.available ? (
+                  <span style={{ color: "var(--color-warning)" }}>Model not pulled</span>
+                ) : (
+                  <span>Offline — fallback mode</span>
+                )}
+              </div>
+              {statusTooltip && (
+                <div id="ollama-status-tooltip" className="connection-pill-tooltip" role="tooltip">
+                  {statusTooltip === "pulling" ? (
+                    <>
+                      Model <code>{status.model}</code> is downloading or not installed yet. Watch progress with{" "}
+                      <code>docker logs -f synapse-ollama</code>. The chatbot uses fallback answers until the pull
+                      completes.
+                    </>
+                  ) : (
+                    <>
+                      Ollama is unreachable — responses use live Synapse data only (fallback mode).
+                      {status.error && <> ({status.error})</>}
+                    </>
+                  )}
+                </div>
               )}
             </div>
           )
@@ -175,13 +207,6 @@ export default function Chatbot() {
               </button>
             ))}
           </div>
-
-          {status && !status.model_ready && status.available && (
-            <p style={{ fontSize: "0.8125rem", color: "var(--color-text-muted)", marginTop: "1rem" }}>
-              Pull the model:{" "}
-              <code>docker exec synapse-ollama ollama pull {status.model}</code>
-            </p>
-          )}
         </aside>
       </div>
     </div>

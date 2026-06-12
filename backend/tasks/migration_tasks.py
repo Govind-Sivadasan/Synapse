@@ -1,10 +1,10 @@
 """Celery tasks for bulk DICOM migration."""
 
-import asyncio
 import uuid
 
 import structlog
 
+from app.database import run_async_task
 from celery_app import celery_app
 
 logger = structlog.get_logger()
@@ -111,7 +111,7 @@ def fetch_and_enqueue_studies(self, job_id: str) -> dict:
     """Paginate QIDO-RS on source PACS and enqueue per-study migration tasks."""
     logger.info("fetch_and_enqueue_studies", job_id=job_id)
     try:
-        return asyncio.run(_fetch_and_enqueue(job_id))
+        return run_async_task(_fetch_and_enqueue(job_id))
     except Exception as exc:
         raise self.retry(exc=exc, countdown=2**self.request.retries)
 
@@ -121,7 +121,7 @@ def migrate_study(self, job_id: str, study_uid: str) -> dict:
     """Migrate a single study: WADO-RS download → morph → STOW-RS upload."""
     logger.info("migrate_study", job_id=job_id, study_uid=study_uid)
     try:
-        return asyncio.run(_migrate_study(job_id, study_uid))
+        return run_async_task(_migrate_study(job_id, study_uid))
     except Exception as exc:
         logger.error("migrate_study_task_failed", job_id=job_id, study_uid=study_uid, error=str(exc))
         raise self.retry(exc=exc, countdown=2**self.request.retries)

@@ -1,5 +1,6 @@
 """WADO-RS instance retrieval client."""
 
+import re
 from pathlib import Path
 
 import httpx
@@ -9,6 +10,12 @@ from app.dicomweb.auth_handler import AuthHandler
 from app.dicomweb.dicom_json import TAG_SERIES_INSTANCE_UID, TAG_SOP_INSTANCE_UID, tag_value
 
 logger = structlog.get_logger()
+
+# Orthanc returns HTTP 400 for bare application/dicom; multipart is required.
+WADO_ACCEPT_PREFERENCES = (
+    'multipart/related; type="application/dicom"; transfer-syntax=*',
+    "application/dicom",
+)
 
 
 class WadoRsError(Exception):
@@ -30,6 +37,54 @@ async def _get_json(
         )
     data = response.json()
     return data if isinstance(data, list) else [data]
+
+
+def _extract_multipart_dicom(body: bytes, content_type: str) -> bytes:
+    """Parse a single-instance WADO-RS multipart/related response body."""
+    match = re.search(r'boundary="?([^";\s]+)"?', content_type, re.IGNORECASE)
+    if not match:
+        raise WadoRsError(f"No multipart boundary in Content-Type: {content_type}")
+
+    boundary = match.group(1)
+    for part in body.split(f"--{boundary}".encode()):
+        if b"\r\n\r\n" not in part:
+            continue
+        header_block, payload = part.split(b"\r\n\r\n", 1)
+        if b"application/dicom" not in header_block.lower():
+            continue
+        payload = payload.rstrip(b"\r\n")
+        if payload.endswith(b"--"):
+            payload = payload[:-2].rstrip(b"\r\n")
+        if payload:
+            return payload
+
+    raise WadoRsError("No application/dicom part found in WADO-RS multipart response")
+
+
+def _decode_wado_instance(response: httpx.Response) -> bytes:
+    content_type = response.headers.get("content-type", "")
+    if content_type.lower().startswith("multipart/"):
+        return _extract_multipart_dicom(response.content, content_type)
+    return response.content
+
+
+async def _retrieve_instance(
+    client: httpx.AsyncClient,
+    url: str,
+    headers: dict[str, str],
+    sop_uid: str,
+) -> bytes:
+    last_status = 0
+    for accept in WADO_ACCEPT_PREFERENCES:
+        response = await client.get(url, headers={**headers, "Accept": accept})
+        last_status = response.status_code
+        if response.status_code < 400:
+            return _decode_wado_instance(response)
+
+    raise WadoRsError(
+        f"WADO-RS retrieve failed for {sop_uid}: HTTP {last_status}",
+        last_status,
+    )
 
 
 async def retrieve_study_instances(
@@ -65,18 +120,10 @@ async def retrieve_study_instances(
                 instance_url = (
                     f"{base_url}/studies/{study_uid}/series/{series_uid}/instances/{sop_uid}"
                 )
-                dicom_response = await client.get(
-                    instance_url,
-                    headers={**headers, "Accept": "application/dicom"},
-                )
-                if dicom_response.status_code >= 400:
-                    raise WadoRsError(
-                        f"WADO-RS retrieve failed for {sop_uid}: HTTP {dicom_response.status_code}",
-                        dicom_response.status_code,
-                    )
+                dicom_bytes = await _retrieve_instance(client, instance_url, headers, sop_uid)
 
                 file_path = output_dir / f"{sop_uid}.dcm"
-                file_path.write_bytes(dicom_response.content)
+                file_path.write_bytes(dicom_bytes)
                 saved.append(file_path)
 
     if not saved:
