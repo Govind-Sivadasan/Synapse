@@ -9,6 +9,7 @@ from pynetdicom.sop_class import Verification
 
 from app.config import settings
 from app.dimse.study_assembler import StudyAssembler
+from app.services.runtime_config import get_runtime_config
 
 logger = structlog.get_logger()
 
@@ -17,7 +18,6 @@ class DIMSEListener:
     def __init__(self) -> None:
         self.ae_title = settings.dimse_ae_title
         self.port = settings.dimse_port
-        self.promiscuous = settings.dimse_promiscuous_mode
         self.temp_path = Path(settings.temp_storage_path)
         self.temp_path.mkdir(parents=True, exist_ok=True)
         self.assembler = StudyAssembler(self.temp_path)
@@ -40,7 +40,7 @@ class DIMSEListener:
     def _handle_released(self, event):
         try:
             calling_ae = event.assoc.requestor.ae_title.strip()
-            if not self.promiscuous and calling_ae not in self._allowed_calling_aets():
+            if not get_runtime_config()["dimse_promiscuous_mode"] and calling_ae not in self._allowed_calling_aets():
                 logger.warning("association_rejected_unknown_ae", calling_ae=calling_ae)
                 return
 

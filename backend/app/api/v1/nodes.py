@@ -2,7 +2,7 @@
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,6 +10,7 @@ from app.auth.keycloak import CurrentUser, require_roles
 from app.database import get_db
 from app.models.node import Node
 from app.schemas.node import NodeCreate, NodeResponse, NodeUpdate
+from app.services.audit_logger import AuditLogger
 
 router = APIRouter(prefix="/nodes", tags=["Nodes"])
 
@@ -26,13 +27,24 @@ async def list_nodes(
 @router.post("", response_model=NodeResponse, status_code=status.HTTP_201_CREATED)
 async def create_node(
     payload: NodeCreate,
+    request: Request,
     db: AsyncSession = Depends(get_db),
-    _: CurrentUser = Depends(require_roles("admin")),
+    user: CurrentUser = Depends(require_roles("admin")),
 ) -> Node:
     node = Node(**payload.model_dump())
     db.add(node)
     await db.flush()
     await db.refresh(node)
+    await AuditLogger.log(
+        db,
+        "CONFIG_CHANGE",
+        user_id=user.sub,
+        user_role="admin",
+        entity_type="Node",
+        entity_id=node.id,
+        details={"action": "create", "name": node.name, "node_type": node.node_type},
+        ip_address=request.client.host if request.client else None,
+    )
     return node
 
 
@@ -52,8 +64,9 @@ async def get_node(
 async def update_node(
     node_id: UUID,
     payload: NodeUpdate,
+    request: Request,
     db: AsyncSession = Depends(get_db),
-    _: CurrentUser = Depends(require_roles("admin")),
+    user: CurrentUser = Depends(require_roles("admin")),
 ) -> Node:
     node = await db.get(Node, node_id)
     if not node:
@@ -62,16 +75,37 @@ async def update_node(
         setattr(node, key, value)
     await db.flush()
     await db.refresh(node)
+    await AuditLogger.log(
+        db,
+        "CONFIG_CHANGE",
+        user_id=user.sub,
+        user_role="admin",
+        entity_type="Node",
+        entity_id=node.id,
+        details={"action": "update", "name": node.name},
+        ip_address=request.client.host if request.client else None,
+    )
     return node
 
 
 @router.delete("/{node_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_node(
     node_id: UUID,
+    request: Request,
     db: AsyncSession = Depends(get_db),
-    _: CurrentUser = Depends(require_roles("admin")),
+    user: CurrentUser = Depends(require_roles("admin")),
 ) -> None:
     node = await db.get(Node, node_id)
     if not node:
         raise HTTPException(status_code=404, detail="Node not found")
+    await AuditLogger.log(
+        db,
+        "CONFIG_CHANGE",
+        user_id=user.sub,
+        user_role="admin",
+        entity_type="Node",
+        entity_id=node.id,
+        details={"action": "delete", "name": node.name},
+        ip_address=request.client.host if request.client else None,
+    )
     await db.delete(node)

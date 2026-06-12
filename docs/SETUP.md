@@ -120,10 +120,21 @@ Open http://localhost:5173
 | Celery tasks not processing | Verify workers: `docker logs synapse-celery-routing` |
 | Ollama unhealthy | Model not pulled yet; run `ollama pull` command above |
 
+## Phase 1 APIs (Admin)
+
+| Endpoint | Methods | Description |
+|----------|---------|-------------|
+| `/api/v1/nodes` | GET, POST, PUT, DELETE | PACS node configuration |
+| `/api/v1/routing-rules` | GET, POST, PUT, DELETE | Conditional routing rules |
+| `/api/v1/routing-rules/{id}/preview` | POST | Test rule against sample metadata |
+| `/api/v1/tag-morphing-rules` | GET, POST, PUT, DELETE | Tag morphing rules |
+| `/api/v1/tag-morphing-rules/{id}/preview` | POST | Preview morphing result |
+| `/api/v1/config` | GET, PUT | System settings (DIMSE, retries, promiscuous mode) |
+| `/api/v1/audit-logs` | GET | Filterable audit log viewer |
+
 ## Next Implementation Steps
 
-1. Complete routing rules and tag morphing REST APIs
-2. Implement `RoutingEngine` + `DICOMwebClient.stow_rs()`
-3. Wire Celery `route_study` task to routing engine
-4. Build migration job APIs and UI
-5. Integrate chatbot with Ollama
+1. Implement `RoutingEngine` + `DICOMwebClient.stow_rs()`
+2. Wire Celery `route_study` task to routing engine
+3. Build migration job APIs and UI
+4. Integrate chatbot with Ollama

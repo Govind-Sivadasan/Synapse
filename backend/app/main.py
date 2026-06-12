@@ -9,7 +9,10 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1.router import api_router
 from app.config import settings
+from app.database import async_session_factory
 from app.dimse.listener import DIMSEListener
+from app.services.runtime_config import set_runtime_overrides
+from app.services.system_config import get_system_config
 from app.websocket.manager import ws_manager
 
 logger = structlog.get_logger()
@@ -20,6 +23,10 @@ dimse_listener: DIMSEListener | None = None
 async def lifespan(app: FastAPI):
     global dimse_listener
     logger.info("starting_synapse", ae_title=settings.dimse_ae_title, port=settings.dimse_port)
+
+    async with async_session_factory() as session:
+        config = await get_system_config(session)
+        set_runtime_overrides(config)
 
     dimse_listener = DIMSEListener()
     dimse_task = asyncio.create_task(dimse_listener.start())

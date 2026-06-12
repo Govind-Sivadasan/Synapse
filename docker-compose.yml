@@ -62,7 +62,7 @@ services:
     networks:
       - synapse_net
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8042/system"]
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8042/system')"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -78,7 +78,7 @@ services:
     networks:
       - synapse_net
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8042/system"]
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8042/system')"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -202,8 +202,10 @@ services:
     ports:
       - "3000:80"
     depends_on:
-      - backend
-      - keycloak
+      backend:
+        condition: service_healthy
+      keycloak:
+        condition: service_started
     networks:
       - synapse_net
 
