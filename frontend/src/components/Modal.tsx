@@ -7,14 +7,17 @@ interface Props {
   onClose: () => void;
   children: ReactNode;
   wide?: boolean;
+  extraWide?: boolean;
 }
 
-export default function Modal({ title, open, onClose, children, wide }: Props) {
+export default function Modal({ title, open, onClose, children, wide, extraWide }: Props) {
   if (!open) return null;
+
+  const sizeClass = extraWide ? "modal-xl" : wide ? "modal-wide" : "";
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className={`modal ${wide ? "modal-wide" : ""}`} onClick={(e) => e.stopPropagation()}>
+      <div className={`modal ${sizeClass}`} onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h3>{title}</h3>
           <button type="button" className="modal-close" onClick={onClose} aria-label="Close">

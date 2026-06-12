@@ -598,6 +598,64 @@ button:disabled {
   width: min(100%, 920px);
 }
 
+.modal-xl {
+  width: min(100%, 960px);
+}
+
+.job-detail-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+.job-detail-stat {
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 0.75rem 0.85rem;
+}
+
+.job-detail-stat span {
+  display: block;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+  margin-bottom: 0.2rem;
+}
+
+.job-detail-stat strong {
+  font-size: 1rem;
+  color: var(--color-text);
+}
+
+.job-progress-bar {
+  height: 8px;
+  background: var(--color-bg);
+  border-radius: 999px;
+  overflow: hidden;
+  margin: 0.75rem 0 1.25rem;
+  border: 1px solid var(--color-border);
+}
+
+.job-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--color-primary) 0%, var(--color-accent) 100%);
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+
+.job-detail-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.25rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
 .modal .form-grid {
   grid-template-columns: 1fr 1fr;
   gap: 1.1rem 1.25rem;
@@ -764,6 +822,10 @@ button:disabled {
   to {
     transform: rotate(360deg);
   }
+}
+
+.spin-icon {
+  animation: spin 0.8s linear infinite;
 }
 
 @keyframes pulse-glow {

@@ -68,6 +68,52 @@ export interface AuditLogList {
   items: AuditLog[];
 }
 
+export interface MigrationJob {
+  id: string;
+  name: string;
+  source_node_id: string;
+  destination_node_id: string;
+  source_node_name: string | null;
+  destination_node_name: string | null;
+  job_type: "historical" | "batch" | "incremental";
+  status: string;
+  total_studies: number | null;
+  completed_studies: number;
+  failed_studies: number;
+  retry_count: number;
+  job_config: Record<string, unknown> | null;
+  celery_task_id: string | null;
+  created_by: string;
+  start_time: string | null;
+  end_time: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MigrationJobList {
+  total: number;
+  items: MigrationJob[];
+}
+
+export interface MigrationStudyRecord {
+  id: string;
+  job_id: string;
+  study_uid: string;
+  patient_id: string | null;
+  modality: string | null;
+  study_date: string | null;
+  status: string;
+  retry_count: number;
+  failure_reason: string | null;
+  created_at: string;
+  completed_at: string | null;
+}
+
+export interface MigrationStudyList {
+  total: number;
+  items: MigrationStudyRecord[];
+}
+
 export const DICOM_TAGS = [
   "Modality",
   "PatientID",

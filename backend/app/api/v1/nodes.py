@@ -19,7 +19,7 @@ router = APIRouter(prefix="/nodes", tags=["Nodes"])
 @router.get("", response_model=list[NodeResponse])
 async def list_nodes(
     db: AsyncSession = Depends(get_db),
-    _: CurrentUser = Depends(require_roles("admin")),
+    _: CurrentUser = Depends(require_roles("admin", "operator")),
 ) -> list[Node]:
     result = await db.execute(select(Node).order_by(Node.name))
     return list(result.scalars().all())

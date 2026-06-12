@@ -8,6 +8,7 @@ from app.api.v1 import (
     dashboard,
     dimse,
     health,
+    migration_jobs,
     nodes,
     routing_rules,
     routing_transactions,
@@ -25,3 +26,4 @@ api_router.include_router(audit_logs.router)
 api_router.include_router(dimse.router)
 api_router.include_router(routing_transactions.router)
 api_router.include_router(dashboard.router)
+api_router.include_router(migration_jobs.router)

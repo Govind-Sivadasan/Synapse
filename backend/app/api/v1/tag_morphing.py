@@ -35,7 +35,7 @@ def _validate_morphing_rule(payload: TagMorphingRuleCreate | TagMorphingRuleUpda
 @router.get("", response_model=list[TagMorphingRuleResponse])
 async def list_tag_morphing_rules(
     db: AsyncSession = Depends(get_db),
-    _: CurrentUser = Depends(require_roles("admin")),
+    _: CurrentUser = Depends(require_roles("admin", "operator")),
 ) -> list[TagMorphingRule]:
     result = await db.execute(select(TagMorphingRule).order_by(TagMorphingRule.name))
     return list(result.scalars().all())

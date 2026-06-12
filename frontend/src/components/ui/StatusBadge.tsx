@@ -14,6 +14,11 @@ const STATUS_MAP: Record<string, BadgeVariant> = {
   inactive: "error",
   disconnected: "neutral",
   no_match: "info",
+  not_started: "neutral",
+  in_progress: "info",
+  completed: "success",
+  cancelled: "neutral",
+  skipped: "neutral",
   unknown: "neutral",
 };
 
