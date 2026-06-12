@@ -132,6 +132,20 @@ Open http://localhost:5173
 | `/api/v1/config` | GET, PUT | System settings (DIMSE, retries, promiscuous mode) |
 | `/api/v1/audit-logs` | GET | Filterable audit log viewer |
 
+## Phase 2: DIMSE E2E Testing
+
+See [DIMSE_TESTING.md](DIMSE_TESTING.md) for full guide.
+
+```bash
+# Run unit tests inside backend container
+docker exec synapse-backend python -m pytest tests/ -v
+
+# Run DIMSE E2E test (requires celery-routing worker running)
+docker exec synapse-backend python scripts/test_dimse_e2e.py --host localhost --port 11112
+```
+
+Verify in UI: **Routing Monitor** shows DIMSE stats and received studies.
+
 ## Next Implementation Steps
 
 1. Implement `RoutingEngine` + `DICOMwebClient.stow_rs()`

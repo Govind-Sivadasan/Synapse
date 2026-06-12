@@ -9,6 +9,7 @@ from sqlalchemy import text
 
 from app.config import settings
 from app.database import async_session_factory
+from app.dimse.stats import get_dimse_stats
 from app.schemas.common import HealthComponent, HealthResponse
 
 router = APIRouter(tags=["Health"])
@@ -44,9 +45,21 @@ async def _check_http(name: str, url: str) -> HealthComponent:
         return HealthComponent(name=name, status="unhealthy", message=str(exc))
 
 
+def _check_dimse_listener() -> HealthComponent:
+    stats = get_dimse_stats()
+    if stats.listening:
+        return HealthComponent(
+            name="dimse_listener",
+            status="healthy",
+            message=f"{stats.ae_title}@{stats.port}",
+        )
+    return HealthComponent(name="dimse_listener", status="unhealthy", message="Not listening")
+
+
 @router.get("/health", response_model=HealthResponse)
 async def health_check() -> HealthResponse:
     components = [
+        _check_dimse_listener(),
         await _check_postgres(),
         await _check_redis(),
         await _check_http("orthanc_onprem", f"{settings.orthanc_onprem_dicomweb_url.rsplit('/dicom-web', 1)[0]}/system"),

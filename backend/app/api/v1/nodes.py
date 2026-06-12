@@ -10,6 +10,7 @@ from app.auth.keycloak import CurrentUser, require_roles
 from app.database import get_db
 from app.models.node import Node
 from app.schemas.node import NodeCreate, NodeResponse, NodeUpdate
+from app.services.allowed_aets import refresh_allowed_calling_aets
 from app.services.audit_logger import AuditLogger
 
 router = APIRouter(prefix="/nodes", tags=["Nodes"])
@@ -45,6 +46,7 @@ async def create_node(
         details={"action": "create", "name": node.name, "node_type": node.node_type},
         ip_address=request.client.host if request.client else None,
     )
+    await refresh_allowed_calling_aets()
     return node
 
 
@@ -85,6 +87,7 @@ async def update_node(
         details={"action": "update", "name": node.name},
         ip_address=request.client.host if request.client else None,
     )
+    await refresh_allowed_calling_aets()
     return node
 
 
@@ -109,3 +112,4 @@ async def delete_node(
         ip_address=request.client.host if request.client else None,
     )
     await db.delete(node)
+    await refresh_allowed_calling_aets()

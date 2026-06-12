@@ -8,7 +8,7 @@ celery_app = Celery(
     "synapse",
     broker=settings.redis_url,
     backend=settings.redis_url,
-    include=["tasks.routing_tasks", "tasks.migration_tasks"],
+    include=["tasks.routing_tasks", "tasks.migration_tasks", "tasks.dimse_tasks"],
 )
 
 celery_app.conf.update(

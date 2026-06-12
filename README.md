@@ -63,8 +63,8 @@ synapse/
 |-------|--------|-------------|
 | Phase 0 | ✅ Done | Docker stack, health checks, DB schema, auth scaffold |
 | Phase 1 | ✅ Done | Config APIs, routing/morphing rules, audit logs, admin UI |
-| Phase 2 | 🔲 Next | DIMSE receiver E2E testing |
-| Phase 3 | 🔲 | Routing engine + STOW-RS upload |
+| Phase 2 | ✅ Done | DIMSE receiver, study assembly, E2E tests, routing monitor |
+| Phase 3 | 🔲 Next | Routing engine + STOW-RS upload |
 | Phase 4 | 🔲 | Migration engine |
 | Phase 5 | 🔲 | Dashboard, audit, reporting |
 | Phase 6 | 🔲 | Chatbot service |

@@ -11,9 +11,11 @@ from app.api.v1.router import api_router
 from app.config import settings
 from app.database import async_session_factory
 from app.dimse.listener import DIMSEListener
+from app.services.allowed_aets import refresh_allowed_calling_aets
 from app.services.runtime_config import set_runtime_overrides
 from app.services.system_config import get_system_config
 from app.websocket.manager import ws_manager
+from app.websocket.redis_bridge import redis_event_subscriber
 
 logger = structlog.get_logger()
 dimse_listener: DIMSEListener | None = None
@@ -28,18 +30,23 @@ async def lifespan(app: FastAPI):
         config = await get_system_config(session)
         set_runtime_overrides(config)
 
+    await refresh_allowed_calling_aets()
+
     dimse_listener = DIMSEListener()
     dimse_task = asyncio.create_task(dimse_listener.start())
+    redis_task = asyncio.create_task(redis_event_subscriber())
 
     yield
 
+    redis_task.cancel()
     if dimse_listener:
         await dimse_listener.stop()
     dimse_task.cancel()
-    try:
-        await dimse_task
-    except asyncio.CancelledError:
-        pass
+    for task in (redis_task, dimse_task):
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
     logger.info("synapse_shutdown_complete")
 
 
