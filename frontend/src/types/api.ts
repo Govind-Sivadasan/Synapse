@@ -164,6 +164,22 @@ export interface ChatQueryResponse {
   used_fallback: boolean;
   model: string | null;
   suggestions: string[];
+  user_message: ChatMessage;
+  assistant_message: ChatMessage;
+}
+
+export interface ChatMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  phi_redacted?: boolean | null;
+  used_fallback?: boolean | null;
+  created_at: string;
+}
+
+export interface ChatMessageList {
+  total: number;
+  items: ChatMessage[];
 }
 
 export interface ChatbotStatus {

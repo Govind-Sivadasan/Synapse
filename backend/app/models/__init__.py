@@ -1,4 +1,5 @@
 from app.models.audit_log import AuditLog
+from app.models.chat_message import ChatMessage
 from app.models.dimse_event import DimseEvent, DimseListenerMetrics
 from app.models.migration import MigrationJob, MigrationStudyRecord
 from app.models.node import Node

@@ -1627,11 +1627,51 @@ button:disabled {
 }
 
 .chat-bubble-content {
-  padding: 0.75rem 1rem;
+  padding: 0.45rem 0.55rem 0.35rem 0.75rem;
   border-radius: var(--radius-lg);
   font-size: 0.9375rem;
-  line-height: 1.5;
+  line-height: 1.45;
+  max-width: 100%;
+  position: relative;
+}
+
+.chat-bubble-text {
+  display: block;
   white-space: pre-wrap;
+  word-break: break-word;
+  padding-right: 0.25rem;
+}
+
+.chat-bubble-time {
+  float: right;
+  font-size: 0.6875rem;
+  line-height: 1.2;
+  white-space: nowrap;
+  opacity: 0.85;
+  margin-top: 0.35rem;
+  margin-left: 0.65rem;
+  position: relative;
+  top: 0.15rem;
+}
+
+.chat-bubble--user .chat-bubble-time {
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.chat-bubble--assistant .chat-bubble-time {
+  color: var(--color-text-muted);
+}
+
+.chat-date-divider {
+  align-self: center;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  background: rgba(15, 23, 42, 0.06);
+  padding: 0.3rem 0.75rem;
+  border-radius: 999px;
+  margin: 0.35rem 0 0.15rem;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
 }
 
 .chat-bubble--user .chat-bubble-content {

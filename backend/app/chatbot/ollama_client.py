@@ -58,7 +58,38 @@ async def chat_completion(system_prompt: str, user_message: str, timeout: float 
     content = message.get("content", "").strip()
     if not content:
         raise OllamaError("Empty response from Ollama")
-    return content
+    return normalize_chat_answer(content)
+
+
+def normalize_chat_answer(text: str) -> str:
+    """Extract human-readable text when the model returns JSON or fenced JSON."""
+    cleaned = text.strip()
+    if not cleaned:
+        return text
+
+    if cleaned.startswith("```"):
+        lines = cleaned.splitlines()
+        if len(lines) >= 2 and lines[0].startswith("```"):
+            cleaned = "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:]).strip()
+
+    parsed = _try_parse_json_object(cleaned)
+    if parsed is not None:
+        for key in ("message", "answer", "response", "content", "text", "reply"):
+            value = parsed.get(key)
+            if isinstance(value, str) and value.strip():
+                return normalize_chat_answer(value.strip())
+
+    return text.strip()
+
+
+def _try_parse_json_object(raw: str) -> dict | None:
+    if not raw.startswith("{"):
+        return None
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        return None
+    return data if isinstance(data, dict) else None
 
 
 def fallback_response(user_message: str, context: dict) -> str:
@@ -107,6 +138,7 @@ You help staff understand routing, migration jobs, and system status. You never 
 
 Rules:
 - Answer ONLY using the JSON context below. If data is missing, say you don't have that information.
+- Respond in plain conversational text only. Never wrap your reply in JSON, markdown code blocks, or structured objects.
 - Be concise (2-5 sentences unless listing items).
 - Use plain language suitable for healthcare IT operators.
 - When citing counts or statuses, use exact numbers from context.
