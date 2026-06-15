@@ -16,12 +16,16 @@ Built for the **DU2 Hackathon 2026 May** programme.
 
 ## Quick Start
 
-```powershell
-# Windows — recommended
-.\scripts\run.ps1 up -Detach -Build
+```bat
+REM Windows CMD
+cd /d d:\PROJECTS\Synapse
+run.bat up -Detach -Build
+```
 
-# Or from project root
-.\run.bat up -Detach -Build
+```powershell
+# Windows PowerShell
+.\scripts\run.ps1 up -Detach -Build
+# Or: .\run.bat up -Detach -Build
 ```
 
 ```bash

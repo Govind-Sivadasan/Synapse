@@ -10,6 +10,7 @@ BUILD=0
 DETACH=0
 INFRA=0
 VOLUMES=0
+KEEP_OLLAMA=0
 NO_OLLAMA=0
 FOLLOW=0
 SERVICES=()
@@ -24,6 +25,41 @@ ok()    { printf '\033[32m[synapse]\033[0m %s\n' "$*"; }
 warn()  { printf '\033[33m[synapse]\033[0m %s\n' "$*"; }
 err()   { printf '\033[31m[synapse]\033[0m %s\n' "$*" >&2; }
 
+COMPOSE_VOLUMES=(postgres_data orthanc_onprem_data orthanc_cloud_data ollama_data temp_dicom)
+OLLAMA_VOLUME=ollama_data
+
+compose_project_name() {
+  if [[ -n "${COMPOSE_PROJECT_NAME:-}" ]]; then
+    printf '%s' "$COMPOSE_PROJECT_NAME"
+    return
+  fi
+  basename "$ROOT" | tr '[:upper:]' '[:lower:]'
+}
+
+compose_down() {
+  if [[ $VOLUMES -eq 1 && $KEEP_OLLAMA -eq 1 ]]; then
+    err "Use --volumes or --keep-ollama, not both."
+    exit 1
+  fi
+  if [[ $VOLUMES -eq 1 ]]; then
+    warn "Removing all volumes - database, Orthanc, Ollama model cache, and temp storage will be wiped."
+    docker compose down -v
+    return
+  fi
+  docker compose down
+  if [[ $KEEP_OLLAMA -eq 0 ]]; then
+    return
+  fi
+  local project
+  project="$(compose_project_name)"
+  warn "Removing data volumes except Ollama (ollama_data / model cache preserved)."
+  local volume
+  for volume in "${COMPOSE_VOLUMES[@]}"; do
+    [[ "$volume" == "$OLLAMA_VOLUME" ]] && continue
+    docker volume rm "${project}_${volume}" 2>/dev/null || true
+  done
+}
+
 usage() {
   cat <<'EOF'
 Synapse run script
@@ -33,7 +69,7 @@ Usage:
 
 Commands:
   up        Start services (default). Foreground unless --detach.
-  down      Stop services. Use --volumes to remove data volumes.
+  down      Stop services. Use --volumes or --keep-ollama to remove data volumes.
   restart   Restart services.
   logs      Tail service logs. Use --service and --follow.
   ps        Show container status.
@@ -48,7 +84,8 @@ Options:
   --detach, -d      Run containers in the background.
   --infra           Start only infrastructure services.
   --no-ollama       Skip Ollama (chatbot unavailable).
-  --volumes, -v     With down: remove named volumes.
+  --volumes, -v       With down: remove all named volumes (including Ollama).
+  --keep-ollama       With down: remove data volumes but keep ollama_data.
   --follow, -f      With logs: follow output.
   --service NAME    Limit to a compose service (repeatable).
 
@@ -59,6 +96,7 @@ Examples:
   ./scripts/run.sh dev
   ./scripts/run.sh logs --service backend --follow
   ./scripts/run.sh down --volumes
+  ./scripts/run.sh down --keep-ollama
 EOF
 }
 
@@ -142,6 +180,7 @@ while [[ $# -gt 0 ]]; do
     --infra) INFRA=1; shift ;;
     --no-ollama) NO_OLLAMA=1; shift ;;
     --volumes|-v) VOLUMES=1; shift ;;
+    --keep-ollama) KEEP_OLLAMA=1; shift ;;
     --follow|-f) FOLLOW=1; shift ;;
     --service) SERVICES+=("$2"); shift 2 ;;
     -h|--help) usage; exit 0 ;;
@@ -169,18 +208,20 @@ case "$COMMAND" in
     docker "${args[@]}"
     ;;
   down)
-    args=(compose down)
-    [[ $VOLUMES -eq 1 ]] && { args+=(-v); warn "Removing volumes."; }
-    docker "${args[@]}"
+    compose_down
     ;;
   restart)
-    "$0" down
+    down_args=(down)
+    [[ $VOLUMES -eq 1 ]] && down_args+=(--volumes)
+    [[ $KEEP_OLLAMA -eq 1 ]] && down_args+=(--keep-ollama)
+    "$0" "${down_args[@]}"
     restart_args=(up)
     [[ $BUILD -eq 1 ]] && restart_args+=(--build)
     [[ $DETACH -eq 1 ]] && restart_args+=(--detach)
     [[ $INFRA -eq 1 ]] && restart_args+=(--infra)
     [[ $NO_OLLAMA -eq 1 ]] && restart_args+=(--no-ollama)
     [[ $VOLUMES -eq 1 ]] && restart_args+=(--volumes)
+    [[ $KEEP_OLLAMA -eq 1 ]] && restart_args+=(--keep-ollama)
     for s in "${SERVICES[@]}"; do restart_args+=(--service "$s"); done
     "$0" "${restart_args[@]}"
     ;;

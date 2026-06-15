@@ -20,6 +20,7 @@ celery_app.conf.update(
     task_routes={
         "tasks.routing_tasks.*": {"queue": "routing_queue"},
         "tasks.migration_tasks.*": {"queue": "migration_queue"},
+        "tasks.dimse_tasks.*": {"queue": "routing_queue"},
     },
     task_default_retry_delay=5,
     task_acks_late=True,

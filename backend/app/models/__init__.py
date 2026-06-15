@@ -1,4 +1,5 @@
 from app.models.audit_log import AuditLog
+from app.models.dimse_event import DimseEvent, DimseListenerMetrics
 from app.models.migration import MigrationJob, MigrationStudyRecord
 from app.models.node import Node
 from app.models.routing import RoutingDestination, RoutingRule, RoutingTransaction
@@ -14,5 +15,7 @@ __all__ = [
     "MigrationJob",
     "MigrationStudyRecord",
     "AuditLog",
+    "DimseEvent",
+    "DimseListenerMetrics",
     "SystemSettings",
 ]

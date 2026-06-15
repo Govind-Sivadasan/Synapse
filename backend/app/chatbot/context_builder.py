@@ -6,11 +6,12 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dimse.stats import get_dimse_stats
+from app.dimse.stats import get_dimse_runtime
 from app.models.audit_log import AuditLog
 from app.models.migration import MigrationJob, MigrationStudyRecord
 from app.models.routing import RoutingTransaction
 from app.services.dashboard_metrics import get_dashboard_metrics
+from app.services.dimse_event_store import get_dimse_statistics
 
 STUDY_UID_RE = re.compile(r"1\.\d[\d.]{4,}")
 
@@ -49,13 +50,14 @@ async def build_chat_context(db: AsyncSession, query: str) -> dict:
         ctx["study_lookup"] = await _study_lookup(db, uid_match.group())
 
     if "health" in q or "status" in q:
-        stats = get_dimse_stats()
+        runtime = get_dimse_runtime()
+        dimse_stats = await get_dimse_statistics(db)
         ctx["dimse_listener"] = {
-            "listening": stats.listening,
-            "ae_title": stats.ae_title,
-            "port": stats.port,
-            "studies_assembled": stats.studies_assembled,
-            "instances_received": stats.instances_received,
+            "listening": runtime.listening,
+            "ae_title": runtime.ae_title,
+            "port": runtime.port,
+            "studies_assembled": dimse_stats["studies_assembled"],
+            "instances_received": dimse_stats["instances_received"],
         }
 
     return ctx

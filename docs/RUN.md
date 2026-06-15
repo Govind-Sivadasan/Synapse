@@ -6,11 +6,13 @@ The project includes wrapper scripts around Docker Compose for common start/stop
 
 | Platform | Command |
 |----------|---------|
-| Windows (batch) | `run.bat` from the project root |
-| Windows (PowerShell) | `.\scripts\run.ps1` |
+| **Windows CMD** | `run.bat` from the project root (see below) |
+| Windows PowerShell | `.\scripts\run.ps1` |
 | Git Bash / WSL / macOS / Linux | `./scripts/run.sh` |
 
-All three accept the same commands and options (PowerShell uses `-Flag` syntax; bash uses `--flag`).
+> **Using Command Prompt (cmd.exe)?** Do **not** run `.\scripts\run.ps1` directly — CMD cannot execute PowerShell scripts. Use **`run.bat`** instead. It forwards to the same script with identical flags.
+
+All entry points accept the same commands. Flag syntax: **CMD / PowerShell** use `-Detach`, `-Build`, etc. **Bash** uses `--detach`, `--build`.
 
 ## Prerequisites
 
@@ -20,9 +22,16 @@ All three accept the same commands and options (PowerShell uses `-Flag` syntax; 
 
 ## Quick start
 
+```bat
+REM Windows CMD — from project root (d:\PROJECTS\Synapse)
+cd /d d:\PROJECTS\Synapse
+run.bat up -Detach -Build
+```
+
 ```powershell
-# First run: build images and start in the background
+# Windows PowerShell — from project root
 .\scripts\run.ps1 up -Detach -Build
+# Or: .\run.bat up -Detach -Build
 ```
 
 ```bash
@@ -48,13 +57,14 @@ Open http://localhost:3000 and sign in with `admin` / `admin123`.
 
 ## Options
 
-| PowerShell | Bash | Effect |
-|------------|------|--------|
+| CMD / PowerShell | Bash | Effect |
+|------------------|------|--------|
 | `-Build` | `--build` / `-b` | Rebuild images before `up` or `dev`. |
 | `-Detach` | `--detach` / `-d` | Run containers in the background. |
 | `-Infra` | `--infra` | Start infrastructure only (see service groups below). |
 | `-NoOllama` | `--no-ollama` | Skip Ollama (faster startup; chatbot unavailable). |
-| `-Volumes` | `--volumes` / `-v` | With `down`: remove named volumes (wipes DB, Orthanc, Ollama cache). |
+| `-Volumes` | `--volumes` / `-v` | With `down`: remove **all** volumes (including Ollama model cache). |
+| `-KeepOllama` | `--keep-ollama` | With `down`: wipe DB, Orthanc, and temp data but **keep** `ollama_data`. |
 | `-Follow` | `--follow` / `-f` | With `logs`: follow output. |
 | `-Service NAME` | `--service NAME` | Limit to specific compose services (repeatable). |
 
@@ -73,6 +83,10 @@ With `-NoOllama`, the full stack runs without the `ollama` service.
 ## Run modes
 
 ### Full stack (production-like)
+
+```bat
+run.bat up -Detach -Build
+```
 
 ```powershell
 .\scripts\run.ps1 up -Detach -Build
@@ -119,26 +133,23 @@ Passes explicit service names to `docker compose up`.
 
 ## Examples
 
+```bat
+REM CMD
+run.bat help
+run.bat up -Detach -Build
+run.bat logs -Service backend -Follow
+run.bat down -Volumes
+run.bat down -KeepOllama
+```
+
 ```powershell
-# Start detached (no rebuild)
+# PowerShell
 .\scripts\run.ps1 up -Detach
-
-# Rebuild and start
 .\scripts\run.ps1 up -Detach -Build
-
-# Tail backend logs
 .\scripts\run.ps1 logs -Service backend -Follow
-
-# Check health after startup
 .\scripts\run.ps1 health
-
-# Stop everything
 .\scripts\run.ps1 down
-
-# Full reset (deletes database, Orthanc studies, Ollama model cache)
 .\scripts\run.ps1 down -Volumes
-
-# Restart with rebuild
 .\scripts\run.ps1 restart -Detach -Build
 ```
 
@@ -178,6 +189,7 @@ Default UI login: `admin` / `admin123`
 |--------|-------------|
 | `.\scripts\run.ps1 up -Detach -Build` | `docker compose up --build -d` |
 | `.\scripts\run.ps1 down -Volumes` | `docker compose down -v` |
+| `.\scripts\run.ps1 down -KeepOllama` | `docker compose down` + remove all volumes except `ollama_data` |
 | `.\scripts\run.ps1 logs -Service backend -Follow` | `docker compose logs -f backend` |
 | `.\scripts\run.ps1 up -Infra -Detach` | `docker compose up -d postgres redis keycloak orthanc-onprem orthanc-cloud ollama` |
 
@@ -185,11 +197,13 @@ Default UI login: `admin` / `admin123`
 
 | Issue | Action |
 |-------|--------|
+| **CMD: `run.ps1` is not recognized / opens in editor** | Use `run.bat` instead of `scripts\run.ps1`. CMD does not run `.ps1` files. |
+| **CMD: must be in project root** | `cd /d d:\PROJECTS\Synapse` then `run.bat ...` |
 | `Docker daemon is not running` | Start Docker Desktop. |
-| Script execution blocked (Windows) | `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` or use `run.bat`. |
-| `dev` fails on `npm` | Install Node.js 18+ or use full stack (`up -Detach`) instead. |
+| Script execution blocked (PowerShell only) | `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` or use `run.bat`. |
+| `dev` fails on `npm` | Install Node.js 18+ or use full stack (`run.bat up -Detach`) instead. |
 | Port already in use | Stop conflicting services or change compose port mappings. |
-| Stale data after schema changes | `.\scripts\run.ps1 down -Volumes` then `up -Detach -Build` (destructive). |
+| Stale data after schema changes | `run.bat down -KeepOllama` (keeps model) or `run.bat down -Volumes` (full wipe). |
 
 ## Related docs
 

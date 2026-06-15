@@ -1,4 +1,4 @@
-"""Celery tasks for DIMSE association audit logging."""
+"""Celery tasks for DIMSE association audit logging and persisted metrics."""
 
 import structlog
 
@@ -29,6 +29,30 @@ async def _log_association(
         await session.commit()
 
 
+async def _persist_dimse_activity(
+    event_type: str,
+    calling_ae: str | None = None,
+    study_uid: str | None = None,
+    reason: str | None = None,
+    instances: int | None = None,
+    details: dict | None = None,
+) -> None:
+    from app.database import async_session_factory
+    from app.services.dimse_event_store import record_dimse_activity as persist
+
+    async with async_session_factory() as session:
+        await persist(
+            session,
+            event_type=event_type,
+            calling_ae=calling_ae,
+            study_uid=study_uid,
+            reason=reason,
+            instances=instances,
+            details=details,
+        )
+        await session.commit()
+
+
 @celery_app.task(name="tasks.dimse_tasks.log_dimse_association")
 def log_dimse_association(
     event_type: str,
@@ -37,3 +61,25 @@ def log_dimse_association(
 ) -> dict:
     run_async_task(_log_association(event_type, calling_ae_title, details))
     return {"logged": True, "event_type": event_type}
+
+
+@celery_app.task(name="tasks.dimse_tasks.record_dimse_activity")
+def record_dimse_activity(
+    event_type: str,
+    calling_ae: str | None = None,
+    study_uid: str | None = None,
+    reason: str | None = None,
+    instances: int | None = None,
+    details: dict | None = None,
+) -> dict:
+    run_async_task(
+        _persist_dimse_activity(
+            event_type,
+            calling_ae=calling_ae,
+            study_uid=study_uid,
+            reason=reason,
+            instances=instances,
+            details=details,
+        )
+    )
+    return {"recorded": True, "event_type": event_type}

@@ -5,7 +5,8 @@ from datetime import date, datetime, timedelta, timezone
 from sqlalchemy import Date, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dimse.stats import get_dimse_stats
+from app.dimse.stats import get_dimse_runtime
+from app.services.dimse_event_store import get_dimse_statistics
 from app.models.audit_log import AuditLog
 from app.models.migration import MigrationJob, MigrationStudyRecord
 from app.models.routing import RoutingTransaction
@@ -65,7 +66,8 @@ async def get_dashboard_metrics(db: AsyncSession) -> DashboardMetricsResponse:
         .where(MigrationStudyRecord.status == "failed")
     ) or 0
 
-    dimse = get_dimse_stats()
+    dimse_stats = await get_dimse_statistics(db)
+    runtime = get_dimse_runtime()
 
     return DashboardMetricsResponse(
         routing=RoutingMetrics(
@@ -84,11 +86,11 @@ async def get_dashboard_metrics(db: AsyncSession) -> DashboardMetricsResponse:
             studies_failed=studies_failed,
         ),
         dimse=DimseMetrics(
-            listening=dimse.listening,
-            studies_assembled=dimse.studies_assembled,
-            instances_received=dimse.instances_received,
-            associations_accepted=dimse.associations_accepted,
-            associations_rejected=dimse.associations_rejected,
+            listening=runtime.listening,
+            studies_assembled=dimse_stats["studies_assembled"],
+            instances_received=dimse_stats["instances_received"],
+            associations_accepted=dimse_stats["associations_accepted"],
+            associations_rejected=dimse_stats["associations_rejected"],
         ),
     )
 

@@ -9,7 +9,7 @@ from sqlalchemy import text
 
 from app.config import settings
 from app.database import async_session_factory
-from app.dimse.stats import get_dimse_stats
+from app.dimse.stats import get_dimse_runtime
 from app.schemas.common import HealthComponent, HealthResponse
 
 router = APIRouter(tags=["Health"])
@@ -46,12 +46,12 @@ async def _check_http(name: str, url: str) -> HealthComponent:
 
 
 def _check_dimse_listener() -> HealthComponent:
-    stats = get_dimse_stats()
-    if stats.listening:
+    runtime = get_dimse_runtime()
+    if runtime.listening:
         return HealthComponent(
             name="dimse_listener",
             status="healthy",
-            message=f"{stats.ae_title}@{stats.port}",
+            message=f"{runtime.ae_title}@{runtime.port}",
         )
     return HealthComponent(name="dimse_listener", status="unhealthy", message="Not listening")
 

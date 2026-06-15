@@ -76,11 +76,16 @@ export default function RoutingMonitor() {
     refetchInterval: 10000,
   });
 
-  const { data: dimse } = useQuery({
+  const { data: dimse, refetch: refetchDimse, isFetching: dimseFetching } = useQuery({
     queryKey: ["dimse-status"],
     queryFn: () => apiFetch<DimseStatus>("/api/v1/dimse/status"),
     refetchInterval: 10000,
   });
+
+  const refreshAll = () => {
+    refetch();
+    refetchDimse();
+  };
 
   const retryMutation = useMutation({
     mutationFn: (destinationId: string) =>
@@ -94,6 +99,12 @@ export default function RoutingMonitor() {
     (e) => e.event_type === "study_received" || e.event_type === "routing_completed"
   );
 
+  useEffect(() => {
+    if (liveEvents.length === 0) return;
+    queryClient.invalidateQueries({ queryKey: ["routing-transactions"] });
+    queryClient.invalidateQueries({ queryKey: ["dimse-status"] });
+  }, [liveEvents.length, queryClient]);
+
   return (
     <div>
       <PageHeader
@@ -105,7 +116,7 @@ export default function RoutingMonitor() {
               {connected ? <Wifi size={14} /> : <WifiOff size={14} />}
               WebSocket {connected ? "live" : "offline"}
             </span>
-            <button type="button" onClick={() => refetch()} disabled={isFetching}>
+            <button type="button" onClick={refreshAll} disabled={isFetching || dimseFetching}>
               <RefreshCw size={16} />
               Refresh
             </button>

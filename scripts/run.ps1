@@ -21,6 +21,7 @@ param(
     [switch]$Detach,
     [switch]$Infra,
     [switch]$Volumes,
+    [switch]$KeepOllama,
     [switch]$NoOllama,
     [switch]$Follow,
     [string[]]$Service
@@ -103,16 +104,59 @@ function Get-TargetServices {
     return $AllServices
 }
 
+$ComposeVolumeNames = @(
+    "postgres_data",
+    "orthanc_onprem_data",
+    "orthanc_cloud_data",
+    "ollama_data",
+    "temp_dicom"
+)
+$OllamaVolumeName = "ollama_data"
+
+function Get-ComposeProjectName {
+    if ($env:COMPOSE_PROJECT_NAME) {
+        return $env:COMPOSE_PROJECT_NAME
+    }
+    return (Split-Path -Leaf $Root).ToLower()
+}
+
+function Invoke-ComposeDown {
+    if ($Volumes -and $KeepOllama) {
+        throw "Use -Volumes or -KeepOllama, not both."
+    }
+    if ($Volumes) {
+        Write-Warn "Removing all volumes - database, Orthanc, Ollama model cache, and temp storage will be wiped."
+        docker compose down -v
+        return
+    }
+
+    docker compose down
+    if (-not $KeepOllama) {
+        return
+    }
+
+    $project = Get-ComposeProjectName
+    Write-Warn "Removing data volumes except Ollama (ollama_data / model cache preserved)."
+    foreach ($volume in $ComposeVolumeNames) {
+        if ($volume -eq $OllamaVolumeName) {
+            continue
+        }
+        $fullName = "${project}_${volume}"
+        $null = docker volume rm $fullName 2>&1
+    }
+}
+
 function Show-Help {
     @'
 Synapse run script
 
 Usage:
-  .\scripts\run.ps1 [command] [options]
+  run.bat [command] [options]          REM Windows CMD
+  .\scripts\run.ps1 [command] [options]   REM PowerShell
 
 Commands:
   up        Start services (default). Foreground unless -Detach.
-  down      Stop services. Use -Volumes to remove data volumes.
+  down      Stop services. Use -Volumes or -KeepOllama to remove data volumes.
   restart   Restart services (down then up).
   logs      Tail service logs. Use -Service and -Follow.
   ps        Show container status.
@@ -127,7 +171,8 @@ Options:
   -Detach      Run containers in the background (-d).
   -Infra       Start only infrastructure (postgres, redis, keycloak, orthanc, ollama).
   -NoOllama    Skip the Ollama service (faster startup; chatbot unavailable).
-  -Volumes     With 'down': also remove named volumes (wipes DB, Orthanc, Ollama cache).
+  -Volumes     With 'down': remove all named volumes (including Ollama model cache).
+  -KeepOllama  With 'down': remove data volumes but keep ollama_data (model cache).
   -Follow      With 'logs': follow output (-f).
   -Service     One or more compose service names (repeatable).
 
@@ -139,6 +184,7 @@ Examples:
   .\scripts\run.ps1 dev
   .\scripts\run.ps1 logs -Service backend -Follow
   .\scripts\run.ps1 down -Volumes
+  .\scripts\run.ps1 down -KeepOllama
   .\scripts\run.ps1 -Service backend -Service celery-routing up -Detach
 
 URLs (full stack):
@@ -255,26 +301,24 @@ switch ($Command) {
     }
 
     "down" {
-        $composeArgs = @("compose", "down")
-        if ($Volumes) {
-            $composeArgs += "-v"
-            Write-Warn "Removing volumes - database, Orthanc, and Ollama data will be wiped."
-        }
-        docker @composeArgs
+        Invoke-ComposeDown
         exit $LASTEXITCODE
     }
 
     "restart" {
-        & $PSCommandPath down
+        $downParams = @{ Command = "down" }
+        if ($Volumes) { $downParams.Volumes = $true }
+        if ($KeepOllama) { $downParams.KeepOllama = $true }
+        & $PSCommandPath @downParams
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-        $restartArgs = @("up")
-        if ($Build) { $restartArgs += "-Build" }
-        if ($Detach) { $restartArgs += "-Detach" }
-        if ($Infra) { $restartArgs += "-Infra" }
-        if ($Volumes) { $restartArgs += "-Volumes" }
-        if ($NoOllama) { $restartArgs += "-NoOllama" }
-        if ($Service) { $restartArgs += "-Service"; $restartArgs += $Service }
-        & $PSCommandPath @restartArgs
+
+        $upParams = @{ Command = "up" }
+        if ($Build) { $upParams.Build = $true }
+        if ($Detach) { $upParams.Detach = $true }
+        if ($Infra) { $upParams.Infra = $true }
+        if ($NoOllama) { $upParams.NoOllama = $true }
+        if ($Service) { $upParams.Service = $Service }
+        & $PSCommandPath @upParams
         exit $LASTEXITCODE
     }
 
