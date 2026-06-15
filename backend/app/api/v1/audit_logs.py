@@ -13,6 +13,29 @@ from app.schemas.audit_log import AuditLogListResponse, AuditLogResponse
 
 router = APIRouter(prefix="/audit-logs", tags=["Audit Logs"])
 
+KNOWN_EVENT_TYPES = [
+    "CONFIG_CHANGE",
+    "DIMSE_ASSOCIATION",
+    "DIMSE_ASSOCIATION_REJECTED",
+    "STUDY_RECEPTION",
+    "ROUTING_RULE_MATCH",
+    "TAG_MORPHING_APPLIED",
+    "JOB_STATUS_CHANGE",
+    "USER_LOGIN",
+    "CHATBOT_QUERY",
+    "RETRY_ATTEMPT",
+]
+
+
+@router.get("/event-types", response_model=list[str])
+async def list_event_types(
+    db: AsyncSession = Depends(get_db),
+    _: CurrentUser = Depends(require_roles("service_user", "operator", "admin")),
+) -> list[str]:
+    result = await db.execute(select(AuditLog.event_type).distinct())
+    from_db = {row[0] for row in result.all() if row[0]}
+    return sorted(from_db | set(KNOWN_EVENT_TYPES))
+
 
 @router.get("", response_model=AuditLogListResponse)
 async def list_audit_logs(

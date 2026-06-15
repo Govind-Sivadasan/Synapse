@@ -10,6 +10,8 @@ import { PageLoading } from "../components/ui/LoadingScreen";
 import AutoDismissAlert from "../components/ui/AutoDismissAlert";
 import TableSearch from "../components/ui/TableSearch";
 import { useConfirmDialog } from "../hooks/useConfirmDialog";
+import { useAppMetadata } from "../hooks/useAppMetadata";
+import { migrationDestinationNodes, migrationSourceNodes, nodeLabel } from "../lib/nodes";
 import { MigrationJob, MigrationJobList, MigrationStudyList, Node, TagMorphingRule } from "../types/api";
 
 const emptyForm = {
@@ -172,6 +174,7 @@ function progressPct(job: MigrationJob): number {
 export default function MigrationJobs() {
   const queryClient = useQueryClient();
   const { confirm, ConfirmDialog } = useConfirmDialog();
+  const { data: metadata } = useAppMetadata();
   const [modalOpen, setModalOpen] = useState(false);
   const [isDuplicating, setIsDuplicating] = useState(false);
   const [selectedJob, setSelectedJob] = useState<MigrationJob | null>(null);
@@ -254,10 +257,16 @@ export default function MigrationJobs() {
     queryClient.invalidateQueries({ queryKey: ["migration-job-studies", job.id] });
   };
 
-  const sources = nodes.filter((n) => n.is_active && n.dicomweb_url);
-  const destinations = nodes.filter((n) => n.node_type === "destination" && n.is_active && n.dicomweb_url);
+  const sources = migrationSourceNodes(nodes);
+  const destinations = migrationDestinationNodes(nodes);
+  const jobTypes = metadata?.migration_job_types ?? [
+    { value: "historical", label: "Historical (QIDO filter)" },
+    { value: "incremental", label: "Incremental (date filter)" },
+    { value: "batch", label: "Batch (explicit Study UIDs)" },
+  ];
 
   const openNewJobModal = () => {
+    queryClient.invalidateQueries({ queryKey: ["nodes"] });
     setError("");
     setIsDuplicating(false);
     setForm(emptyForm);
@@ -265,6 +274,7 @@ export default function MigrationJobs() {
   };
 
   const duplicateJob = (job: MigrationJob) => {
+    queryClient.invalidateQueries({ queryKey: ["nodes"] });
     setError("");
     setIsDuplicating(true);
     setForm(jobFormFromJob(job));
@@ -788,9 +798,11 @@ export default function MigrationJobs() {
                   setForm({ ...form, job_type: e.target.value as "historical" | "batch" | "incremental" })
                 }
               >
-                <option value="historical">Historical (QIDO filter)</option>
-                <option value="incremental">Incremental (date filter)</option>
-                <option value="batch">Batch (explicit Study UIDs)</option>
+                {jobTypes.map((t) => (
+                  <option key={t.value} value={t.value}>
+                    {t.label}
+                  </option>
+                ))}
               </select>
             </div>
             <div className="form-field">
@@ -803,10 +815,15 @@ export default function MigrationJobs() {
                 <option value="">Select source…</option>
                 {sources.map((n) => (
                   <option key={n.id} value={n.id}>
-                    {n.name}
+                    {nodeLabel(n)}
                   </option>
                 ))}
               </select>
+              {sources.length === 0 && (
+                <p style={{ fontSize: "0.8rem", color: "#64748b", margin: "0.25rem 0 0" }}>
+                  No active source nodes with a DICOMweb URL. Add one under Nodes.
+                </p>
+              )}
             </div>
             <div className="form-field">
               <label>Destination PACS</label>
@@ -818,10 +835,15 @@ export default function MigrationJobs() {
                 <option value="">Select destination…</option>
                 {destinations.map((n) => (
                   <option key={n.id} value={n.id}>
-                    {n.name}
+                    {nodeLabel(n)}
                   </option>
                 ))}
               </select>
+              {destinations.length === 0 && (
+                <p style={{ fontSize: "0.8rem", color: "#64748b", margin: "0.25rem 0 0" }}>
+                  No active DICOMweb destination nodes. Add one under Nodes.
+                </p>
+              )}
             </div>
             {form.job_type !== "batch" && (
               <>

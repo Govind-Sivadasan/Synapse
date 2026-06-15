@@ -8,7 +8,8 @@ import StatusBadge from "../components/ui/StatusBadge";
 import { PageLoading } from "../components/ui/LoadingScreen";
 import AutoDismissAlert from "../components/ui/AutoDismissAlert";
 import { useConfirmDialog } from "../hooks/useConfirmDialog";
-import { DICOM_TAGS, OPERATORS, TagMorphingRule } from "../types/api";
+import { useAppMetadata } from "../hooks/useAppMetadata";
+import { TagMorphingRule } from "../types/api";
 
 const emptyForm = {
   name: "",
@@ -23,6 +24,7 @@ const emptyForm = {
 export default function TagMorphing() {
   const queryClient = useQueryClient();
   const { confirm, ConfirmDialog } = useConfirmDialog();
+  const { data: metadata } = useAppMetadata();
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<TagMorphingRule | null>(null);
   const [form, setForm] = useState(emptyForm);
@@ -106,6 +108,9 @@ export default function TagMorphing() {
     setPreview(null);
     setModalOpen(true);
   };
+
+  const dicomTags = metadata?.dicom_tags ?? ["Modality", "InstitutionName"];
+  const operators = metadata?.operators ?? [{ value: "equals", label: "Equals" }];
 
   return (
     <div>
@@ -199,7 +204,7 @@ export default function TagMorphing() {
             <div className="form-field">
               <label>Target Tag</label>
               <select value={form.target_tag} onChange={(e) => setForm({ ...form, target_tag: e.target.value })}>
-                {DICOM_TAGS.map((t) => (
+                {dicomTags.map((t) => (
                   <option key={t} value={t}>{t}</option>
                 ))}
               </select>
@@ -215,7 +220,7 @@ export default function TagMorphing() {
                 onChange={(e) => setForm({ ...form, condition_tag: e.target.value })}
               >
                 <option value="">Always apply</option>
-                {DICOM_TAGS.map((t) => (
+                {dicomTags.map((t) => (
                   <option key={t} value={t}>{t}</option>
                 ))}
               </select>
@@ -228,7 +233,7 @@ export default function TagMorphing() {
                 disabled={!form.condition_tag}
               >
                 <option value="">—</option>
-                {OPERATORS.map((o) => (
+                {operators.map((o) => (
                   <option key={o.value} value={o.value}>{o.label}</option>
                 ))}
               </select>

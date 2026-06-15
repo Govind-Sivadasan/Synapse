@@ -8,7 +8,9 @@ import StatusBadge from "../components/ui/StatusBadge";
 import { PageLoading } from "../components/ui/LoadingScreen";
 import AutoDismissAlert from "../components/ui/AutoDismissAlert";
 import { useConfirmDialog } from "../hooks/useConfirmDialog";
-import { DICOM_TAGS, OPERATORS, Node, RoutingRule } from "../types/api";
+import { useAppMetadata } from "../hooks/useAppMetadata";
+import { nodeLabel, routingDestinationNodes } from "../lib/nodes";
+import { Node, RoutingRule, TagMorphingRule } from "../types/api";
 
 const emptyForm = {
   name: "",
@@ -24,8 +26,9 @@ const emptyForm = {
 export default function RoutingRules() {
   const queryClient = useQueryClient();
   const { confirm, ConfirmDialog } = useConfirmDialog();
+  const { data: metadata } = useAppMetadata();
   const [modalOpen, setModalOpen] = useState(false);
-  const [editing, setEditing] = useState<RoutingRule | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState("");
 
@@ -39,12 +42,19 @@ export default function RoutingRules() {
     queryFn: () => apiFetch<Node[]>("/api/v1/nodes"),
   });
 
-  const destinations = nodes.filter((n) => n.node_type === "destination" && n.is_active);
+  const { data: morphRules = [] } = useQuery({
+    queryKey: ["tag-morphing-rules"],
+    queryFn: () => apiFetch<TagMorphingRule[]>("/api/v1/tag-morphing-rules"),
+  });
+
+  const destinations = routingDestinationNodes(nodes);
+  const dicomTags = metadata?.dicom_tags ?? ["Modality", "PatientID", "StudyDate"];
+  const operators = metadata?.operators ?? [{ value: "equals", label: "Equals" }];
 
   const saveMutation = useMutation({
-    mutationFn: (payload: typeof form) =>
-      editing
-        ? apiFetch<RoutingRule>(`/api/v1/routing-rules/${editing.id}`, {
+    mutationFn: ({ ruleId, payload }: { ruleId: string | null; payload: typeof form }) =>
+      ruleId
+        ? apiFetch<RoutingRule>(`/api/v1/routing-rules/${ruleId}`, {
             method: "PUT",
             body: JSON.stringify(payload),
           })
@@ -52,7 +62,7 @@ export default function RoutingRules() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["routing-rules"] });
       setModalOpen(false);
-      setEditing(null);
+      setEditingId(null);
       setForm(emptyForm);
       setError("");
     },
@@ -76,14 +86,14 @@ export default function RoutingRules() {
   const nodeName = (id: string) => nodes.find((n) => n.id === id)?.name ?? id.slice(0, 8);
 
   const openCreate = () => {
-    setEditing(null);
+    setEditingId(null);
     setForm(emptyForm);
     setError("");
     setModalOpen(true);
   };
 
   const openEdit = (rule: RoutingRule) => {
-    setEditing(rule);
+    setEditingId(rule.id);
     setForm({
       name: rule.name,
       condition_tag: rule.condition_tag,
@@ -181,7 +191,7 @@ export default function RoutingRules() {
         </div>
       )}
 
-      <Modal title={editing ? "Edit Routing Rule" : "Add Routing Rule"} open={modalOpen} onClose={() => setModalOpen(false)} wide>
+      <Modal title={editingId ? "Edit Routing Rule" : "Add Routing Rule"} open={modalOpen} onClose={() => setModalOpen(false)} wide>
         {error && (
           <AutoDismissAlert variant="error" onDismiss={() => setError("")}>
             {error}
@@ -194,7 +204,7 @@ export default function RoutingRules() {
               setError("Select at least one destination node.");
               return;
             }
-            saveMutation.mutate(form);
+            saveMutation.mutate({ ruleId: editingId, payload: form });
           }}
         >
           <div className="form-grid">
@@ -213,7 +223,7 @@ export default function RoutingRules() {
             <div className="form-field">
               <label>Condition Tag</label>
               <select value={form.condition_tag} onChange={(e) => setForm({ ...form, condition_tag: e.target.value })}>
-                {DICOM_TAGS.map((t) => (
+                {dicomTags.map((t) => (
                   <option key={t} value={t}>{t}</option>
                 ))}
               </select>
@@ -224,7 +234,7 @@ export default function RoutingRules() {
                 value={form.condition_operator}
                 onChange={(e) => setForm({ ...form, condition_operator: e.target.value })}
               >
-                {OPERATORS.map((o) => (
+                {operators.map((o) => (
                   <option key={o.value} value={o.value}>{o.label}</option>
                 ))}
               </select>
@@ -242,7 +252,7 @@ export default function RoutingRules() {
               <label>Destination Nodes</label>
               <div className="checkbox-group">
                 {destinations.length === 0 ? (
-                  <span className="placeholder">No destination nodes configured.</span>
+                  <span className="placeholder">No DICOMweb destination nodes configured.</span>
                 ) : (
                   destinations.map((n) => (
                     <label key={n.id}>
@@ -251,9 +261,32 @@ export default function RoutingRules() {
                         checked={form.destination_node_ids.includes(n.id)}
                         onChange={() => toggleDestination(n.id)}
                       />
-                      {n.name}
+                      {nodeLabel(n)}
                     </label>
                   ))
+                )}
+              </div>
+            </div>
+            <div className="form-field full-width">
+              <label>Tag Morphing Rules (optional)</label>
+              <div className="checkbox-group">
+                {morphRules.filter((r) => r.is_active).map((r) => (
+                  <label key={r.id}>
+                    <input
+                      type="checkbox"
+                      checked={form.tag_morphing_rule_ids.includes(r.id)}
+                      onChange={() => {
+                        const ids = form.tag_morphing_rule_ids.includes(r.id)
+                          ? form.tag_morphing_rule_ids.filter((id) => id !== r.id)
+                          : [...form.tag_morphing_rule_ids, r.id];
+                        setForm({ ...form, tag_morphing_rule_ids: ids });
+                      }}
+                    />
+                    {r.name} ({r.target_tag} → {r.new_value})
+                  </label>
+                ))}
+                {morphRules.filter((r) => r.is_active).length === 0 && (
+                  <span className="placeholder">No active tag morphing rules.</span>
                 )}
               </div>
             </div>

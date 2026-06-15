@@ -22,12 +22,14 @@ class NodeCreate(NodeBase):
 
 
 class NodeUpdate(BaseModel):
-    name: str | None = None
+    name: str | None = Field(None, max_length=100)
+    node_type: str | None = Field(None, pattern="^(source|destination)$")
+    protocol: str | None = Field(None, pattern="^(DIMSE|DICOMweb)$")
     host: str | None = None
     port: int | None = None
-    ae_title: str | None = None
+    ae_title: str | None = Field(None, max_length=16)
     dicomweb_url: str | None = None
-    auth_type: str | None = None
+    auth_type: str | None = Field(None, pattern="^(none|basic|bearer|apikey)$")
     auth_config: dict | None = None
     is_active: bool | None = None
 

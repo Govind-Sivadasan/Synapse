@@ -10,6 +10,7 @@ from app.api.v1 import (
     dashboard,
     dimse,
     health,
+    metadata,
     migration_jobs,
     nodes,
     reports,
@@ -21,6 +22,7 @@ from app.api.v1 import (
 api_router = APIRouter(prefix="/api/v1")
 
 api_router.include_router(health.router)
+api_router.include_router(metadata.router)
 api_router.include_router(nodes.router)
 api_router.include_router(routing_rules.router)
 api_router.include_router(tag_morphing.router)

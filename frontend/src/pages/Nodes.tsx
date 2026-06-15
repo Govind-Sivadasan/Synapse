@@ -9,25 +9,28 @@ import StatusBadge from "../components/ui/StatusBadge";
 import { PageLoading } from "../components/ui/LoadingScreen";
 import AutoDismissAlert from "../components/ui/AutoDismissAlert";
 import { useConfirmDialog } from "../hooks/useConfirmDialog";
+import { useAppMetadata } from "../hooks/useAppMetadata";
+import { buildNodePayload, NodeFormState } from "../lib/nodes";
 import { Node, NodeEchoResult } from "../types/api";
 
-const emptyForm = {
+const emptyForm: NodeFormState = {
   name: "",
-  node_type: "destination" as const,
-  protocol: "DICOMweb" as const,
+  node_type: "destination",
+  protocol: "DICOMweb",
   host: "",
-  port: null as number | null,
+  port: null,
   ae_title: "",
   dicomweb_url: "",
-  auth_type: "none" as const,
+  auth_type: "none",
   is_active: true,
 };
 
 export default function Nodes() {
   const queryClient = useQueryClient();
   const { confirm, ConfirmDialog } = useConfirmDialog();
+  const { data: metadata } = useAppMetadata();
   const [modalOpen, setModalOpen] = useState(false);
-  const [editing, setEditing] = useState<Node | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState("");
   const [echoResult, setEchoResult] = useState<{ nodeId: string; result: NodeEchoResult } | null>(null);
@@ -38,14 +41,14 @@ export default function Nodes() {
   });
 
   const saveMutation = useMutation({
-    mutationFn: (payload: typeof form) =>
-      editing
-        ? apiFetch<Node>(`/api/v1/nodes/${editing.id}`, { method: "PUT", body: JSON.stringify(payload) })
+    mutationFn: ({ nodeId, payload }: { nodeId: string | null; payload: ReturnType<typeof buildNodePayload> }) =>
+      nodeId
+        ? apiFetch<Node>(`/api/v1/nodes/${nodeId}`, { method: "PUT", body: JSON.stringify(payload) })
         : apiFetch<Node>("/api/v1/nodes", { method: "POST", body: JSON.stringify(payload) }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["nodes"] });
       setModalOpen(false);
-      setEditing(null);
+      setEditingId(null);
       setForm(emptyForm);
       setError("");
     },
@@ -68,14 +71,14 @@ export default function Nodes() {
   });
 
   const openCreate = () => {
-    setEditing(null);
+    setEditingId(null);
     setForm(emptyForm);
     setError("");
     setModalOpen(true);
   };
 
   const openEdit = (node: Node) => {
-    setEditing(node);
+    setEditingId(node.id);
     setForm({
       name: node.name,
       node_type: node.node_type,
@@ -84,7 +87,7 @@ export default function Nodes() {
       port: node.port,
       ae_title: node.ae_title ?? "",
       dicomweb_url: node.dicomweb_url ?? "",
-      auth_type: (node.auth_type as "none") ?? "none",
+      auth_type: node.auth_type ?? "none",
       is_active: node.is_active,
     });
     setError("");
@@ -94,13 +97,25 @@ export default function Nodes() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     saveMutation.mutate({
-      ...form,
-      port: form.port || null,
-      ae_title: form.ae_title || null,
-      dicomweb_url: form.dicomweb_url || null,
-      auth_type: form.auth_type || "none",
+      nodeId: editingId,
+      payload: buildNodePayload(form, !!editingId),
     });
   };
+
+  const nodeTypes = metadata?.node_types ?? [
+    { value: "source", label: "Source" },
+    { value: "destination", label: "Destination" },
+  ];
+  const protocols = metadata?.protocols ?? [
+    { value: "DIMSE", label: "DIMSE" },
+    { value: "DICOMweb", label: "DICOMweb" },
+  ];
+  const authTypes = metadata?.auth_types ?? [
+    { value: "none", label: "None" },
+    { value: "basic", label: "Basic" },
+    { value: "bearer", label: "Bearer" },
+    { value: "apikey", label: "API Key" },
+  ];
 
   return (
     <div>
@@ -198,7 +213,15 @@ export default function Nodes() {
         </div>
       )}
 
-      <Modal title={editing ? "Edit Node" : "Add Node"} open={modalOpen} onClose={() => setModalOpen(false)} wide>
+      <Modal
+        title={editingId ? "Edit Node" : "Add Node"}
+        open={modalOpen}
+        onClose={() => {
+          setModalOpen(false);
+          setEditingId(null);
+        }}
+        wide
+      >
         {error && (
           <AutoDismissAlert variant="error" onDismiss={() => setError("")}>
             {error}
@@ -214,56 +237,86 @@ export default function Nodes() {
               <label>Type</label>
               <select
                 value={form.node_type}
-                onChange={(e) => setForm({ ...form, node_type: e.target.value as "source" | "destination" })}
+                onChange={(e) => {
+                  const node_type = e.target.value as NodeFormState["node_type"];
+                  setForm({
+                    ...form,
+                    node_type,
+                    protocol: node_type === "destination" ? "DICOMweb" : form.protocol,
+                  });
+                }}
               >
-                <option value="source">Source</option>
-                <option value="destination">Destination</option>
+                {nodeTypes.map((t) => (
+                  <option key={t.value} value={t.value}>
+                    {t.label}
+                  </option>
+                ))}
               </select>
             </div>
             <div className="form-field">
               <label>Protocol</label>
               <select
                 value={form.protocol}
-                onChange={(e) => setForm({ ...form, protocol: e.target.value as "DIMSE" | "DICOMweb" })}
+                onChange={(e) => setForm({ ...form, protocol: e.target.value as NodeFormState["protocol"] })}
               >
-                <option value="DIMSE">DIMSE</option>
-                <option value="DICOMweb">DICOMweb</option>
+                {protocols.map((p) => (
+                  <option key={p.value} value={p.value}>
+                    {p.label}
+                  </option>
+                ))}
               </select>
             </div>
             <div className="form-field">
               <label>Host</label>
               <input value={form.host} onChange={(e) => setForm({ ...form, host: e.target.value })} required />
             </div>
-            <div className="form-field">
-              <label>Port</label>
-              <input
-                type="number"
-                value={form.port ?? ""}
-                onChange={(e) => setForm({ ...form, port: e.target.value ? Number(e.target.value) : null })}
-              />
-            </div>
-            <div className="form-field">
-              <label>AE Title</label>
-              <input value={form.ae_title} onChange={(e) => setForm({ ...form, ae_title: e.target.value })} />
-            </div>
-            <div className="form-field full-width">
-              <label>DICOMweb URL</label>
-              <input
-                value={form.dicomweb_url}
-                onChange={(e) => setForm({ ...form, dicomweb_url: e.target.value })}
-                placeholder="http://orthanc-cloud:8042/dicom-web"
-              />
-            </div>
+            {(form.protocol === "DIMSE" || form.node_type === "source") && (
+              <div className="form-field">
+                <label>Port</label>
+                <input
+                  type="number"
+                  value={form.port ?? ""}
+                  onChange={(e) => setForm({ ...form, port: e.target.value ? Number(e.target.value) : null })}
+                />
+              </div>
+            )}
+            {(form.protocol === "DIMSE" || form.node_type === "source") && (
+              <div className="form-field">
+                <label>AE Title</label>
+                <input
+                  value={form.ae_title}
+                  onChange={(e) => setForm({ ...form, ae_title: e.target.value })}
+                  maxLength={16}
+                  placeholder={form.node_type === "source" ? "Calling AE from modality/PACS" : ""}
+                />
+              </div>
+            )}
+            {(form.protocol === "DICOMweb" || form.node_type === "source") && (
+              <div className="form-field full-width">
+                <label>DICOMweb URL</label>
+                <input
+                  value={form.dicomweb_url}
+                  onChange={(e) => setForm({ ...form, dicomweb_url: e.target.value })}
+                  placeholder="http://orthanc-onprem:8042/dicom-web"
+                />
+                {form.node_type === "source" && (
+                  <p style={{ fontSize: "0.8rem", color: "#64748b", margin: "0.25rem 0 0" }}>
+                    Required for migration jobs (QIDO/WADO). Orthanc sources often use DIMSE for intake and DICOMweb for migration.
+                  </p>
+                )}
+              </div>
+            )}
             <div className="form-field">
               <label>Auth Type</label>
               <select
                 value={form.auth_type}
-                onChange={(e) => setForm({ ...form, auth_type: e.target.value as "none" })}
+                onChange={(e) => setForm({ ...form, auth_type: e.target.value as NodeFormState["auth_type"] })}
               >
-                <option value="none">None</option>
-                <option value="basic">Basic</option>
-                <option value="bearer">Bearer</option>
-                <option value="apikey">API Key</option>
+                {authTypes.map((a) => (
+                  <option key={a.value} value={a.value}>
+                    {a.label}
+                  </option>
+                ))}
               </select>
             </div>
             <div className="form-field">

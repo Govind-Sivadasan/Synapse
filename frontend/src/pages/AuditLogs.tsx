@@ -10,18 +10,6 @@ import StatusBadge from "../components/ui/StatusBadge";
 import { PageLoading } from "../components/ui/LoadingScreen";
 import { AuditLog, AuditLogList, ChartDataPoint } from "../types/api";
 
-const EVENT_TYPES = [
-  "CONFIG_CHANGE",
-  "DIMSE_ASSOCIATION",
-  "STUDY_RECEPTION",
-  "ROUTING_RULE_MATCH",
-  "TAG_MORPHING_APPLIED",
-  "JOB_STATUS_CHANGE",
-  "USER_LOGIN",
-  "CHATBOT_QUERY",
-  "RETRY_ATTEMPT",
-];
-
 function formatDetails(details: Record<string, unknown> | null): string {
   if (!details) return "—";
   const parts = Object.entries(details).slice(0, 4).map(([k, v]) => {
@@ -45,6 +33,12 @@ export default function AuditLogs() {
   useEffect(() => {
     setPage(0);
   }, [eventType, userId, dateFrom, dateTo, search]);
+
+  const { data: eventTypes = [] } = useQuery({
+    queryKey: ["audit-event-types"],
+    queryFn: () => apiFetch<string[]>("/api/v1/audit-logs/event-types"),
+    staleTime: 60 * 1000,
+  });
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["audit-logs", eventType, userId, dateFrom, dateTo, search, page],
@@ -113,7 +107,7 @@ export default function AuditLogs() {
             <label>Event Type</label>
             <select value={eventType} onChange={(e) => setEventType(e.target.value)}>
               <option value="">All events</option>
-              {EVENT_TYPES.map((t) => (
+              {eventTypes.map((t) => (
                 <option key={t} value={t}>{t}</option>
               ))}
             </select>
