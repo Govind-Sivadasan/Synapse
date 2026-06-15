@@ -12,6 +12,7 @@ import Chatbot from "./pages/Chatbot";
 import Settings from "./pages/Settings";
 import SystemHealth from "./pages/SystemHealth";
 import Reports from "./pages/Reports";
+import Account from "./pages/Account";
 
 export default function App() {
   const { username, roles, logout } = useAuth();
@@ -32,6 +33,7 @@ export default function App() {
           <Route path="/settings" element={<Settings />} />
           <Route path="/health" element={<SystemHealth />} />
           <Route path="/reports" element={<Reports />} />
+          <Route path="/account" element={<Account />} />
         </Routes>
       </AppShell>
     </BrowserRouter>

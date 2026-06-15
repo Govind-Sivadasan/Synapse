@@ -13,17 +13,47 @@
   --synapse-card-width: 520px;
 }
 
-/* Page background */
+/* Page background — single fixed layer (no repeat / banding on scroll) */
+html {
+  background: #0c1222;
+  min-height: 100%;
+}
+
 body#keycloak-bg.synapse-login-body,
-.login-pf body {
+.login-pf body,
+body.login-pf,
+body#keycloak-bg {
   font-family: "DM Sans", system-ui, sans-serif !important;
-  background: var(--synapse-bg) !important;
+  position: relative;
+  min-height: 100vh;
+  margin: 0;
+  background: #0c1222 !important;
+  background-image: none !important;
+}
+
+body#keycloak-bg.synapse-login-body::before,
+.login-pf body::before,
+body#keycloak-bg::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-color: #0c1222;
   background-image:
     radial-gradient(ellipse 80% 60% at 20% 0%, rgba(13, 148, 136, 0.35) 0%, transparent 55%),
     radial-gradient(ellipse 60% 50% at 100% 100%, rgba(2, 132, 199, 0.2) 0%, transparent 50%),
-    linear-gradient(180deg, #0c1222 0%, #111827 100%) !important;
-  min-height: 100vh;
-  margin: 0;
+    linear-gradient(180deg, #0c1222 0%, #111827 100%);
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-position: center center;
+  background-attachment: fixed;
+}
+
+.pf-v5-c-login,
+.login-pf .pf-v5-c-login {
+  background: transparent !important;
+  background-image: none !important;
 }
 
 #kc-header {
@@ -177,6 +207,9 @@ input#password {
 
 .synapse-login-logo {
   display: block;
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
   margin-bottom: 0.85rem;
   box-shadow: 0 8px 24px rgba(13, 148, 136, 0.35);
   border-radius: 14px;

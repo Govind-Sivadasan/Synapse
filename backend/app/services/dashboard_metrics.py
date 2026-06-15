@@ -144,16 +144,19 @@ async def get_volume_chart(db: AsyncSession, days: int = 7) -> VolumeChartRespon
 
 
 async def get_modality_chart(db: AsyncSession, days: int = 30) -> list[ChartDataPoint]:
-    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    query = (
+        select(RoutingTransaction.modality, func.count())
+        .where(
+            RoutingTransaction.modality.isnot(None),
+            RoutingTransaction.modality != "",
+        )
+    )
+    if days > 0:
+        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+        query = query.where(RoutingTransaction.received_at >= cutoff)
     rows = (
         await db.execute(
-            select(RoutingTransaction.modality, func.count())
-            .where(
-                RoutingTransaction.received_at >= cutoff,
-                RoutingTransaction.modality.isnot(None),
-                RoutingTransaction.modality != "",
-            )
-            .group_by(RoutingTransaction.modality)
+            query.group_by(RoutingTransaction.modality)
             .order_by(func.count().desc())
             .limit(8)
         )
@@ -228,48 +231,58 @@ async def get_activity_feed(db: AsyncSession, limit: int = 15, mask_phi: bool = 
 
 
 async def get_report_summary(db: AsyncSession, days: int = 7) -> ReportSummaryResponse:
-    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    cutoff = None if days <= 0 else datetime.now(timezone.utc) - timedelta(days=days)
 
-    routing_studies = await db.scalar(
+    routing_query = select(func.count()).select_from(RoutingTransaction)
+    if cutoff:
+        routing_query = routing_query.where(RoutingTransaction.received_at >= cutoff)
+    routing_studies = await db.scalar(routing_query) or 0
+
+    routing_success_query = (
         select(func.count())
         .select_from(RoutingTransaction)
-        .where(RoutingTransaction.received_at >= cutoff)
-    ) or 0
-    routing_success = await db.scalar(
-        select(func.count())
-        .select_from(RoutingTransaction)
-        .where(
-            RoutingTransaction.received_at >= cutoff,
-            RoutingTransaction.overall_status == "success",
-        )
-    ) or 0
-    migration_completed = await db.scalar(
+        .where(RoutingTransaction.overall_status == "success")
+    )
+    if cutoff:
+        routing_success_query = routing_success_query.where(RoutingTransaction.received_at >= cutoff)
+    routing_success = await db.scalar(routing_success_query) or 0
+
+    migration_completed_query = (
         select(func.count())
         .select_from(MigrationStudyRecord)
-        .where(
-            MigrationStudyRecord.completed_at >= cutoff,
-            MigrationStudyRecord.status == "success",
+        .where(MigrationStudyRecord.status == "success")
+    )
+    if cutoff:
+        migration_completed_query = migration_completed_query.where(
+            MigrationStudyRecord.completed_at >= cutoff
         )
-    ) or 0
-    migration_failed = await db.scalar(
+    migration_completed = await db.scalar(migration_completed_query) or 0
+
+    migration_failed_query = (
         select(func.count())
         .select_from(MigrationStudyRecord)
-        .where(
-            MigrationStudyRecord.completed_at >= cutoff,
-            MigrationStudyRecord.status == "failed",
+        .where(MigrationStudyRecord.status == "failed")
+    )
+    if cutoff:
+        migration_failed_query = migration_failed_query.where(
+            MigrationStudyRecord.completed_at >= cutoff
         )
-    ) or 0
-    audit_events = await db.scalar(
-        select(func.count()).select_from(AuditLog).where(AuditLog.created_at >= cutoff)
-    ) or 0
+    migration_failed = await db.scalar(migration_failed_query) or 0
+
+    audit_query = select(func.count()).select_from(AuditLog)
+    if cutoff:
+        audit_query = audit_query.where(AuditLog.created_at >= cutoff)
+    audit_events = await db.scalar(audit_query) or 0
 
     top_modalities = await get_modality_chart(db, days=days)
-    routing_by_status = (
-        await db.execute(
-            select(RoutingTransaction.overall_status, func.count())
-            .where(RoutingTransaction.received_at >= cutoff)
-            .group_by(RoutingTransaction.overall_status)
+
+    routing_by_status_query = select(RoutingTransaction.overall_status, func.count())
+    if cutoff:
+        routing_by_status_query = routing_by_status_query.where(
+            RoutingTransaction.received_at >= cutoff
         )
+    routing_by_status = (
+        await db.execute(routing_by_status_query.group_by(RoutingTransaction.overall_status))
     ).all()
 
     return ReportSummaryResponse(

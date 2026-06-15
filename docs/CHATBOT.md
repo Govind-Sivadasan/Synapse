@@ -17,9 +17,18 @@ Verify: `GET /api/v1/chatbot/status` should show `model_ready: true`.
 |----------|--------|-------------|
 | `/api/v1/chatbot/status` | GET | Ollama availability and model status |
 | `/api/v1/chatbot/suggestions` | GET | Suggested prompt list |
-| `/api/v1/chatbot/query` | POST | `{"message": "..."}` → natural language answer |
+| `/api/v1/chatbot/messages` | GET | Persisted conversation history (`?limit=200`) |
+| `/api/v1/chatbot/messages` | DELETE | Clear conversation history |
+| `/api/v1/chatbot/query` | POST | `{"message": "..."}` → natural language answer (persisted) |
 
 All endpoints require authentication. Roles: `viewer`, `service_user`, `operator`, `admin`.
+
+## UI
+
+- **Chatbot page** (`/chatbot`) — full layout with suggested prompts sidebar, Ollama status pill, clear chat
+- **Floating widget** — bottom-right launcher on every page (except `/chatbot`); opens a drawer with the same conversation, timestamps, and suggested prompts. Link in drawer header opens the full page.
+
+After frontend or theme changes in Docker, rebuild with `run.bat restart frontend -Build`.
 
 ## How It Works
 
@@ -27,8 +36,11 @@ All endpoints require authentication. Roles: `viewer`, `service_user`, `operator
 2. Relevant data is loaded from PostgreSQL (routing, migration, DIMSE, audit)
 3. Context is sent to Ollama with a strict read-only system prompt
 4. Response is returned; **viewer** role receives PHI-redacted output
+5. User and assistant messages are stored in PostgreSQL and restored on reload
 
 If Ollama is unavailable, a **fallback** summary is generated from live context.
+
+JSON-shaped model output (e.g. `{"message": "..."}`) is normalized before display.
 
 ## Example Questions
 

@@ -2,14 +2,16 @@ import { Node } from "../types/api";
 
 /** Source PACS nodes eligible for migration (QIDO/WADO require DICOMweb URL). */
 export function migrationSourceNodes(nodes: Node[]): Node[] {
-  return nodes.filter((n) => n.node_type === "source" && n.is_active && !!n.dicomweb_url);
+  return nodes
+    .filter((n) => n.node_type === "source" && n.is_active && !!n.dicomweb_url?.trim())
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
-/** Destination PACS nodes eligible for migration (STOW-RS). */
+/** Destination PACS nodes eligible for migration (STOW-RS via DICOMweb URL). */
 export function migrationDestinationNodes(nodes: Node[]): Node[] {
-  return nodes.filter(
-    (n) => n.node_type === "destination" && n.is_active && n.protocol === "DICOMweb" && !!n.dicomweb_url,
-  );
+  return nodes
+    .filter((n) => n.node_type === "destination" && n.is_active && !!n.dicomweb_url?.trim())
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 /** Destination nodes eligible for live routing (STOW-RS). */

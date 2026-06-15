@@ -1,0 +1,187 @@
+/* ===== Accent color tokens (applied on [data-accent]) ===== */
+
+/* Default / teal */
+:root,
+[data-accent="teal"] {
+  --color-primary: #0d9488;
+  --color-primary-hover: #0f766e;
+  --color-primary-light: #ccfbf1;
+  --color-primary-muted: #5eead4;
+  --color-accent: #0284c7;
+  --color-accent-light: #e0f2fe;
+}
+
+[data-accent="blue"] {
+  --color-primary: #2563eb;
+  --color-primary-hover: #1d4ed8;
+  --color-primary-light: #dbeafe;
+  --color-primary-muted: #93c5fd;
+  --color-accent: #0ea5e9;
+  --color-accent-light: #e0f2fe;
+}
+
+[data-accent="violet"] {
+  --color-primary: #7c3aed;
+  --color-primary-hover: #6d28d9;
+  --color-primary-light: #ede9fe;
+  --color-primary-muted: #c4b5fd;
+  --color-accent: #a855f7;
+  --color-accent-light: #f3e8ff;
+}
+
+[data-accent="rose"] {
+  --color-primary: #e11d48;
+  --color-primary-hover: #be123c;
+  --color-primary-light: #ffe4e6;
+  --color-primary-muted: #fda4af;
+  --color-accent: #f43f5e;
+  --color-accent-light: #fff1f2;
+}
+
+[data-accent="amber"] {
+  --color-primary: #d97706;
+  --color-primary-hover: #b45309;
+  --color-primary-light: #fef3c7;
+  --color-primary-muted: #fcd34d;
+  --color-accent: #f59e0b;
+  --color-accent-light: #fffbeb;
+}
+
+[data-accent="emerald"] {
+  --color-primary: #059669;
+  --color-primary-hover: #047857;
+  --color-primary-light: #d1fae5;
+  --color-primary-muted: #6ee7b7;
+  --color-accent: #10b981;
+  --color-accent-light: #ecfdf5;
+}
+
+/* Sidebar accent tokens (derived from --color-primary per accent) */
+:root,
+[data-accent] {
+  --sidebar-active: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--color-primary) 34%, transparent) 0%,
+    transparent 100%
+  );
+  --sidebar-border-accent: color-mix(in srgb, var(--color-primary) 18%, rgba(255, 255, 255, 0.06));
+}
+
+/* ===== Dark mode tokens (applied on [data-mode="dark"]) ===== */
+
+[data-mode="dark"] {
+  --color-bg: #0f172a;
+  --color-bg-elevated: #1e293b;
+  --color-surface: #1e293b;
+  --color-border: #334155;
+  --color-border-strong: #475569;
+  --color-text: #f1f5f9;
+  --color-text-secondary: #cbd5e1;
+  --color-text-muted: #64748b;
+
+  --color-success-bg: rgba(5, 150, 105, 0.18);
+  --color-warning-bg: rgba(217, 119, 6, 0.18);
+  --color-error-bg: rgba(220, 38, 38, 0.18);
+  --color-info-bg: rgba(2, 132, 199, 0.18);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.4);
+}
+
+/* Dark mode: sidebar stays dark but adjust subtle borders */
+[data-mode="dark"] .app-sidebar {
+  border-right-color: #1e293b;
+}
+
+/* Dark mode: cards get dark surface */
+[data-mode="dark"] .card {
+  background: var(--color-surface);
+  border-color: var(--color-border);
+}
+
+/* Dark mode: topbar */
+[data-mode="dark"] .app-topbar {
+  background: var(--color-bg-elevated);
+  border-bottom-color: var(--color-border);
+}
+
+/* Dark mode: inputs */
+[data-mode="dark"] input,
+[data-mode="dark"] select,
+[data-mode="dark"] textarea {
+  background: var(--color-bg);
+  color: var(--color-text);
+  border-color: var(--color-border);
+  color-scheme: dark;
+}
+
+/* Dark mode: tables */
+[data-mode="dark"] .data-table th {
+  background: var(--color-bg);
+}
+
+[data-mode="dark"] .data-table tr:hover td {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+/* Dark mode: metric cards */
+[data-mode="dark"] .metric-card {
+  background: var(--color-surface);
+  border-color: var(--color-border);
+}
+
+/* Dark mode: modals */
+[data-mode="dark"] .modal-overlay {
+  background: rgba(0, 0, 0, 0.6);
+}
+
+[data-mode="dark"] .modal {
+  background: var(--color-surface);
+  border-color: var(--color-border);
+}
+
+/* Dark mode: chatbot drawer */
+[data-mode="dark"] .chatbot-drawer {
+  border-color: var(--color-border);
+}
+
+/* Dark mode: user avatar */
+[data-mode="dark"] .user-avatar {
+  background: var(--color-bg);
+  color: var(--color-primary);
+}
+
+/* Sign out only — sit on menu surface; no accent/error fill in dark mode */
+[data-mode="dark"] .user-menu-signout {
+  color: #f87171;
+}
+
+[data-mode="dark"] .user-menu-signout:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #fca5a5;
+}
+
+[data-mode="light"] .user-menu-signout:hover {
+  background: var(--color-error-bg);
+  color: var(--color-error);
+}
+
+/* Dark mode: system health banner */
+[data-mode="dark"] .overall-health-banner--healthy {
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--color-success) 14%, var(--color-surface)) 0%,
+    color-mix(in srgb, var(--color-primary) 10%, var(--color-surface)) 100%
+  );
+  border-color: color-mix(in srgb, var(--color-success) 35%, var(--color-border));
+}
+
+[data-mode="dark"] .overall-health-banner--degraded {
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--color-warning) 14%, var(--color-surface)) 0%,
+    color-mix(in srgb, var(--color-warning) 8%, var(--color-surface)) 100%
+  );
+  border-color: color-mix(in srgb, var(--color-warning) 35%, var(--color-border));
+}

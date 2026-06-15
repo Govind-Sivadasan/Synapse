@@ -1,4 +1,4 @@
-import { Hexagon } from "lucide-react";
+import { SynapseLogo } from "../brand/BrandImage";
 
 interface Props {
   message?: string;
@@ -7,8 +7,8 @@ interface Props {
 export default function LoadingScreen({ message = "Authenticating with Keycloak…" }: Props) {
   return (
     <div className="loading-screen">
-      <div className="loading-logo">
-        <Hexagon size={28} strokeWidth={2.25} />
+      <div className="loading-logo loading-logo--brand">
+        <SynapseLogo size={56} />
       </div>
       <div style={{ textAlign: "center" }}>
         <h2>Synapse</h2>

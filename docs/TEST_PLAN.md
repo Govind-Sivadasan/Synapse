@@ -121,7 +121,7 @@ cd frontend && npm run build
 | # | Step | Pass Criteria |
 |---|------|---------------|
 | A1 | Logout, visit http://localhost:3000 | Redirect to Keycloak |
-| A2 | Observe login page | Synapse branding, dark theme |
+| A2 | Observe login page | Synapse PNG logo and favicon, dark theme |
 | A3 | Login as `admin` / `admin123` | Redirect to dashboard |
 
 ### 4.2 Role-Based Navigation
@@ -130,8 +130,8 @@ Test each user; verify sidebar items match role:
 
 | Role | Must see | Must NOT see |
 |------|----------|--------------|
-| **viewer** | Dashboard, Chatbot | Nodes, Settings, Migration Jobs, Reports |
-| **service** | Dashboard, Routing Monitor, Audit Logs, Reports, Chatbot | Nodes, Settings |
+| **viewer** | Dashboard, Chatbot, Reports | Nodes, Settings, Migration Jobs, Audit Logs export |
+| **service** | Dashboard, Routing Monitor, Audit Logs, Reports, Chatbot | Nodes, Settings, Reports CSV export |
 | **operator** | + Migration Jobs, System Health | Nodes, Settings |
 | **admin** | All pages | — |
 
@@ -289,7 +289,7 @@ Ensure on-prem Orthanc has at least one CT study (upload via http://localhost:80
 | M2 | Source: Orthanc On-Prem, Dest: Orthanc Cloud, filter Modality=CT | Job created `not_started` |
 | M3 | Click **Start** | Status → `in_progress` |
 | M4 | Open job **Details** | Study records appear (QIDO discovery) |
-| M5 | Watch progress counters | `completed_studies` increments live (5s refresh) |
+| M5 | Watch progress in job list and **Details** | Progress bar under in-progress rows; counters increment live (~3s refresh) |
 | M6 | Celery logs | `docker logs -f synapse-celery-migration` shows `migrate_study` |
 | M7 | Job completes | Status `completed` or `partial` |
 | M8 | Cloud Orthanc | Migrated studies visible |
@@ -320,7 +320,8 @@ Reference: [REPORTING.md](REPORTING.md)
 |---|------|----------------|---------------|
 | DR1 | Dashboard | Send C-STORE while page open | Metrics + activity feed update within 10–15s |
 | DR2 | Dashboard | Volume chart (7 days) | Bar for today increments |
-| DR3 | Reports | Change period 7→30 days | Summary recalculates |
+| DR3 | Reports | Change period 7→30 days or **All time** | Summary recalculates; empty states explain missing data |
+| DR3b | Reports | Login as `viewer` | Page loads; no Export Audit CSV button |
 | DR4 | Audit Logs | Filter by `ROUTING_RULE_MATCH` | Matching events only |
 | DR5 | Audit Logs | Export CSV | File downloads |
 | DR6 | Reports | Export Audit CSV | File downloads (operator/admin) |
@@ -339,6 +340,8 @@ Reference: [CHATBOT.md](CHATBOT.md)
 | # | Step | Pass Criteria |
 |---|------|---------------|
 | C1 | Chatbot page → status pill | "Ollama ready" (or fallback if model missing) |
+| C1b | Any other page | Floating chatbot button bottom-right; drawer opens with same history |
+| C1c | `/chatbot` page | Floating button hidden (full page in use) |
 | C2 | Ask: "What is the migration status?" | Coherent answer using live counts |
 | C3 | Ask: "How many studies failed routing today?" | References routing data |
 | C4 | Ask: "Is the DIMSE listener online?" | Correct listener state |
@@ -348,6 +351,8 @@ Reference: [CHATBOT.md](CHATBOT.md)
 | C8 | Login as `service` | Full operational detail in answers |
 | C9 | Stop Ollama: `docker compose stop ollama` | Fallback response + "Fallback" badge |
 | C10 | Restart Ollama | LLM responses resume |
+| C11 | Reload page after chat | Prior messages and timestamps restored |
+| C12 | Clear chat | History removed from UI and database |
 
 ---
 
@@ -440,7 +445,7 @@ Events that should appear **without manual page refresh** (Routing Monitor open)
 | Migration 0 studies | On-prem Orthanc empty | Upload studies to :8042 |
 | Chatbot fallback only | Ollama model not pulled | `docker exec synapse-ollama ollama pull qwen2.5:7b-instruct` |
 | STOW-RS failed | Cloud Orthanc down | `docker compose restart orthanc-cloud` |
-| Keycloak theme old | Cached realm | Set login theme to `synapse` in admin console |
+| Keycloak theme old | Cached realm / container | `run.bat restart keycloak`; confirm login theme is `synapse` in admin console |
 
 ---
 
@@ -490,7 +495,7 @@ Copy this section for hackathon sign-off. Check each box during a live run.
 
 - [ ] On-prem Orthanc has source studies
 - [ ] Job create + **Start** from Migration Jobs UI
-- [ ] Progress counters update live
+- [ ] Progress bar + counters update live in Migration Jobs list
 - [ ] Studies visible in cloud Orthanc after completion
 - [ ] **Cancel** mid-run works
 - [ ] **Resume** on failed/partial job works
@@ -500,12 +505,15 @@ Copy this section for hackathon sign-off. Check each box during a live run.
 
 - [ ] Dashboard metrics/charts reflect test activity
 - [ ] Activity feed updates after routing
-- [ ] Reports summary + audit CSV export
+- [ ] Reports summary (viewer can read; operator/admin can export CSV)
+- [ ] Reports **All time** period shows historical totals when 7-day window is empty
 - [ ] Audit Logs: filters, chart, CSV, `USER_LOGIN`
 
 ### Chatbot (Phase 6)
 
 - [ ] Chatbot status shows Ollama ready (or fallback badge)
+- [ ] Floating chatbot widget on all pages except `/chatbot`
+- [ ] Chat history persists across reload; clear chat works
 - [ ] Migration / routing / DIMSE questions answered from live data
 - [ ] `CHATBOT_QUERY` in audit logs
 - [ ] Viewer: PHI redacted; service user: full detail

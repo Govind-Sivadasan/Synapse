@@ -1,5 +1,8 @@
-import { ReactNode } from "react";
+import { CSSProperties, ReactNode } from "react";
 import Sidebar from "./Sidebar";
+import UserMenu from "./UserMenu";
+import ChatbotWidget from "../chat/ChatbotWidget";
+import { useSidebarLayout } from "../../hooks/useSidebarLayout";
 
 interface Props {
   username: string;
@@ -9,24 +12,33 @@ interface Props {
 }
 
 export default function AppShell({ username, roles, onLogout, children }: Props) {
-  const initials = username.slice(0, 2).toUpperCase() || "?";
+  const sidebar = useSidebarLayout();
+
+  const layoutStyle = {
+    "--sidebar-width": `${sidebar.sidebarWidth}px`,
+  } as CSSProperties;
 
   return (
-    <div className="app-layout">
-      <Sidebar roles={roles} onLogout={onLogout} />
+    <div
+      className={`app-layout${sidebar.collapsed ? " app-layout--sidebar-collapsed" : ""}${
+        sidebar.resizing ? " app-layout--sidebar-resizing" : ""
+      }`}
+      style={layoutStyle}
+    >
+      <Sidebar
+        roles={roles}
+        onLogout={onLogout}
+        collapsed={sidebar.collapsed}
+        onToggle={sidebar.toggleCollapsed}
+        onResizeStart={sidebar.startResize}
+      />
       <div className="app-main">
         <header className="app-topbar">
-          <div />
-          <div className="topbar-user">
-            <div className="user-avatar">{initials}</div>
-            <div className="user-info">
-              <strong>{username}</strong>
-              <span className="user-roles">{roles.join(" · ")}</span>
-            </div>
-          </div>
+          <UserMenu username={username} roles={roles} onLogout={onLogout} />
         </header>
         <main className="app-content">{children}</main>
       </div>
+      <ChatbotWidget roles={roles} />
     </div>
   );
 }

@@ -22,6 +22,7 @@
   --sidebar-bg-hover: #1a2332;
   --sidebar-active: linear-gradient(90deg, rgba(13, 148, 136, 0.25) 0%, transparent 100%);
   --sidebar-border: rgba(255, 255, 255, 0.06);
+  --sidebar-border-accent: rgba(255, 255, 255, 0.06);
   --sidebar-text: #94a3b8;
   --sidebar-text-active: #f8fafc;
   --sidebar-width: 260px;

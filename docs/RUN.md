@@ -46,7 +46,7 @@ Open http://localhost:3000 and sign in with `admin` / `admin123`.
 |---------|-------------|
 | `up` | Start services. Default command. Foreground unless `-Detach` / `--detach`. |
 | `down` | Stop and remove containers. |
-| `restart` | `down` then `up`, preserving flags. |
+| `restart` | Full stack: `down` then `up`, preserving flags. With service names: restart only those containers (see below). |
 | `logs` | Show container logs. Use with `-Follow` / `--follow` to tail. |
 | `ps` | `docker compose ps` — container status. |
 | `health` | `GET http://localhost:8000/api/v1/health` |
@@ -67,6 +67,20 @@ Open http://localhost:3000 and sign in with `admin` / `admin123`.
 | `-KeepOllama` | `--keep-ollama` | With `down`: wipe DB, Orthanc, and temp data but **keep** `ollama_data`. |
 | `-Follow` | `--follow` / `-f` | With `logs`: follow output. |
 | `-Service NAME` | `--service NAME` | Limit to specific compose services (repeatable). |
+| `NAME …` (after command) | — | **PowerShell / CMD only:** shorthand for `-Service` on `restart`, e.g. `restart frontend -Build`. |
+
+### Restarting specific services
+
+When you pass one or more service names, the script restarts **only those containers** instead of tearing down the full stack:
+
+| Goal | CMD / PowerShell |
+|------|------------------|
+| Rebuild and recreate frontend | `run.bat restart frontend -Build` |
+| Restart Keycloak (theme changes) | `run.bat restart keycloak` |
+| Named flag form | `run.bat restart -Service frontend -Build` |
+| Full stack down + up | `run.bat restart -Detach -Build` (no service names) |
+
+With `-Build`, targeted restart runs `docker compose up -d --build --force-recreate <services>`. Without `-Build`, it runs `docker compose restart <services>`.
 
 ## Service groups
 
@@ -140,6 +154,8 @@ run.bat up -Detach -Build
 run.bat logs -Service backend -Follow
 run.bat down -Volumes
 run.bat down -KeepOllama
+run.bat restart frontend -Build
+run.bat restart keycloak
 ```
 
 ```powershell
@@ -150,6 +166,7 @@ run.bat down -KeepOllama
 .\scripts\run.ps1 health
 .\scripts\run.ps1 down
 .\scripts\run.ps1 down -Volumes
+.\scripts\run.ps1 restart frontend -Build
 .\scripts\run.ps1 restart -Detach -Build
 ```
 
@@ -191,6 +208,8 @@ Default UI login: `admin` / `admin123`
 | `.\scripts\run.ps1 down -Volumes` | `docker compose down -v` |
 | `.\scripts\run.ps1 down -KeepOllama` | `docker compose down` + remove all volumes except `ollama_data` |
 | `.\scripts\run.ps1 logs -Service backend -Follow` | `docker compose logs -f backend` |
+| `.\scripts\run.ps1 restart frontend -Build` | `docker compose up -d --build --force-recreate frontend` |
+| `.\scripts\run.ps1 restart keycloak` | `docker compose restart keycloak` |
 | `.\scripts\run.ps1 up -Infra -Detach` | `docker compose up -d postgres redis keycloak orthanc-onprem orthanc-cloud ollama` |
 
 ## Troubleshooting
@@ -204,6 +223,9 @@ Default UI login: `admin` / `admin123`
 | `dev` fails on `npm` | Install Node.js 18+ or use full stack (`run.bat up -Detach`) instead. |
 | Port already in use | Stop conflicting services or change compose port mappings. |
 | Stale data after schema changes | `run.bat down -KeepOllama` (keeps model) or `run.bat down -Volumes` (full wipe). |
+| UI changes not visible (Docker frontend) | `run.bat restart frontend -Build` |
+| Keycloak login theme not updated | `run.bat restart keycloak` (theme is mounted from `keycloak/themes/`) |
+| **`A positional parameter cannot be found that accepts argument 'frontend'`** | Use `run.bat restart frontend -Build` or `run.bat restart -Service frontend -Build` — not `restart frontend` as a bare second positional before the script was updated. |
 
 ## Related docs
 

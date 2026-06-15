@@ -2,7 +2,7 @@
 <@layout.registrationLayout; section>
     <#if section = "header">
         <div class="synapse-login-brand">
-            <img src="${url.resourcesPath}/img/synapse-logo.svg" alt="" class="synapse-login-logo" width="48" height="48" />
+            <img src="${url.resourcesPath}/img/synapse.png" alt="" class="synapse-login-logo" width="72" height="72" />
             <div class="synapse-login-brand-text">
                 <span class="synapse-login-name">Synapse</span>
             </div>

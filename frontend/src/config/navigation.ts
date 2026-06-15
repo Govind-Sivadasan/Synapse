@@ -3,7 +3,6 @@ import {
   Activity,
   ArrowLeftRight,
   Bot,
-  ClipboardList,
   FileBarChart,
   FileSearch,
   LayoutDashboard,
@@ -17,7 +16,9 @@ import {
 export interface NavItem {
   path: string;
   label: string;
-  icon: LucideIcon;
+  icon?: LucideIcon;
+  /** Custom SVG/PNG from /public instead of Lucide icon */
+  iconSrc?: string;
   roles: string[];
 }
 
@@ -38,7 +39,7 @@ export const navSections: NavSection[] = [
     items: [
       { path: "/routing-monitor", label: "Routing Monitor", icon: Radio, roles: ["service_user", "operator", "admin"] },
       { path: "/migration-jobs", label: "Migration Jobs", icon: ArrowLeftRight, roles: ["operator", "admin"] },
-      { path: "/reports", label: "Reports", icon: FileBarChart, roles: ["service_user", "operator", "admin"] },
+      { path: "/reports", label: "Reports", icon: FileBarChart, roles: ["viewer", "service_user", "operator", "admin"] },
       { path: "/audit-logs", label: "Audit Logs", icon: FileSearch, roles: ["service_user", "operator", "admin"] },
       { path: "/chatbot", label: "Chatbot", icon: Bot, roles: ["viewer", "service_user", "operator", "admin"] },
     ],

@@ -132,6 +132,8 @@ Open http://localhost:5173
 | Issue | Solution |
 |-------|----------|
 | Keycloak login fails | Wait 60s for realm import; check http://localhost:8080 |
+| Keycloak theme not updated | Theme files live in `keycloak/themes/synapse/`; run `run.bat restart keycloak` |
+| Frontend UI stale in Docker | `run.bat restart frontend -Build` |
 | Health shows `degraded` | Individual components may still be starting; wait and refresh |
 | DIMSE port not listening | Check backend logs: `docker logs synapse-backend` |
 | Celery tasks not processing | Verify workers: `docker logs synapse-celery-routing` |

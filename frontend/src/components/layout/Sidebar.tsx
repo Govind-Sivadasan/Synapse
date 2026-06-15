@@ -1,33 +1,54 @@
 import { NavLink } from "react-router-dom";
-import { Hexagon, LogOut } from "lucide-react";
+import { LogOut } from "lucide-react";
+import { BRAND } from "../../config/brand";
 import { getVisibleNav } from "../../config/navigation";
+import SidebarToggleIcon from "./SidebarToggleIcon";
 
 interface Props {
   roles: string[];
   onLogout: () => void | Promise<void>;
+  collapsed: boolean;
+  onToggle: () => void;
+  onResizeStart: (clientX: number) => void;
 }
 
-export default function Sidebar({ roles, onLogout }: Props) {
+export default function Sidebar({ roles, onLogout, collapsed, onToggle, onResizeStart }: Props) {
   const sections = getVisibleNav(roles);
 
   return (
-    <aside className="app-sidebar">
+    <aside className={`app-sidebar${collapsed ? " app-sidebar--collapsed" : ""}`}>
       <div className="sidebar-brand">
         <div className="sidebar-brand-inner">
-          <div className="sidebar-logo">
-            <Hexagon size={22} strokeWidth={2.25} />
-          </div>
-          <div className="sidebar-brand-text">
-            <h1>Synapse</h1>
-            <span>DICOM Router</span>
-          </div>
+          <img
+            src={BRAND.icon}
+            alt="Synapse"
+            className="sidebar-mark"
+            width={32}
+            height={32}
+            draggable={false}
+          />
+          {!collapsed && (
+            <div className="sidebar-brand-text">
+              <h1>Synapse</h1>
+              <span>DICOM Router</span>
+            </div>
+          )}
         </div>
+        <button
+          type="button"
+          className="sidebar-collapse-btn"
+          onClick={onToggle}
+          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+        >
+          <SidebarToggleIcon mode={collapsed ? "expand" : "collapse"} />
+        </button>
       </div>
 
       <nav className="sidebar-nav">
         {sections.map((section) => (
-          <div key={section.label}>
-            <div className="nav-section-label">{section.label}</div>
+          <div key={section.label} className="sidebar-nav-section">
+            {!collapsed && <div className="nav-section-label">{section.label}</div>}
             {section.items.map((item) => {
               const Icon = item.icon;
               return (
@@ -35,9 +56,11 @@ export default function Sidebar({ roles, onLogout }: Props) {
                   key={item.path}
                   to={item.path}
                   className={({ isActive }) => (isActive ? "active" : "")}
+                  title={item.label}
+                  aria-label={collapsed ? item.label : undefined}
                 >
-                  <Icon size={18} strokeWidth={2} />
-                  {item.label}
+                  {Icon ? <Icon size={18} strokeWidth={2} /> : null}
+                  {!collapsed && <span className="sidebar-nav-label">{item.label}</span>}
                 </NavLink>
               );
             })}
@@ -45,17 +68,31 @@ export default function Sidebar({ roles, onLogout }: Props) {
         ))}
       </nav>
 
-      <div style={{ padding: "0.75rem", borderTop: "1px solid var(--sidebar-border)" }}>
+      <div className="sidebar-footer">
         <button
           type="button"
-          className="btn-ghost"
+          className="btn-ghost sidebar-signout"
           onClick={() => void onLogout()}
-          style={{ width: "100%", justifyContent: "flex-start", color: "var(--sidebar-text)" }}
+          title="Sign out"
+          aria-label={collapsed ? "Sign out" : undefined}
         >
           <LogOut size={18} />
-          Sign out
+          {!collapsed && <span className="sidebar-nav-label">Sign out</span>}
         </button>
       </div>
+
+      {!collapsed && (
+        <div
+          className="sidebar-resize-handle"
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize sidebar"
+          onPointerDown={(e) => {
+            e.preventDefault();
+            onResizeStart(e.clientX);
+          }}
+        />
+      )}
     </aside>
   );
 }

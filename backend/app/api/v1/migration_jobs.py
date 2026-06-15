@@ -1,5 +1,6 @@
 """Migration job management API."""
 
+from datetime import datetime, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -284,6 +285,9 @@ async def cancel_migration_job(
         raise HTTPException(status_code=400, detail=f"Cannot cancel job in status '{job.status}'")
 
     job.status = "cancelled"
+    if job.end_time is None:
+        job.end_time = datetime.now(timezone.utc)
+    await db.flush()
     await AuditLogger.log(
         db,
         "JOB_STATUS_CHANGE",
@@ -294,6 +298,7 @@ async def cancel_migration_job(
         details={"action": "cancel"},
         ip_address=request.client.host if request.client else None,
     )
+    await db.refresh(job)
     nodes = await _load_nodes(db, [job])
     return _job_response(job, nodes)
 

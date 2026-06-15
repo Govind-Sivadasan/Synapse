@@ -171,6 +171,34 @@ function progressPct(job: MigrationJob): number {
   return Math.round(((job.completed_studies + job.failed_studies) / total) * 100);
 }
 
+function JobProgressCell({ job }: { job: MigrationJob }) {
+  const total = job.total_studies ?? 0;
+  const active = job.status === "in_progress";
+  let label: string;
+  if (!total && active) {
+    label = "Discovering…";
+  } else if (!total) {
+    label = "—";
+  } else {
+    label = `${job.completed_studies}/${total} (${progressPct(job)}%)`;
+  }
+
+  return (
+    <div className="job-list-progress">
+      <span className="job-list-progress-label">{label}</span>
+      {active && (
+        <div className="job-progress-bar job-progress-bar--compact">
+          {!total ? (
+            <div className="job-progress-fill job-progress-fill--indeterminate" />
+          ) : (
+            <div className="job-progress-fill" style={{ width: `${progressPct(job)}%` }} />
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function MigrationJobs() {
   const queryClient = useQueryClient();
   const { confirm, ConfirmDialog } = useConfirmDialog();
@@ -265,16 +293,16 @@ export default function MigrationJobs() {
     { value: "batch", label: "Batch (explicit Study UIDs)" },
   ];
 
-  const openNewJobModal = () => {
-    queryClient.invalidateQueries({ queryKey: ["nodes"] });
+  const openNewJobModal = async () => {
+    await queryClient.refetchQueries({ queryKey: ["nodes"] });
     setError("");
     setIsDuplicating(false);
     setForm(emptyForm);
     setModalOpen(true);
   };
 
-  const duplicateJob = (job: MigrationJob) => {
-    queryClient.invalidateQueries({ queryKey: ["nodes"] });
+  const duplicateJob = async (job: MigrationJob) => {
+    await queryClient.refetchQueries({ queryKey: ["nodes"] });
     setError("");
     setIsDuplicating(true);
     setForm(jobFormFromJob(job));
@@ -488,12 +516,7 @@ export default function MigrationJobs() {
               {
                 key: "progress",
                 header: "Progress",
-                render: (j) => {
-                  const total = j.total_studies ?? 0;
-                  if (!total && j.status === "in_progress") return "Discovering…";
-                  if (!total && j.status === "not_started") return "—";
-                  return `${j.completed_studies}/${total} (${progressPct(j)}%)`;
-                },
+                render: (j) => <JobProgressCell job={j} />,
               },
               {
                 key: "failed",
@@ -820,8 +843,8 @@ export default function MigrationJobs() {
                 ))}
               </select>
               {sources.length === 0 && (
-                <p style={{ fontSize: "0.8rem", color: "#64748b", margin: "0.25rem 0 0" }}>
-                  No active source nodes with a DICOMweb URL. Add one under Nodes.
+                <p className="form-field-hint">
+                  No active source nodes with a DICOMweb URL. Add one under Nodes (type: source, DICOMweb URL required).
                 </p>
               )}
             </div>
@@ -840,8 +863,8 @@ export default function MigrationJobs() {
                 ))}
               </select>
               {destinations.length === 0 && (
-                <p style={{ fontSize: "0.8rem", color: "#64748b", margin: "0.25rem 0 0" }}>
-                  No active DICOMweb destination nodes. Add one under Nodes.
+                <p className="form-field-hint">
+                  No active destination nodes with a DICOMweb URL. Add one under Nodes (type: destination, DICOMweb URL required).
                 </p>
               )}
             </div>
