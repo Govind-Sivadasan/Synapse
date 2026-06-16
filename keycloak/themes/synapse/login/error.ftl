@@ -1,10 +1,8 @@
 <#import "template.ftl" as layout>
+<#import "brand-header.ftl" as brand>
 <@layout.registrationLayout displayMessage=false; section>
     <#if section = "header">
-        <div class="synapse-error-header">
-            <span class="synapse-error-icon" aria-hidden="true"></span>
-            <span id="kc-page-title">${msg("errorTitleHtml")?no_esc}</span>
-        </div>
+        <@brand.show pageTitle=msg("errorTitleHtml") tagline=false />
     <#elseif section = "form">
         <div id="kc-error-message" class="synapse-error-body">
             <p class="instruction synapse-error-text">${message.summary?no_esc}</p>

@@ -37,6 +37,16 @@
   --color-info: #0284c7;
   --color-info-bg: #e0f2fe;
 
+  /* Alert text/border (background uses status bg tokens above) */
+  --alert-success-text: #166534;
+  --alert-success-border: #bbf7d0;
+  --alert-error-text: #991b1b;
+  --alert-error-border: #fecaca;
+  --alert-warning-text: #92400e;
+  --alert-warning-border: #fde68a;
+  --alert-info-text: #1e40af;
+  --alert-info-border: #bfdbfe;
+
   /* Typography */
   --font-sans: "DM Sans", system-ui, -apple-system, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;

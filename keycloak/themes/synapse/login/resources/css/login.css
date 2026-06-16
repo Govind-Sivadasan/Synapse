@@ -13,10 +13,17 @@
   --synapse-card-width: 520px;
 }
 
-/* Page background — single fixed layer (no repeat / banding on scroll) */
+/* Page background — gradient on html (body/card layers stay transparent) */
 html {
-  background: #0c1222;
   min-height: 100%;
+  background-color: #0a101c;
+  background-image:
+    radial-gradient(ellipse 120% 80% at 15% -10%, rgba(13, 148, 136, 0.4) 0%, transparent 52%),
+    radial-gradient(ellipse 90% 70% at 100% 100%, rgba(2, 132, 199, 0.25) 0%, transparent 48%),
+    linear-gradient(165deg, #0c1222 0%, #0f172a 48%, #111827 100%);
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-attachment: fixed;
 }
 
 body#keycloak-bg.synapse-login-body,
@@ -27,27 +34,15 @@ body#keycloak-bg {
   position: relative;
   min-height: 100vh;
   margin: 0;
-  background: #0c1222 !important;
+  background: transparent !important;
   background-image: none !important;
 }
 
 body#keycloak-bg.synapse-login-body::before,
 .login-pf body::before,
 body#keycloak-bg::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  background-color: #0c1222;
-  background-image:
-    radial-gradient(ellipse 80% 60% at 20% 0%, rgba(13, 148, 136, 0.35) 0%, transparent 55%),
-    radial-gradient(ellipse 60% 50% at 100% 100%, rgba(2, 132, 199, 0.2) 0%, transparent 50%),
-    linear-gradient(180deg, #0c1222 0%, #111827 100%);
-  background-repeat: no-repeat;
-  background-size: cover;
-  background-position: center center;
-  background-attachment: fixed;
+  content: none;
+  display: none;
 }
 
 .pf-v5-c-login,
@@ -146,7 +141,7 @@ body .pf-v5-c-login__main {
   border: 1px solid rgba(255, 255, 255, 0.08) !important;
   border-radius: 16px !important;
   box-shadow: 0 24px 48px rgba(0, 0, 0, 0.35) !important;
-  padding: 2.25rem 2.75rem 2rem !important;
+  padding: 2rem 2.5rem 1.75rem !important;
   gap: 0 !important;
   width: 100% !important;
   min-width: 100% !important;
@@ -188,8 +183,9 @@ input#password {
 }
 
 .pf-v5-c-login__main-header {
-  margin-bottom: 0.5rem !important;
+  margin-bottom: 0.25rem !important;
   padding-bottom: 0 !important;
+  border-bottom: none !important;
 }
 
 .synapse-login-header-slot {
@@ -237,10 +233,24 @@ input#password {
 }
 
 .synapse-login-welcome {
-  margin: 0.85rem 0 0;
+  margin: 0.65rem 0 0;
   font-size: 0.9375rem;
   font-weight: 600;
   color: var(--synapse-text);
+}
+
+/* Fallback page titles from parent templates without brand macro */
+.synapse-login-header-slot > #kc-page-title,
+.synapse-login-header-slot > .pf-v5-c-title,
+.synapse-login-header-slot > h1 {
+  display: block;
+  width: 100%;
+  margin: 0;
+  text-align: center;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--synapse-text);
+  line-height: 1.35;
 }
 
 /* Form */
@@ -489,4 +499,182 @@ input[type="submit"][name="login"] {
 .synapse-btn-secondary:hover {
   background: #ccfbf1;
   color: var(--synapse-primary-dark) !important;
+}
+
+/* ===== Shared form layout (login, reset, update password, etc.) ===== */
+
+.pf-v5-c-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.pf-v5-c-form__group {
+  margin-bottom: 0.85rem !important;
+}
+
+.pf-v5-c-form__actions,
+#kc-form-buttons,
+.synapse-form-actions {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  gap: 0.65rem !important;
+  width: 100% !important;
+  margin-top: 0.75rem !important;
+  margin-bottom: 0 !important;
+  padding-top: 0 !important;
+}
+
+.pf-v5-c-form__actions .pf-v5-c-button,
+.pf-v5-c-form__actions input[type="submit"],
+.pf-v5-c-form__actions button,
+#kc-form-buttons .pf-v5-c-button,
+#kc-form-buttons input[type="submit"],
+#kc-form-buttons button {
+  width: 100% !important;
+  max-width: 100% !important;
+  margin: 0 !important;
+}
+
+.pf-v5-c-button.pf-m-secondary,
+button.pf-m-secondary,
+input.pf-m-secondary,
+a.pf-v5-c-button.pf-m-secondary {
+  font-family: "DM Sans", system-ui, sans-serif !important;
+  background: #f8fafc !important;
+  border: 1px solid var(--synapse-border) !important;
+  border-radius: 8px !important;
+  color: var(--synapse-text) !important;
+  font-weight: 600 !important;
+  font-size: 0.9375rem !important;
+  padding: 0.7rem 1.25rem !important;
+  min-height: 2.75rem;
+  text-decoration: none !important;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.pf-v5-c-button.pf-m-secondary:hover,
+button.pf-m-secondary:hover,
+a.pf-v5-c-button.pf-m-secondary:hover {
+  background: #f1f5f9 !important;
+  border-color: #cbd5e1 !important;
+  color: var(--synapse-text) !important;
+  text-decoration: none !important;
+  transform: none;
+  box-shadow: none !important;
+}
+
+.pf-v5-c-button.pf-m-link,
+a.pf-v5-c-button.pf-m-link {
+  font-family: "DM Sans", system-ui, sans-serif !important;
+  width: 100% !important;
+  justify-content: center;
+  color: var(--synapse-primary) !important;
+  font-weight: 600 !important;
+  font-size: 0.875rem !important;
+  text-decoration: none !important;
+  padding: 0.5rem 0.75rem !important;
+}
+
+.pf-v5-c-button.pf-m-link:hover {
+  color: var(--synapse-primary-dark) !important;
+  text-decoration: underline !important;
+}
+
+/* Checkbox — sign out from other devices, remember me */
+.pf-v5-c-check,
+.checkbox {
+  margin: 0.25rem 0 0.5rem !important;
+}
+
+.pf-v5-c-check__label,
+.pf-v5-c-check label,
+.checkbox label {
+  font-family: "DM Sans", system-ui, sans-serif !important;
+  font-size: 0.875rem !important;
+  font-weight: 500 !important;
+  color: var(--synapse-text) !important;
+  cursor: pointer;
+}
+
+.pf-v5-c-check__input,
+.checkbox input[type="checkbox"] {
+  accent-color: var(--synapse-primary);
+  width: 1rem;
+  height: 1rem;
+  margin-right: 0.45rem;
+}
+
+/* Instruction / info copy on secondary pages */
+.synapse-page-message,
+.instruction {
+  margin: 0 0 0.75rem !important;
+  font-size: 0.9375rem !important;
+  line-height: 1.55 !important;
+  color: var(--synapse-text) !important;
+  text-align: center;
+}
+
+.synapse-page-message a,
+.instruction a {
+  color: var(--synapse-primary) !important;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.synapse-page-message a:hover,
+.instruction a:hover {
+  color: var(--synapse-primary-dark) !important;
+  text-decoration: underline;
+}
+
+.synapse-page-message--muted,
+.instruction.instruction-secondary {
+  color: var(--synapse-muted) !important;
+  font-size: 0.875rem !important;
+}
+
+#kc-info,
+#kc-info-wrapper,
+#kc-registration-container {
+  margin-top: 1rem !important;
+  font-size: 0.875rem !important;
+  line-height: 1.5 !important;
+  color: var(--synapse-muted) !important;
+  text-align: center;
+}
+
+#kc-registration a,
+#kc-info-wrapper a {
+  color: var(--synapse-primary) !important;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+#kc-registration a:hover,
+#kc-info-wrapper a:hover {
+  text-decoration: underline;
+}
+
+/* Error helper text under fields */
+.kc-feedback-text,
+.pf-v5-c-helper-text__item-text.pf-m-error {
+  font-size: 0.8125rem !important;
+  margin-top: 0.35rem !important;
+}
+
+/* Password visibility toggle — hide inner field border when inside input group */
+.pf-v5-c-input-group .pf-v5-c-form-control.pf-m-error {
+  border: none !important;
+}
+
+.pf-v5-c-input-group.pf-m-error,
+.pf-v5-c-input-group:has(.pf-m-error) {
+  border-color: #dc2626 !important;
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.12) !important;
 }

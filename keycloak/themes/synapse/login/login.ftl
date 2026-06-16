@@ -1,14 +1,8 @@
 <#import "template.ftl" as layout>
+<#import "brand-header.ftl" as brand>
 <@layout.registrationLayout displayMessage=!messagesPerField.existsError('username','password') displayInfo=realm.password && realm.registrationAllowed && !registrationDisabled??; section>
     <#if section = "header">
-        <div class="synapse-login-brand">
-            <img src="${url.resourcesPath}/img/synapse.png" alt="" class="synapse-login-logo" width="72" height="72" />
-            <div class="synapse-login-brand-text">
-                <span class="synapse-login-name">Synapse</span>
-                <span class="synapse-login-tagline">DICOM Data Migration Router</span>
-            </div>
-            <p class="synapse-login-welcome">${msg("loginAccountTitle")}</p>
-        </div>
+        <@brand.show pageTitle=msg("loginAccountTitle") />
     <#elseif section = "form">
         <div id="kc-form">
           <div id="kc-form-wrapper">

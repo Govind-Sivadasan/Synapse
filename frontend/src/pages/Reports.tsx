@@ -1,6 +1,15 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Download, FileBarChart } from "lucide-react";
+import {
+  ArrowRight,
+  Download,
+  FileBarChart,
+  FileSearch,
+  Radio,
+  ArrowLeftRight,
+  Activity,
+} from "lucide-react";
 import { apiFetch, downloadFile } from "../api/client";
 import { useAuth } from "../auth/AuthProvider";
 import BarChart from "../components/ui/BarChart";
@@ -23,6 +32,9 @@ export default function Reports() {
   const [days, setDays] = useState(7);
   const [exporting, setExporting] = useState(false);
   const canExport = roles.some((r) => ["operator", "admin"].includes(r));
+  const canRouting = roles.some((r) => ["service_user", "operator", "admin"].includes(r));
+  const canMigration = roles.some((r) => ["operator", "admin"].includes(r));
+  const canAudit = roles.some((r) => ["service_user", "operator", "admin"].includes(r));
 
   const { data: summary, isLoading, isError, error } = useQuery({
     queryKey: ["report-summary", days],
@@ -52,6 +64,8 @@ export default function Reports() {
       ? "No routing studies recorded yet."
       : "No routing activity in this period. Try All time or send studies via DIMSE.";
 
+  const periodQuery = days > 0 ? `?days=${days}` : "";
+
   return (
     <div>
       <PageHeader
@@ -60,9 +74,9 @@ export default function Reports() {
         actions={
           <>
             <select
+              className="reports-period-select"
               value={days}
               onChange={(e) => setDays(Number(e.target.value))}
-              style={{ padding: "0.5rem 0.75rem", borderRadius: "var(--radius-md)", border: "1px solid var(--color-border)" }}
             >
               <option value={0}>All time</option>
               <option value={7}>Last 7 days</option>
@@ -86,8 +100,9 @@ export default function Reports() {
         <p className="empty-message">{(error as Error).message}</p>
       ) : summary ? (
         <>
-          <div className="grid" style={{ marginBottom: "1.25rem" }}>
+          <div className="grid reports-kpi-grid">
             <MetricCard
+              variant="kpi"
               label="Routing Studies"
               value={summary.routing_studies}
               icon={<FileBarChart size={20} />}
@@ -97,31 +112,126 @@ export default function Reports() {
                   ? `${summary.routing_success_rate}% success rate`
                   : "No routing data in period"
               }
+              actions={
+                canRouting
+                  ? [{ label: "Routing monitor", href: "/routing-monitor" }]
+                  : undefined
+              }
             />
             <MetricCard
+              variant="kpi"
               label="Migrations Completed"
               value={summary.migration_studies_completed}
               tone="success"
+              icon={<ArrowLeftRight size={20} />}
+              sub={
+                summary.migration_studies_completed > 0
+                  ? "Studies successfully migrated"
+                  : "No completed migrations in period"
+              }
+              actions={
+                canMigration ? [{ label: "Migration jobs", href: "/migration-jobs" }] : undefined
+              }
             />
             <MetricCard
+              variant="kpi"
               label="Migration Failures"
               value={summary.migration_studies_failed}
               tone="error"
+              icon={<Activity size={20} />}
+              sub={
+                summary.migration_studies_failed > 0
+                  ? "Review failed jobs and retry"
+                  : "No failed migrations in period"
+              }
+              actions={
+                canMigration ? [{ label: "View failures", href: "/migration-jobs" }] : undefined
+              }
             />
             <MetricCard
+              variant="kpi"
               label="Audit Events"
               value={summary.audit_events}
               tone="info"
+              icon={<FileSearch size={20} />}
+              sub={
+                summary.audit_events > 0
+                  ? `${auditSummary.length} event types in period`
+                  : "No audit activity in period"
+              }
+              actions={
+                canAudit
+                  ? [
+                      { label: "Audit logs", href: `/audit-logs${periodQuery}` },
+                      ...(canExport
+                        ? [{ label: exporting ? "Exporting…" : "Export CSV", onClick: () => void handleExport() }]
+                        : []),
+                    ]
+                  : undefined
+              }
             />
           </div>
 
-          <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))" }}>
-            <div className="card">
-              <h3 className="card-title">Routing by Status</h3>
-              <BarChart data={summary.routing_by_status} color="var(--color-accent)" emptyLabel={routingEmpty} />
+          <div className="card reports-quick-links" style={{ marginBottom: "1.25rem" }}>
+            <h3 className="card-title">Quick actions</h3>
+            <div className="reports-link-grid">
+              {canRouting && (
+                <Link to="/routing-monitor" className="reports-quick-link">
+                  <Radio size={18} />
+                  <span>Live routing monitor</span>
+                  <ArrowRight size={14} />
+                </Link>
+              )}
+              {canMigration && (
+                <Link to="/migration-jobs" className="reports-quick-link">
+                  <ArrowLeftRight size={18} />
+                  <span>Migration jobs</span>
+                  <ArrowRight size={14} />
+                </Link>
+              )}
+              {canAudit && (
+                <Link to={`/audit-logs${periodQuery}`} className="reports-quick-link">
+                  <FileSearch size={18} />
+                  <span>Audit log explorer</span>
+                  <ArrowRight size={14} />
+                </Link>
+              )}
+              {canRouting && summary.routing_studies === 0 && (
+                <Link to="/routing-rules" className="reports-quick-link reports-quick-link--hint">
+                  <FileBarChart size={18} />
+                  <span>Configure routing rules to start receiving studies</span>
+                  <ArrowRight size={14} />
+                </Link>
+              )}
             </div>
-            <div className="card">
-              <h3 className="card-title">Top Modalities</h3>
+          </div>
+
+          <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))" }}>
+            <div className="card reports-chart-card">
+              <div className="reports-chart-head">
+                <h3 className="card-title">Routing by Status</h3>
+                {canRouting && (
+                  <Link to="/routing-monitor" className="reports-chart-link">
+                    Details <ArrowRight size={14} />
+                  </Link>
+                )}
+              </div>
+              <BarChart data={summary.routing_by_status} color="var(--color-accent)" emptyLabel={routingEmpty} />
+              {summary.routing_studies === 0 && canRouting && (
+                <Link to="/routing-monitor" className="reports-empty-cta">
+                  Send a test study via DIMSE
+                </Link>
+              )}
+            </div>
+            <div className="card reports-chart-card">
+              <div className="reports-chart-head">
+                <h3 className="card-title">Top Modalities</h3>
+                {canRouting && summary.top_modalities.length > 0 && (
+                  <Link to="/routing-rules" className="reports-chart-link">
+                    Rules <ArrowRight size={14} />
+                  </Link>
+                )}
+              </div>
               <BarChart
                 data={summary.top_modalities}
                 emptyLabel={
@@ -131,8 +241,15 @@ export default function Reports() {
                 }
               />
             </div>
-            <div className="card">
-              <h3 className="card-title">Audit Events by Type</h3>
+            <div className="card reports-chart-card">
+              <div className="reports-chart-head">
+                <h3 className="card-title">Audit Events by Type</h3>
+                {canAudit && (
+                  <Link to={`/audit-logs${periodQuery}`} className="reports-chart-link">
+                    View all <ArrowRight size={14} />
+                  </Link>
+                )}
+              </div>
               <BarChart
                 data={auditSummary}
                 color="var(--color-warning)"
@@ -142,6 +259,11 @@ export default function Reports() {
                     : "No audit events in this period."
                 }
               />
+              {canExport && summary.audit_events > 0 && (
+                <button type="button" className="reports-empty-cta" onClick={() => void handleExport()} disabled={exporting}>
+                  {exporting ? "Exporting…" : "Download audit CSV for this period"}
+                </button>
+              )}
             </div>
           </div>
         </>

@@ -1,6 +1,7 @@
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { LogOut, Moon, Sun, User } from "lucide-react";import {
+import { LogOut, Moon, Sun, User } from "lucide-react";
+import {
   ACCENT_OPTIONS,
   AccentColor,
   useTheme,
@@ -20,7 +21,8 @@ export default function UserMenu({ username, roles, onLogout }: Props) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
-  const { theme, setAccent, toggleMode } = useTheme();  const initials = username.slice(0, 2).toUpperCase() || "?";
+  const { theme, setAccent, toggleMode } = useTheme();
+  const initials = username.slice(0, 2).toUpperCase() || "?";
 
   useEffect(() => {
     if (!open) return;
@@ -95,7 +97,8 @@ export default function UserMenu({ username, roles, onLogout }: Props) {
               onClick={() => {
                 setOpen(false);
                 navigate("/account");
-              }}            >
+              }}
+            >
               <User size={16} strokeWidth={2} />
               <span>Account settings</span>
             </button>

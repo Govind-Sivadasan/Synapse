@@ -134,7 +134,7 @@ export default function Nodes() {
             <strong>{nodes.find((n) => n.id === echoResult.nodeId)?.name ?? "Node"}:</strong>{" "}
             {echoResult.result.message}
             {echoResult.result.latency_ms != null && (
-              <span style={{ color: "var(--color-text-muted)" }}> ({echoResult.result.latency_ms} ms)</span>
+              <span className="alert-muted"> ({echoResult.result.latency_ms} ms)</span>
             )}
           </span>
         </AutoDismissAlert>

@@ -1,10 +1,13 @@
+import { useCallback, useState } from "react";
 import { NavLink } from "react-router-dom";
 import { LogOut } from "lucide-react";
 import { BRAND } from "../../config/brand";
-import { getVisibleNav } from "../../config/navigation";
+import { resolveNavSections, loadUserPreferences } from "../../config/userPreferences";
+import { usePreferencesSync } from "../../hooks/useUserPreferences";
 import SidebarToggleIcon from "./SidebarToggleIcon";
 
 interface Props {
+  username: string;
   roles: string[];
   onLogout: () => void | Promise<void>;
   collapsed: boolean;
@@ -12,8 +15,16 @@ interface Props {
   onResizeStart: (clientX: number) => void;
 }
 
-export default function Sidebar({ roles, onLogout, collapsed, onToggle, onResizeStart }: Props) {
-  const sections = getVisibleNav(roles);
+export default function Sidebar({ username, roles, onLogout, collapsed, onToggle, onResizeStart }: Props) {
+  const [sections, setSections] = useState(() =>
+    resolveNavSections(roles, loadUserPreferences(username)),
+  );
+
+  const refreshNav = useCallback(() => {
+    setSections(resolveNavSections(roles, loadUserPreferences(username)));
+  }, [roles, username]);
+
+  usePreferencesSync(username, refreshNav);
 
   return (
     <aside className={`app-sidebar${collapsed ? " app-sidebar--collapsed" : ""}`}>

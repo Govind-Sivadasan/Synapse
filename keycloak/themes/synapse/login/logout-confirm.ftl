@@ -1,13 +1,8 @@
 <#import "template.ftl" as layout>
+<#import "brand-header.ftl" as brand>
 <@layout.registrationLayout; section>
     <#if section = "header">
-        <div class="synapse-login-brand">
-            <img src="${url.resourcesPath}/img/synapse.png" alt="" class="synapse-login-logo" width="72" height="72" />
-            <div class="synapse-login-brand-text">
-                <span class="synapse-login-name">Synapse</span>
-            </div>
-            <p class="synapse-login-welcome">${msg("logoutConfirmTitle")}</p>
-        </div>
+        <@brand.show pageTitle=msg("logoutConfirmTitle") tagline=false />
     <#elseif section = "form">
         <div id="kc-logout-confirm" class="synapse-error-body">
             <p class="instruction synapse-error-text">${msg("logoutConfirmHeader")}</p>
