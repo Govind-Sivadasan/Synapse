@@ -18,6 +18,15 @@ def default_settings() -> dict:
         "celery_routing_concurrency": settings.celery_routing_concurrency,
         "celery_migration_concurrency": settings.celery_migration_concurrency,
         "logging_level": "INFO",
+        "audit_log_dimse": True,
+        "audit_log_routing": True,
+        "audit_log_tag_morphing": True,
+        "audit_log_migration": True,
+        "audit_log_chatbot": True,
+        "audit_include_phi": False,
+        "ollama_base_url": settings.ollama_base_url,
+        "ollama_model": settings.ollama_model,
+        "chatbot_enabled": True,
     }
 
 

@@ -57,6 +57,15 @@ export interface SystemConfig {
   celery_routing_concurrency: number;
   celery_migration_concurrency: number;
   logging_level: string;
+  audit_log_dimse: boolean;
+  audit_log_routing: boolean;
+  audit_log_tag_morphing: boolean;
+  audit_log_migration: boolean;
+  audit_log_chatbot: boolean;
+  audit_include_phi: boolean;
+  ollama_base_url: string;
+  ollama_model: string;
+  chatbot_enabled: boolean;
 }
 
 export interface AuditLog {
@@ -135,6 +144,8 @@ export interface DashboardMetrics {
     partial: number;
     no_match: number;
     success_rate: number;
+    studies_today: number;
+    success_rate_today: number;
   };
   migration: {
     total_jobs: number;

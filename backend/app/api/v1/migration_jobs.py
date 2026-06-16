@@ -63,6 +63,7 @@ async def _load_nodes(db: AsyncSession, jobs: list[MigrationJob]) -> dict[UUID, 
 @router.get("", response_model=MigrationJobListResponse)
 async def list_migration_jobs(
     search: str | None = None,
+    status: str | None = None,
     limit: int = 50,
     offset: int = 0,
     db: AsyncSession = Depends(get_db),
@@ -70,6 +71,9 @@ async def list_migration_jobs(
 ) -> MigrationJobListResponse:
     count_query = select(func.count()).select_from(MigrationJob)
     list_query = select(MigrationJob)
+    if status:
+        count_query = count_query.where(MigrationJob.status == status)
+        list_query = list_query.where(MigrationJob.status == status)
     if search:
         pattern = f"%{search.strip()}%"
         name_filter = or_(
@@ -339,3 +343,47 @@ async def retry_migration_study(
         details={"study_uid": record.study_uid, "celery_task_id": task_id},
     )
     return {"status": "enqueued", "study_uid": record.study_uid, "task_id": task_id}
+
+
+@router.post("/{job_id}/studies/retry-failed")
+async def retry_failed_migration_studies(
+    job_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    user: CurrentUser = Depends(require_roles("operator", "admin")),
+) -> dict:
+    job = await db.get(MigrationJob, job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Migration job not found")
+
+    result = await db.execute(
+        select(MigrationStudyRecord)
+        .where(MigrationStudyRecord.job_id == job_id)
+        .where(MigrationStudyRecord.status.in_(("failed", "skipped")))
+    )
+    records = list(result.scalars().all())
+    if not records:
+        return {"enqueued": 0, "study_uids": []}
+
+    study_uids: list[str] = []
+    for record in records:
+        record.status = "pending"
+        record.failure_reason = None
+        record.completed_at = None
+        study_uids.append(record.study_uid)
+        enqueue_migrate_study(str(job_id), record.study_uid)
+
+    job.retry_count += len(records)
+    if job.status in ("failed", "partial", "completed"):
+        job.status = "in_progress"
+        job.end_time = None
+
+    await AuditLogger.log(
+        db,
+        "RETRY_ATTEMPT",
+        user_id=user.sub,
+        user_role=",".join(user.roles),
+        entity_type="MigrationJob",
+        entity_id=job.id,
+        details={"action": "retry_failed_bulk", "count": len(records), "study_uids": study_uids[:50]},
+    )
+    return {"enqueued": len(records), "study_uids": study_uids}

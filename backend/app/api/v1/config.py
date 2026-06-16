@@ -30,7 +30,7 @@ async def update_config(
 ) -> dict:
     updates = payload.model_dump(exclude_unset=True)
     config = await save_system_config(db, updates, updated_by=user.username)
-    set_runtime_overrides(updates)
+    set_runtime_overrides(config)
 
     await AuditLogger.log(
         db,

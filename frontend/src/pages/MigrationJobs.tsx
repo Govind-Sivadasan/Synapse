@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Plus, Play, Square, RefreshCw, Copy, Trash2 } from "lucide-react";
 import { apiFetch } from "../api/client";
 import DataTable from "../components/DataTable";
+import FilterChips from "../components/ui/FilterChips";
 import Modal from "../components/Modal";
 import PageHeader from "../components/ui/PageHeader";
 import StatusBadge from "../components/ui/StatusBadge";
@@ -26,6 +27,23 @@ const emptyForm = {
   study_uids: "",
   tag_morphing_rule_ids: [] as string[],
 };
+
+const JOB_STATUS_FILTERS = [
+  { value: "", label: "All jobs" },
+  { value: "in_progress", label: "In progress" },
+  { value: "failed", label: "Failed" },
+  { value: "partial", label: "Partial" },
+  { value: "completed", label: "Completed" },
+  { value: "not_started", label: "Not started" },
+];
+
+const STUDY_STATUS_FILTERS = [
+  { value: "", label: "All studies" },
+  { value: "failed", label: "Failed" },
+  { value: "skipped", label: "Skipped" },
+  { value: "success", label: "Success" },
+  { value: "pending", label: "Pending" },
+];
 
 type JobForm = typeof emptyForm;
 
@@ -211,28 +229,31 @@ export default function MigrationJobs() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
   const [jobsSearch, setJobsSearch] = useState("");
+  const [jobsStatusFilter, setJobsStatusFilter] = useState("");
   const [jobsPage, setJobsPage] = useState(0);
   const [studiesSearch, setStudiesSearch] = useState("");
+  const [studiesStatusFilter, setStudiesStatusFilter] = useState("");
   const [studiesPage, setStudiesPage] = useState(0);
   const jobsPageSize = 10;
   const studiesPageSize = 15;
 
   useEffect(() => {
     setJobsPage(0);
-  }, [jobsSearch]);
+  }, [jobsSearch, jobsStatusFilter]);
 
   useEffect(() => {
     setStudiesPage(0);
-  }, [studiesSearch, selectedJob?.id]);
+  }, [studiesSearch, studiesStatusFilter, selectedJob?.id]);
 
   const { data: jobsData, isLoading } = useQuery({
-    queryKey: ["migration-jobs", jobsSearch, jobsPage],
+    queryKey: ["migration-jobs", jobsSearch, jobsStatusFilter, jobsPage],
     queryFn: () => {
       const params = new URLSearchParams({
         limit: String(jobsPageSize),
         offset: String(jobsPage * jobsPageSize),
       });
       if (jobsSearch) params.set("search", jobsSearch);
+      if (jobsStatusFilter) params.set("status", jobsStatusFilter);
       return apiFetch<MigrationJobList>(`/api/v1/migration-jobs?${params}`);
     },
     refetchInterval: (query) => {
@@ -266,13 +287,14 @@ export default function MigrationJobs() {
     error: studiesError,
     refetch: refetchStudies,
   } = useQuery({
-    queryKey: ["migration-job-studies", selectedJob?.id, studiesSearch, studiesPage],
+    queryKey: ["migration-job-studies", selectedJob?.id, studiesSearch, studiesStatusFilter, studiesPage],
     queryFn: () => {
       const params = new URLSearchParams({
         limit: String(studiesPageSize),
         offset: String(studiesPage * studiesPageSize),
       });
       if (studiesSearch) params.set("search", studiesSearch);
+      if (studiesStatusFilter) params.set("status_filter", studiesStatusFilter);
       return apiFetch<MigrationStudyList>(`/api/v1/migration-jobs/${selectedJob!.id}/studies?${params}`);
     },
     enabled: !!selectedJob,
@@ -412,6 +434,25 @@ export default function MigrationJobs() {
     },
   });
 
+  const retryAllFailedMutation = useMutation({
+    mutationFn: (jobId: string) =>
+      apiFetch<{ enqueued: number; study_uids: string[] }>(
+        `/api/v1/migration-jobs/${jobId}/studies/retry-failed`,
+        { method: "POST" },
+      ),
+    onSuccess: (result) => {
+      setActionError(null);
+      setActionSuccess(`Retry queued for ${result.enqueued} failed study record${result.enqueued === 1 ? "" : "s"}.`);
+      queryClient.invalidateQueries({ queryKey: ["migration-job-studies", selectedJob?.id] });
+      queryClient.invalidateQueries({ queryKey: ["migration-job", selectedJob?.id] });
+      queryClient.invalidateQueries({ queryKey: ["migration-jobs"] });
+    },
+    onError: (err: Error) => {
+      setActionSuccess(null);
+      setActionError(err.message);
+    },
+  });
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const studyUids = form.study_uids
@@ -478,6 +519,12 @@ export default function MigrationJobs() {
         <PageLoading label="Loading migration jobs…" />
       ) : (
         <div className="card">
+          <FilterChips
+            label="Job status"
+            options={JOB_STATUS_FILTERS}
+            value={jobsStatusFilter}
+            onChange={setJobsStatusFilter}
+          />
           <TableSearch
             value={jobsSearch}
             onChange={setJobsSearch}
@@ -645,6 +692,23 @@ export default function MigrationJobs() {
             </div>
           )}
 
+          {(displayJob.failed_studies > 0 || displayJob.status === "failed" || displayJob.status === "partial") && (
+            <div className="job-failure-banner">
+              <strong>
+                {displayJob.failed_studies} failed study{displayJob.failed_studies === 1 ? "" : "ies"}
+              </strong>
+              {displayJob.status === "failed" || displayJob.status === "partial" ? (
+                <>
+                  {" "}
+                  — use <strong>Resume</strong> or <strong>Retry all failed</strong> below, or filter study records
+                  and retry individually.
+                </>
+              ) : (
+                <> — use <strong>Retry all failed</strong> or filter by Failed below.</>
+              )}
+            </div>
+          )}
+
           <JobConfigurationPanel job={displayJob} morphRules={morphRules} />
 
           <div className="job-detail-actions">
@@ -706,9 +770,31 @@ export default function MigrationJobs() {
               <RefreshCw size={16} />
               Refresh studies
             </button>
+            {displayJob.failed_studies > 0 && (
+              <button
+                type="button"
+                className="btn-secondary"
+                disabled={retryAllFailedMutation.isPending}
+                onClick={() => retryAllFailedMutation.mutate(displayJob.id)}
+              >
+                {retryAllFailedMutation.isPending ? (
+                  <Loader2 size={16} className="spin-icon" />
+                ) : (
+                  <RefreshCw size={16} />
+                )}
+                Retry all failed
+              </button>
+            )}
           </div>
 
           <h4 className="card-title">Study records</h4>
+
+          <FilterChips
+            label="Study status"
+            options={STUDY_STATUS_FILTERS}
+            value={studiesStatusFilter}
+            onChange={setStudiesStatusFilter}
+          />
 
           {studiesError && (
             <AutoDismissAlert variant="error" style={{ marginBottom: "1rem" }}>
@@ -765,7 +851,7 @@ export default function MigrationJobs() {
                   key: "actions",
                   header: "Actions",
                   render: (s) =>
-                    s.status === "failed" ? (
+                    s.status === "failed" || s.status === "skipped" ? (
                       <div className="table-actions">
                         <button
                           type="button"

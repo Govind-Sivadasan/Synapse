@@ -10,6 +10,8 @@ class RoutingMetrics(BaseModel):
     partial: int
     no_match: int
     success_rate: float
+    studies_today: int
+    success_rate_today: float
 
 
 class MigrationMetrics(BaseModel):

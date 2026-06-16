@@ -6,6 +6,7 @@ import httpx
 import structlog
 
 from app.config import settings
+from app.services.runtime_config import get_runtime_config
 
 logger = structlog.get_logger()
 
@@ -16,29 +17,38 @@ class OllamaError(Exception):
         self.status_code = status_code
 
 
+def _ollama_settings() -> tuple[str, str]:
+    config = get_runtime_config()
+    return config.get("ollama_base_url", settings.ollama_base_url), config.get(
+        "ollama_model", settings.ollama_model
+    )
+
+
 async def check_ollama_health() -> dict:
+    base_url, model = _ollama_settings()
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
-            response = await client.get(f"{settings.ollama_base_url}/api/tags")
+            response = await client.get(f"{base_url.rstrip('/')}/api/tags")
         if response.status_code >= 400:
-            return {"available": False, "model": settings.ollama_model, "error": response.text[:200]}
+            return {"available": False, "model": model, "error": response.text[:200]}
         tags = response.json().get("models", [])
         model_names = [m.get("name", "") for m in tags]
-        model_ready = any(settings.ollama_model in name for name in model_names)
+        model_ready = any(model in name for name in model_names)
         return {
             "available": True,
-            "model": settings.ollama_model,
+            "model": model,
             "model_ready": model_ready,
             "installed_models": model_names[:10],
         }
     except Exception as exc:
-        return {"available": False, "model": settings.ollama_model, "error": str(exc)}
+        return {"available": False, "model": model, "error": str(exc)}
 
 
 async def chat_completion(system_prompt: str, user_message: str, timeout: float = 90.0) -> str:
-    url = f"{settings.ollama_base_url}/api/chat"
+    base_url, model = _ollama_settings()
+    url = f"{base_url.rstrip('/')}/api/chat"
     payload = {
-        "model": settings.ollama_model,
+        "model": model,
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_message},

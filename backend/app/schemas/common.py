@@ -12,6 +12,7 @@ class HealthComponent(BaseModel):
     name: str
     status: str
     message: str | None = None
+    latency_ms: int | None = None
 
 
 class HealthResponse(BaseModel):

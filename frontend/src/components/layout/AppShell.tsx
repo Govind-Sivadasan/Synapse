@@ -1,6 +1,8 @@
 import { CSSProperties, ReactNode, useEffect, useState } from "react";
 import Sidebar from "./Sidebar";
 import UserMenu from "./UserMenu";
+import GlobalStatsBar from "./GlobalStatsBar";
+import StatusFooter from "./StatusFooter";
 import ChatbotWidget from "../chat/ChatbotWidget";
 import HotkeysHelpModal from "../preferences/HotkeysHelpModal";
 import { useSidebarLayout } from "../../hooks/useSidebarLayout";
@@ -56,9 +58,11 @@ export default function AppShell({ username, roles, onLogout, children }: Props)
       />
       <div className="app-main">
         <header className="app-topbar">
+          <GlobalStatsBar />
           <UserMenu username={username} roles={roles} onLogout={onLogout} />
         </header>
         <main className="app-content">{children}</main>
+        <StatusFooter />
       </div>
       <ChatbotWidget roles={roles} />
       <HotkeysHelpModal open={hotkeysOpen} onClose={() => setHotkeysOpen(false)} prefs={prefs} />

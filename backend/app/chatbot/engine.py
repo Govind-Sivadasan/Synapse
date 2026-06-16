@@ -7,6 +7,7 @@ from app.chatbot.context_builder import build_chat_context
 from app.chatbot.ollama_client import OllamaError, build_system_prompt, chat_completion, fallback_response
 from app.chatbot.phi_redactor import redact_structure, redact_text, should_redact_phi
 from app.services.audit_logger import AuditLogger
+from app.services.runtime_config import get_runtime_config
 
 logger = structlog.get_logger()
 
@@ -30,6 +31,16 @@ class ChatbotEngine:
         roles: list[str],
     ) -> dict:
         redact = should_redact_phi(roles)
+        config = get_runtime_config()
+        if not config.get("chatbot_enabled", True):
+            return {
+                "answer": "Synapse Assistant is disabled by an administrator.",
+                "phi_redacted": redact,
+                "used_fallback": True,
+                "model": None,
+                "suggestions": SUGGESTED_PROMPTS,
+            }
+
         context = await build_chat_context(db, message)
         if redact:
             context = redact_structure(context)
@@ -39,9 +50,7 @@ class ChatbotEngine:
         model = None
 
         try:
-            from app.config import settings
-
-            model = settings.ollama_model
+            model = get_runtime_config().get("ollama_model")
             answer = await chat_completion(system_prompt, message)
         except OllamaError as exc:
             logger.warning("ollama_unavailable", error=str(exc))

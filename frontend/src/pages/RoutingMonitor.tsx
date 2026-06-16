@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Activity, RefreshCw, Radio, Server, Wifi, WifiOff } from "lucide-react";
+import { Activity, AlertTriangle, RefreshCw, Radio, Server, Wifi, WifiOff } from "lucide-react";
 import { apiFetch } from "../api/client";
 import DataTable from "../components/DataTable";
+import FilterChips from "../components/ui/FilterChips";
 import PageHeader from "../components/ui/PageHeader";
 import MetricCard from "../components/ui/MetricCard";
 import StatusBadge from "../components/ui/StatusBadge";
@@ -37,6 +38,15 @@ interface TransactionList {
   items: RoutingTransaction[];
 }
 
+const STATUS_FILTERS = [
+  { value: "", label: "All" },
+  { value: "success", label: "Routed" },
+  { value: "failed", label: "Failed" },
+  { value: "partial", label: "Partial" },
+  { value: "no_match", label: "No match" },
+  { value: "pending", label: "Pending" },
+];
+
 interface DimseStatus {
   listening: boolean;
   ae_title: string;
@@ -56,21 +66,27 @@ export default function RoutingMonitor() {
   const queryClient = useQueryClient();
   const { events, connected } = useWebSocket();
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [page, setPage] = useState(0);
   const pageSize = 10;
 
   useEffect(() => {
     setPage(0);
-  }, [search]);
+  }, [search, statusFilter, dateFrom, dateTo]);
 
   const { data: transactions, isLoading, refetch, isFetching } = useQuery({
-    queryKey: ["routing-transactions", search, page],
+    queryKey: ["routing-transactions", search, statusFilter, dateFrom, dateTo, page],
     queryFn: () => {
       const params = new URLSearchParams({
         limit: String(pageSize),
         offset: String(page * pageSize),
       });
       if (search) params.set("search", search);
+      if (statusFilter) params.set("status", statusFilter);
+      if (dateFrom) params.set("date_from", new Date(`${dateFrom}T00:00:00`).toISOString());
+      if (dateTo) params.set("date_to", new Date(`${dateTo}T23:59:59.999`).toISOString());
       return apiFetch<TransactionList>(`/api/v1/routing-transactions?${params}`);
     },
     refetchInterval: 10000,
@@ -145,6 +161,13 @@ export default function RoutingMonitor() {
             tone="success"
           />
           <MetricCard
+            label="Associations Rejected"
+            value={dimse.statistics.associations_rejected}
+            icon={<AlertTriangle size={20} />}
+            tone={dimse.statistics.associations_rejected > 0 ? "warning" : "success"}
+            sub={`${dimse.statistics.associations_accepted} accepted`}
+          />
+          <MetricCard
             label="DIMSE Listener"
             value={dimse.listening ? `${dimse.ae_title}@${dimse.port}` : "Offline"}
             icon={<Radio size={20} />}
@@ -169,6 +192,36 @@ export default function RoutingMonitor() {
 
       <div className="card">
         <h3 className="card-title">Routing Transactions</h3>
+        <FilterChips
+          label="Status"
+          options={STATUS_FILTERS}
+          value={statusFilter}
+          onChange={setStatusFilter}
+        />
+        <div className="filter-date-row" style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem", marginBottom: "0.85rem" }}>
+          <label className="filter-date-field" style={{ display: "flex", flexDirection: "column", gap: "0.25rem", fontSize: "0.8125rem" }}>
+            <span style={{ color: "var(--color-text-secondary)" }}>From</span>
+            <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+          </label>
+          <label className="filter-date-field" style={{ display: "flex", flexDirection: "column", gap: "0.25rem", fontSize: "0.8125rem" }}>
+            <span style={{ color: "var(--color-text-secondary)" }}>To</span>
+            <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+          </label>
+          {(dateFrom || dateTo || statusFilter) && (
+            <button
+              type="button"
+              className="btn-sm btn-secondary"
+              style={{ alignSelf: "flex-end" }}
+              onClick={() => {
+                setStatusFilter("");
+                setDateFrom("");
+                setDateTo("");
+              }}
+            >
+              Clear filters
+            </button>
+          )}
+        </div>
         <TableSearch
           value={search}
           onChange={setSearch}
@@ -189,6 +242,12 @@ export default function RoutingMonitor() {
                 </span>
                 <span>
                   <strong>Modality</strong> {txn.modality ?? "—"}
+                </span>
+                <span>
+                  <strong>Patient</strong> {txn.patient_id ?? "—"}
+                </span>
+                <span>
+                  <strong>Accession</strong> {txn.accession_number ?? "—"}
                 </span>
                 <span>
                   <strong>Instances</strong> {txn.instances_count ?? 0}

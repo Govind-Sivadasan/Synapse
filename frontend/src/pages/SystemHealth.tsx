@@ -10,6 +10,7 @@ interface HealthComponent {
   name: string;
   status: string;
   message?: string;
+  latency_ms?: number | null;
 }
 
 interface HealthResponse {
@@ -81,9 +82,13 @@ export default function SystemHealth() {
                   <Server size={18} />
                 </div>
                 <div className="health-card-body">
-                  <strong>{c.name}</strong>
+                  <strong>{c.name.replace(/_/g, " ")}</strong>
                   <StatusBadge status={c.status} />
-                  {c.message && <p>{c.message}</p>}
+                  {(c.latency_ms != null || c.message) && (
+                    <p>
+                      {[c.latency_ms != null ? `${c.latency_ms}ms` : null, c.message].filter(Boolean).join(" · ")}
+                    </p>
+                  )}
                 </div>
               </div>
             ))}

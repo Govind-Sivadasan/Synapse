@@ -24,6 +24,25 @@ from app.schemas.dashboard import (
 
 
 async def get_dashboard_metrics(db: AsyncSession) -> DashboardMetricsResponse:
+    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    studies_today = (
+        await db.scalar(
+            select(func.count())
+            .select_from(RoutingTransaction)
+            .where(RoutingTransaction.received_at >= today_start)
+        )
+        or 0
+    )
+    success_today = (
+        await db.scalar(
+            select(func.count())
+            .select_from(RoutingTransaction)
+            .where(RoutingTransaction.received_at >= today_start)
+            .where(RoutingTransaction.overall_status == "success")
+        )
+        or 0
+    )
+
     total = await db.scalar(select(func.count()).select_from(RoutingTransaction)) or 0
     success = await db.scalar(
         select(func.count())
@@ -77,6 +96,8 @@ async def get_dashboard_metrics(db: AsyncSession) -> DashboardMetricsResponse:
             partial=partial,
             no_match=no_match,
             success_rate=round(success / max(total, 1) * 100, 2),
+            studies_today=studies_today,
+            success_rate_today=round(success_today / max(studies_today, 1) * 100, 2),
         ),
         migration=MigrationMetrics(
             total_jobs=total_jobs,
