@@ -2723,10 +2723,8 @@ button:disabled {
   margin: 0 0 1rem;
   font-size: 0.8125rem;
   color: var(--color-text-secondary);
-}
-
-.account-card > .account-section-desc {
-  max-width: 52ch;
+  line-height: 1.5;
+  max-width: 42rem;
 }
 
 .account-footnote {

@@ -2,10 +2,10 @@
 <#import "brand-header.ftl" as brand>
 <@layout.registrationLayout displayMessage=false; section>
     <#if section = "header">
-        <@brand.show pageTitle=msg("errorTitleHtml") tagline=false />
+        <@brand.show pageTitle=msg("errorTitle") tagline=false />
     <#elseif section = "form">
         <div id="kc-error-message" class="synapse-error-body">
-            <p class="instruction synapse-error-text">${message.summary?no_esc}</p>
+            <p class="instruction synapse-error-text">${kcSanitize(message.summary)?no_esc}</p>
             <#if skipLink??>
             <#else>
                 <#if client?? && client.baseUrl?has_content>

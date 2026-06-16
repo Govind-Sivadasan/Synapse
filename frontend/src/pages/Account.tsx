@@ -95,8 +95,7 @@ export default function Account() {
           <div className="card account-card">
             <h3 className="account-section-title">Security</h3>
             <p className="account-section-desc">
-              Update your password. You&apos;ll be redirected to Keycloak to verify your current session, then returned
-              here.
+              Update your password. You&apos;ll be redirected to Keycloak to verify your current session, then returned here.
             </p>
             <button type="button" onClick={startPasswordChange}>
               <KeyRound size={16} />

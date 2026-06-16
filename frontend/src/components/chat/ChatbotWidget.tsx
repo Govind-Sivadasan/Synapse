@@ -81,7 +81,7 @@ export default function ChatbotWidget({ roles }: Props) {
   return (
     <>
       {open && (
-        <div className={drawerClass} role="dialog" aria-label="Service chatbot" style={drawerStyle}>
+        <div className={drawerClass} role="dialog" aria-label="Synapse Assistant" style={drawerStyle}>
           <div
             className="chatbot-drawer-header chatbot-drawer-header--draggable"
             onPointerDown={onHeaderPointerDown}
@@ -91,7 +91,7 @@ export default function ChatbotWidget({ roles }: Props) {
               <GripVertical size={14} className="chatbot-drawer-grip-icon" aria-hidden />
               <img src={BRAND.chatbotPng} alt="" width={28} height={28} />
               <div>
-                <strong>Service Chatbot</strong>
+                <strong>Synapse Assistant</strong>
                 {status && (
                   <span className="chatbot-drawer-status">
                     <Sparkles size={12} />
