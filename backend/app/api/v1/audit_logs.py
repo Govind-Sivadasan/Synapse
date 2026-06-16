@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.keycloak import CurrentUser, require_roles
 from app.database import get_db
 from app.models.audit_log import AuditLog
-from app.schemas.audit_log import AuditLogListResponse, AuditLogResponse
+from app.schemas.audit_log import AuditLogListResponse, AuditLogResponse, audit_log_response
 
 router = APIRouter(prefix="/audit-logs", tags=["Audit Logs"])
 
@@ -81,5 +81,5 @@ async def list_audit_logs(
 
     return AuditLogListResponse(
         total=total,
-        items=[AuditLogResponse.model_validate(item) for item in items],
+        items=[audit_log_response(item) for item in items],
     )

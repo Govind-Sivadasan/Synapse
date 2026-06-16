@@ -72,6 +72,7 @@ export interface AuditLog {
   id: string;
   event_type: string;
   user_id: string | null;
+  username?: string | null;
   user_role: string | null;
   entity_type: string | null;
   entity_id: string | null;
@@ -194,6 +195,7 @@ export interface ChatMessageList {
 }
 
 export interface ChatbotStatus {
+  enabled: boolean;
   available: boolean;
   model: string;
   model_ready: boolean;

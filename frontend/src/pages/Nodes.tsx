@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Radio } from "lucide-react";
+import { Loader2, Plus, Radio } from "lucide-react";
+import ActionButton from "../components/ui/ActionButton";
 import { apiFetch } from "../api/client";
 import DataTable from "../components/DataTable";
 import Modal from "../components/Modal";
@@ -122,7 +123,11 @@ export default function Nodes() {
       <PageHeader
         title="Node Configuration"
         description="Register source DIMSE endpoints and destination DICOMweb PACS nodes."
-        actions={<button type="button" onClick={openCreate}>Add Node</button>}
+        actions={
+          <ActionButton icon={<Plus size={16} />} onClick={openCreate}>
+            Add Node
+          </ActionButton>
+        }
       />
 
       {echoResult && (

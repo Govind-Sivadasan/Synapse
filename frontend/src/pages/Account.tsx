@@ -3,7 +3,9 @@ import { KeyRound, Keyboard, LayoutList, RotateCcw, Shield, User } from "lucide-
 import { useAuth } from "../auth/AuthProvider";
 import { getAccountProfile, startPasswordChange } from "../auth/account";
 import HotkeysPreferencesPanel from "../components/preferences/HotkeysPreferencesPanel";
+import NotificationPreferencesPanel from "../components/preferences/NotificationPreferencesPanel";
 import SidebarPreferencesPanel from "../components/preferences/SidebarPreferencesPanel";
+import ActionButton from "../components/ui/ActionButton";
 import PageHeader from "../components/ui/PageHeader";
 import StatusBadge from "../components/ui/StatusBadge";
 import { useUserPreferences } from "../hooks/useUserPreferences";
@@ -122,11 +124,13 @@ export default function Account() {
           <div className="card prefs-card">
             <HotkeysPreferencesPanel prefs={prefs} onChange={setPrefs} />
           </div>
+          <div className="card prefs-card">
+            <NotificationPreferencesPanel prefs={prefs} onChange={setPrefs} />
+          </div>
           <div className="prefs-reset-all">
-            <button type="button" className="btn-secondary" onClick={resetPrefs}>
-              <RotateCcw size={16} />
+            <ActionButton variant="secondary" icon={<RotateCcw size={16} />} onClick={resetPrefs}>
               Reset all preferences to defaults
-            </button>
+            </ActionButton>
           </div>
         </div>
       )}

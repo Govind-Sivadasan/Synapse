@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
 import { NavLink } from "react-router-dom";
-import { LogOut } from "lucide-react";
+import { CircleHelp, LogOut } from "lucide-react";
 import { BRAND } from "../../config/brand";
 import { resolveNavSections, loadUserPreferences } from "../../config/userPreferences";
 import { usePreferencesSync } from "../../hooks/useUserPreferences";
@@ -9,13 +9,24 @@ import SidebarToggleIcon from "./SidebarToggleIcon";
 interface Props {
   username: string;
   roles: string[];
+  chatbotEnabled?: boolean;
   onLogout: () => void | Promise<void>;
   collapsed: boolean;
   onToggle: () => void;
   onResizeStart: (clientX: number) => void;
+  onStartTour: () => void;
 }
 
-export default function Sidebar({ username, roles, onLogout, collapsed, onToggle, onResizeStart }: Props) {
+export default function Sidebar({
+  username,
+  roles,
+  chatbotEnabled = true,
+  onLogout,
+  collapsed,
+  onToggle,
+  onResizeStart,
+  onStartTour,
+}: Props) {
   const [sections, setSections] = useState(() =>
     resolveNavSections(roles, loadUserPreferences(username)),
   );
@@ -25,6 +36,11 @@ export default function Sidebar({ username, roles, onLogout, collapsed, onToggle
   }, [roles, username]);
 
   usePreferencesSync(username, refreshNav);
+
+  const visibleSections = sections.map((section) => ({
+    ...section,
+    items: section.items.filter((item) => chatbotEnabled || item.path !== "/chatbot"),
+  })).filter((section) => section.items.length > 0);
 
   return (
     <aside className={`app-sidebar${collapsed ? " app-sidebar--collapsed" : ""}`}>
@@ -56,8 +72,8 @@ export default function Sidebar({ username, roles, onLogout, collapsed, onToggle
         </button>
       </div>
 
-      <nav className="sidebar-nav">
-        {sections.map((section) => (
+      <nav className="sidebar-nav" data-tour="sidebar-nav">
+        {visibleSections.map((section) => (
           <div key={section.label} className="sidebar-nav-section">
             {!collapsed && <div className="nav-section-label">{section.label}</div>}
             {section.items.map((item) => {
@@ -80,6 +96,17 @@ export default function Sidebar({ username, roles, onLogout, collapsed, onToggle
       </nav>
 
       <div className="sidebar-footer">
+        <button
+          type="button"
+          className="btn-ghost sidebar-help"
+          data-tour="sidebar-help"
+          onClick={onStartTour}
+          title="Product tour"
+          aria-label={collapsed ? "Help tour" : undefined}
+        >
+          <CircleHelp size={18} />
+          {!collapsed && <span className="sidebar-nav-label">Help</span>}
+        </button>
         <button
           type="button"
           className="btn-ghost sidebar-signout"

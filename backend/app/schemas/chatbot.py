@@ -35,6 +35,7 @@ class ChatQueryResponse(BaseModel):
 
 
 class ChatbotStatusResponse(BaseModel):
+    enabled: bool = True
     available: bool
     model: str
     model_ready: bool = False

@@ -46,7 +46,7 @@ export default function StatusFooter() {
   const components = data?.components ?? [];
 
   return (
-    <footer className="status-footer">
+    <footer className="status-footer" data-tour="status-footer">
       <div className="status-footer-services">
         {components.map((c) => {
           const variant = chipVariant(c);

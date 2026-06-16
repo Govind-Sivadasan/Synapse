@@ -15,6 +15,8 @@ export interface SidebarSectionConfig {
   paths: string[];
 }
 
+export type NotificationPosition = "top-right" | "top-left" | "bottom-right" | "bottom-left";
+
 export interface UserPreferences {
   /** null = built-in default layout */
   sidebarSections: SidebarSectionConfig[] | null;
@@ -22,6 +24,7 @@ export interface UserPreferences {
   hotkeyOverrides: Record<string, string>;
   /** action ids disabled by user */
   hotkeysDisabled: string[];
+  notificationPosition: NotificationPosition;
 }
 
 export interface HotkeyAction {
@@ -51,6 +54,7 @@ const DEFAULT_PREFS: UserPreferences = {
   sidebarSections: null,
   hotkeyOverrides: {},
   hotkeysDisabled: [],
+  notificationPosition: "top-right",
 };
 
 function storageKey(username: string) {
@@ -66,6 +70,7 @@ export function loadUserPreferences(username: string): UserPreferences {
       sidebarSections: parsed.sidebarSections ?? null,
       hotkeyOverrides: parsed.hotkeyOverrides ?? {},
       hotkeysDisabled: parsed.hotkeysDisabled ?? [],
+      notificationPosition: parsed.notificationPosition ?? "top-right",
     };
   } catch {
     return { ...DEFAULT_PREFS };

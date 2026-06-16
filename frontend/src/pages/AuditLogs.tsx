@@ -6,21 +6,40 @@ import DataTable from "../components/DataTable";
 import TableSearch from "../components/ui/TableSearch";
 import BarChart from "../components/ui/BarChart";
 import PageHeader from "../components/ui/PageHeader";
-import StatusBadge from "../components/ui/StatusBadge";
+import EventBadge from "../components/ui/EventBadge";
 import { PageLoading } from "../components/ui/LoadingScreen";
+import ActionButton from "../components/ui/ActionButton";
+import { useNotifications } from "../services/notifications";
 import { AuditLog, AuditLogList, ChartDataPoint } from "../types/api";
 
 function formatDetails(details: Record<string, unknown> | null): string {
   if (!details) return "—";
-  const parts = Object.entries(details).slice(0, 4).map(([k, v]) => {
-    const val = typeof v === "object" ? JSON.stringify(v) : String(v);
-    const short = val.length > 40 ? `${val.slice(0, 40)}…` : val;
-    return `${k}: ${short}`;
-  });
+  const parts = Object.entries(details)
+    .filter(([k]) => k !== "username")
+    .slice(0, 4)
+    .map(([k, v]) => {
+      const val = typeof v === "object" ? JSON.stringify(v) : String(v);
+      const short = val.length > 40 ? `${val.slice(0, 40)}…` : val;
+      return `${k}: ${short}`;
+    });
   return parts.join(" · ") || "—";
 }
 
+function auditUserLabel(log: AuditLog): { primary: string; secondary?: string } {
+  if (log.username) {
+    return {
+      primary: log.username,
+      secondary: log.user_id ? `${log.user_id.slice(0, 8)}…` : undefined,
+    };
+  }
+  if (log.user_id) {
+    return { primary: `${log.user_id.slice(0, 8)}…`, secondary: log.user_id };
+  }
+  return { primary: "—" };
+}
+
 export default function AuditLogs() {
+  const { success, error: notifyError } = useNotifications();
   const [eventType, setEventType] = useState("");
   const [userId, setUserId] = useState("");
   const [dateFrom, setDateFrom] = useState("");
@@ -40,7 +59,7 @@ export default function AuditLogs() {
     staleTime: 60 * 1000,
   });
 
-  const { data, isLoading, refetch } = useQuery({
+  const { data, isLoading, refetch, error } = useQuery({
     queryKey: ["audit-logs", eventType, userId, dateFrom, dateTo, search, page],
     queryFn: () => {
       const params = new URLSearchParams({
@@ -56,6 +75,10 @@ export default function AuditLogs() {
     },
   });
 
+  useEffect(() => {
+    if (error) notifyError((error as Error).message);
+  }, [error, notifyError]);
+
   const { data: auditSummary = [] } = useQuery({
     queryKey: ["audit-summary", 7],
     queryFn: () => apiFetch<ChartDataPoint[]>("/api/v1/reports/audit/summary?days=7"),
@@ -70,6 +93,9 @@ export default function AuditLogs() {
       if (eventType) params.set("event_type", eventType);
       if (userId) params.set("user_id", userId);
       await downloadFile(`/api/v1/reports/audit/export?${params}`, "synapse-audit.csv");
+      success("Audit log export started.");
+    } catch (err) {
+      notifyError(err instanceof Error ? err.message : "Export failed");
     } finally {
       setExporting(false);
     }
@@ -82,14 +108,12 @@ export default function AuditLogs() {
         description="Immutable record of configuration changes, routing events, and user activity."
         actions={
           <>
-            <button type="button" className="btn-secondary" onClick={() => refetch()}>
-              <RefreshCw size={16} />
+            <ActionButton variant="secondary" icon={<RefreshCw size={16} />} onClick={() => refetch()}>
               Refresh
-            </button>
-            <button type="button" onClick={handleExport} disabled={exporting}>
-              <Download size={16} />
+            </ActionButton>
+            <ActionButton icon={<Download size={16} />} onClick={handleExport} disabled={exporting}>
               {exporting ? "Exporting…" : "Export CSV"}
-            </button>
+            </ActionButton>
           </>
         }
       />
@@ -113,8 +137,8 @@ export default function AuditLogs() {
             </select>
           </div>
           <div className="form-field">
-            <label>User ID</label>
-            <input value={userId} onChange={(e) => setUserId(e.target.value)} placeholder="Filter by user ID" />
+            <label>User</label>
+            <input value={userId} onChange={(e) => setUserId(e.target.value)} placeholder="Username or Keycloak user ID" />
           </div>
           <div className="form-field">
             <label>Date From</label>
@@ -145,28 +169,42 @@ export default function AuditLogs() {
               onPageChange: setPage,
             }}
             columns={[
-                {
-                  key: "created_at",
-                  header: "Timestamp",
-                  render: (l) => new Date(l.created_at).toLocaleString(),
-                },
-                {
-                  key: "event_type",
-                  header: "Event",
-                  render: (l) => <StatusBadge status="info" label={l.event_type} dot={false} />,
-                },
-                { key: "user_id", header: "User", render: (l) => l.user_id ?? "—" },
-                { key: "entity_type", header: "Entity" },
-                {
-                  key: "details",
-                  header: "Details",
-                  render: (l) => (
-                    <span style={{ fontSize: "0.8125rem" }} title={l.details ? JSON.stringify(l.details) : ""}>
-                      {formatDetails(l.details)}
+              {
+                key: "created_at",
+                header: "Timestamp",
+                render: (l) => new Date(l.created_at).toLocaleString(),
+              },
+              {
+                key: "event_type",
+                header: "Event",
+                render: (l) => <EventBadge eventType={l.event_type} />,
+              },
+              {
+                key: "user_id",
+                header: "User",
+                render: (l) => {
+                  const user = auditUserLabel(l);
+                  return (
+                    <span className="audit-user-cell" title={user.secondary ?? user.primary}>
+                      <strong>{user.primary}</strong>
+                      {user.secondary && user.username && (
+                        <span className="audit-user-cell-id">{user.secondary}</span>
+                      )}
                     </span>
-                  ),
+                  );
                 },
-              ]}
+              },
+              { key: "entity_type", header: "Entity", render: (l) => l.entity_type ?? "—" },
+              {
+                key: "details",
+                header: "Details",
+                render: (l) => (
+                  <span style={{ fontSize: "0.8125rem" }} title={l.details ? JSON.stringify(l.details) : ""}>
+                    {formatDetails(l.details)}
+                  </span>
+                ),
+              },
+            ]}
           />
         )}
       </div>

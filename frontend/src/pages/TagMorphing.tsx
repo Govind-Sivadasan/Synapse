@@ -1,5 +1,7 @@
 import { useState } from "react";
+import { Plus } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import ActionButton from "../components/ui/ActionButton";
 import { apiFetch } from "../api/client";
 import DataTable from "../components/DataTable";
 import Modal from "../components/Modal";
@@ -117,7 +119,11 @@ export default function TagMorphing() {
       <PageHeader
         title="Tag Morphing Rules"
         description="Rewrite DICOM metadata before STOW-RS upload to cloud destinations."
-        actions={<button type="button" onClick={openCreate}>Add Rule</button>}
+        actions={
+          <ActionButton icon={<Plus size={16} />} onClick={openCreate}>
+            Add Rule
+          </ActionButton>
+        }
       />
 
       {isLoading ? (

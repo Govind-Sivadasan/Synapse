@@ -37,6 +37,8 @@
   --color-info: #0284c7;
   --color-info-bg: #e0f2fe;
 
+  --z-notification: 99999;
+
   /* Alert text/border (background uses status bg tokens above) */
   --alert-success-text: #166534;
   --alert-success-border: #bbf7d0;

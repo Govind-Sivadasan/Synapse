@@ -16,6 +16,8 @@ import BarChart from "../components/ui/BarChart";
 import MetricCard from "../components/ui/MetricCard";
 import PageHeader from "../components/ui/PageHeader";
 import { PageLoading } from "../components/ui/LoadingScreen";
+import ActionButton from "../components/ui/ActionButton";
+import { routingStatusLabel } from "../lib/statusLabels";
 import { ChartDataPoint, ReportSummary } from "../types/api";
 
 function periodLabel(days: number): string {
@@ -85,10 +87,9 @@ export default function Reports() {
               <option value={90}>Last 90 days</option>
             </select>
             {canExport && (
-              <button type="button" onClick={handleExport} disabled={exporting}>
-                <Download size={16} />
+              <ActionButton icon={<Download size={16} />} onClick={handleExport} disabled={exporting}>
                 {exporting ? "Exporting…" : "Export Audit CSV"}
-              </button>
+              </ActionButton>
             )}
           </>
         }
@@ -216,7 +217,12 @@ export default function Reports() {
                   </Link>
                 )}
               </div>
-              <BarChart data={summary.routing_by_status} color="var(--color-accent)" emptyLabel={routingEmpty} />
+              <BarChart
+                data={summary.routing_by_status}
+                color="var(--color-accent)"
+                emptyLabel={routingEmpty}
+                formatLabel={routingStatusLabel}
+              />
               {summary.routing_studies === 0 && canRouting && (
                 <Link to="/routing-monitor" className="reports-empty-cta">
                   Send a test study via DIMSE

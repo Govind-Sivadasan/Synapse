@@ -10,6 +10,7 @@ import StatusBadge from "../components/ui/StatusBadge";
 import { PageLoading } from "../components/ui/LoadingScreen";
 import Pagination from "../components/ui/Pagination";
 import TableSearch from "../components/ui/TableSearch";
+import ActionButton from "../components/ui/ActionButton";
 import { useWebSocket } from "../hooks/useWebSocket";
 
 interface RoutingDestination {
@@ -132,10 +133,13 @@ export default function RoutingMonitor() {
               {connected ? <Wifi size={14} /> : <WifiOff size={14} />}
               WebSocket {connected ? "live" : "offline"}
             </span>
-            <button type="button" onClick={refreshAll} disabled={isFetching || dimseFetching}>
-              <RefreshCw size={16} />
+            <ActionButton
+              icon={<RefreshCw size={16} className={isFetching || dimseFetching ? "spin-icon" : undefined} />}
+              onClick={refreshAll}
+              disabled={isFetching || dimseFetching}
+            >
               Refresh
-            </button>
+            </ActionButton>
           </>
         }
       />
@@ -198,20 +202,19 @@ export default function RoutingMonitor() {
           value={statusFilter}
           onChange={setStatusFilter}
         />
-        <div className="filter-date-row" style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem", marginBottom: "0.85rem" }}>
-          <label className="filter-date-field" style={{ display: "flex", flexDirection: "column", gap: "0.25rem", fontSize: "0.8125rem" }}>
-            <span style={{ color: "var(--color-text-secondary)" }}>From</span>
+        <div className="filter-date-row">
+          <label className="filter-date-field">
+            <span>From</span>
             <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
           </label>
-          <label className="filter-date-field" style={{ display: "flex", flexDirection: "column", gap: "0.25rem", fontSize: "0.8125rem" }}>
-            <span style={{ color: "var(--color-text-secondary)" }}>To</span>
+          <label className="filter-date-field">
+            <span>To</span>
             <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
           </label>
           {(dateFrom || dateTo || statusFilter) && (
             <button
               type="button"
-              className="btn-sm btn-secondary"
-              style={{ alignSelf: "flex-end" }}
+              className="btn-sm btn-secondary filter-date-clear"
               onClick={() => {
                 setStatusFilter("");
                 setDateFrom("");

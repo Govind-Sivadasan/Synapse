@@ -17,6 +17,7 @@ import MetricCard from "../components/ui/MetricCard";
 import PageHeader from "../components/ui/PageHeader";
 import { PageLoading } from "../components/ui/LoadingScreen";
 import AutoDismissAlert from "../components/ui/AutoDismissAlert";
+import { routingStatusLabel } from "../lib/statusLabels";
 import { ChartDataPoint, DashboardMetrics, VolumeChart } from "../types/api";
 
 export default function Dashboard() {
@@ -142,7 +143,7 @@ export default function Dashboard() {
       <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", marginBottom: "1.5rem" }}>
         <div className="card">
           <h3 className="card-title">Routing by Status</h3>
-          <BarChart data={statusBreakdown} color="var(--color-accent)" />
+          <BarChart data={statusBreakdown} color="var(--color-accent)" formatLabel={routingStatusLabel} />
         </div>
         <div className="card">
           <h3 className="card-title">Modalities (30 days)</h3>

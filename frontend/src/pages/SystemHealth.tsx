@@ -4,6 +4,7 @@ import { apiFetch } from "../api/client";
 import PageHeader from "../components/ui/PageHeader";
 import StatusBadge, { statusVariant } from "../components/ui/StatusBadge";
 import { PageLoading } from "../components/ui/LoadingScreen";
+import ActionButton from "../components/ui/ActionButton";
 import AutoDismissAlert from "../components/ui/AutoDismissAlert";
 
 interface HealthComponent {
@@ -45,10 +46,13 @@ export default function SystemHealth() {
         title="System Health"
         description="Live status of Synapse services and dependencies."
         actions={
-          <button type="button" onClick={() => refetch()} disabled={isFetching}>
-            <RefreshCw size={16} />
+          <ActionButton
+            icon={<RefreshCw size={16} className={isFetching ? "spin-icon" : undefined} />}
+            onClick={() => refetch()}
+            disabled={isFetching}
+          >
             {isFetching ? "Refreshing…" : "Refresh"}
-          </button>
+          </ActionButton>
         }
       />
 

@@ -5,6 +5,7 @@ import { apiFetch } from "../api/client";
 import DataTable from "../components/DataTable";
 import FilterChips from "../components/ui/FilterChips";
 import Modal from "../components/Modal";
+import ActionButton from "../components/ui/ActionButton";
 import PageHeader from "../components/ui/PageHeader";
 import StatusBadge from "../components/ui/StatusBadge";
 import { PageLoading } from "../components/ui/LoadingScreen";
@@ -12,6 +13,7 @@ import AutoDismissAlert from "../components/ui/AutoDismissAlert";
 import TableSearch from "../components/ui/TableSearch";
 import { useConfirmDialog } from "../hooks/useConfirmDialog";
 import { useAppMetadata } from "../hooks/useAppMetadata";
+import { useNotifications } from "../services/notifications";
 import { migrationDestinationNodes, migrationSourceNodes, nodeLabel } from "../lib/nodes";
 import { MigrationJob, MigrationJobList, MigrationStudyList, Node, TagMorphingRule } from "../types/api";
 
@@ -220,14 +222,13 @@ function JobProgressCell({ job }: { job: MigrationJob }) {
 export default function MigrationJobs() {
   const queryClient = useQueryClient();
   const { confirm, ConfirmDialog } = useConfirmDialog();
+  const { success, error: notifyError } = useNotifications();
   const { data: metadata } = useAppMetadata();
   const [modalOpen, setModalOpen] = useState(false);
   const [isDuplicating, setIsDuplicating] = useState(false);
   const [selectedJob, setSelectedJob] = useState<MigrationJob | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState("");
-  const [actionError, setActionError] = useState<string | null>(null);
-  const [actionSuccess, setActionSuccess] = useState<string | null>(null);
   const [jobsSearch, setJobsSearch] = useState("");
   const [jobsStatusFilter, setJobsStatusFilter] = useState("");
   const [jobsPage, setJobsPage] = useState(0);
@@ -348,14 +349,12 @@ export default function MigrationJobs() {
     mutationFn: (id: string) =>
       apiFetch(`/api/v1/migration-jobs/${id}`, { method: "DELETE" }),
     onSuccess: (_, jobId) => {
-      setActionError(null);
-      setActionSuccess("Migration job deleted.");
+      success("Migration job deleted.");
       if (selectedJob?.id === jobId) setSelectedJob(null);
       queryClient.invalidateQueries({ queryKey: ["migration-jobs"] });
     },
     onError: (err: Error) => {
-      setActionSuccess(null);
-      setActionError(err.message);
+      notifyError(err.message);
     },
   });
 
@@ -396,7 +395,6 @@ export default function MigrationJobs() {
     mutationFn: (id: string) =>
       apiFetch<MigrationJob>(`/api/v1/migration-jobs/${id}/start`, { method: "POST" }),
     onSuccess: (job) => {
-      setActionError(null);
       patchJobInCache(job.id, job);
       setSelectedJob((prev) => (prev?.id === job.id ? job : prev));
       queryClient.setQueryData<MigrationJobList>(["migration-jobs"], (old) => {
@@ -406,7 +404,7 @@ export default function MigrationJobs() {
       queryClient.invalidateQueries({ queryKey: ["migration-job-studies", job.id] });
     },
     onError: (err: Error) => {
-      setActionError(err.message);
+      notifyError(err.message);
     },
   });
 
@@ -414,13 +412,12 @@ export default function MigrationJobs() {
     mutationFn: (id: string) =>
       apiFetch<MigrationJob>(`/api/v1/migration-jobs/${id}/cancel`, { method: "POST" }),
     onSuccess: (job) => {
-      setActionError(null);
       patchJobInCache(job.id, job);
       setSelectedJob((prev) => (prev?.id === job.id ? job : prev));
       queryClient.invalidateQueries({ queryKey: ["migration-jobs"] });
     },
     onError: (err: Error) => {
-      setActionError(err.message);
+      notifyError(err.message);
       queryClient.invalidateQueries({ queryKey: ["migration-jobs"] });
     },
   });
@@ -441,15 +438,13 @@ export default function MigrationJobs() {
         { method: "POST" },
       ),
     onSuccess: (result) => {
-      setActionError(null);
-      setActionSuccess(`Retry queued for ${result.enqueued} failed study record${result.enqueued === 1 ? "" : "s"}.`);
+      success(`Retry queued for ${result.enqueued} failed study record${result.enqueued === 1 ? "" : "s"}.`);
       queryClient.invalidateQueries({ queryKey: ["migration-job-studies", selectedJob?.id] });
       queryClient.invalidateQueries({ queryKey: ["migration-job", selectedJob?.id] });
       queryClient.invalidateQueries({ queryKey: ["migration-jobs"] });
     },
     onError: (err: Error) => {
-      setActionSuccess(null);
-      setActionError(err.message);
+      notifyError(err.message);
     },
   });
 
@@ -496,24 +491,11 @@ export default function MigrationJobs() {
         title="Migration Jobs"
         description="Bulk QIDO-RS discovery, WADO-RS retrieval, and STOW-RS delivery to cloud PACS."
         actions={
-          <button type="button" onClick={openNewJobModal}>
-            <Plus size={16} />
+          <ActionButton icon={<Plus size={16} />} onClick={openNewJobModal}>
             New Job
-          </button>
+          </ActionButton>
         }
       />
-
-      {actionSuccess && (
-        <AutoDismissAlert variant="success" onDismiss={() => setActionSuccess(null)}>
-          {actionSuccess}
-        </AutoDismissAlert>
-      )}
-
-      {actionError && (
-        <AutoDismissAlert variant="error" onDismiss={() => setActionError(null)}>
-          {actionError}
-        </AutoDismissAlert>
-      )}
 
       {isLoading ? (
         <PageLoading label="Loading migration jobs…" />

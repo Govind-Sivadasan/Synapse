@@ -16,7 +16,7 @@ export default function GlobalStatsBar() {
   const { routing, migration, dimse } = data;
 
   return (
-    <div className="app-topbar-metrics">
+    <div className="app-topbar-metrics" data-tour="global-stats">
       <div className="global-stats-bar" aria-label="System summary">
         <div className="global-stats-item">
           <FileStack size={14} aria-hidden />

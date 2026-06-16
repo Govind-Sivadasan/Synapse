@@ -4,22 +4,26 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Bot,
   ExternalLink,
+  Loader2,
   Network,
   Radio,
   RotateCw,
+  RotateCcw,
+  Save,
   ScrollText,
   Shield,
   UserCog,
   Workflow,
   type LucideIcon,
 } from "lucide-react";
+import ActionButton from "../components/ui/ActionButton";
 import { apiFetch } from "../api/client";
 import PageHeader from "../components/ui/PageHeader";
 import { PageLoading } from "../components/ui/LoadingScreen";
-import AutoDismissAlert from "../components/ui/AutoDismissAlert";
 import StatusBadge from "../components/ui/StatusBadge";
 import { PERMISSION_MATRIX } from "../config/permissions";
 import { ChatbotStatus, SystemConfig } from "../types/api";
+import { useNotifications } from "../services/notifications";
 
 type SettingsTab = "dimse" | "workers" | "retry" | "security" | "roles" | "audit" | "chatbot";
 
@@ -115,12 +119,16 @@ function SettingsActions({
 }) {
   return (
     <div className="settings-form-actions">
-      <button type="button" className="btn-secondary" onClick={onReset}>
+      <ActionButton variant="secondary" icon={<RotateCcw size={16} />} onClick={onReset}>
         {resetLabel}
-      </button>
-      <button type="submit" disabled={saving}>
+      </ActionButton>
+      <ActionButton
+        type="submit"
+        disabled={saving}
+        icon={saving ? <Loader2 size={16} className="spin-icon" /> : <Save size={16} />}
+      >
         {saving ? "Saving…" : "Save changes"}
-      </button>
+      </ActionButton>
     </div>
   );
 }
@@ -161,9 +169,9 @@ function ToggleRow({
 
 export default function Settings() {
   const queryClient = useQueryClient();
+  const { success, error: notifyError } = useNotifications();
   const [tab, setTab] = useState<SettingsTab>("dimse");
   const [form, setForm] = useState<SystemConfig | null>(null);
-  const [message, setMessage] = useState("");
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["system-config"],
@@ -181,6 +189,10 @@ export default function Settings() {
     if (data) setForm(data);
   }, [data]);
 
+  useEffect(() => {
+    if (error) notifyError((error as Error).message);
+  }, [error, notifyError]);
+
   const saveMutation = useMutation({
     mutationFn: (payload: Partial<SystemConfig>) =>
       apiFetch<SystemConfig>("/api/v1/config", { method: "PUT", body: JSON.stringify(payload) }),
@@ -189,14 +201,12 @@ export default function Settings() {
       queryClient.invalidateQueries({ queryKey: ["system-config"] });
       queryClient.invalidateQueries({ queryKey: ["chatbot-status"] });
       queryClient.invalidateQueries({ queryKey: ["health"] });
-      setMessage("Settings saved successfully.");
+      success("Settings saved successfully.");
     },
   });
 
   if (isLoading || !form) return <PageLoading label="Loading settings…" />;
-  if (error) {
-    return <AutoDismissAlert variant="error">Error: {(error as Error).message}</AutoDismissAlert>;
-  }
+  if (error) return <PageLoading label="Unable to load settings." />;
 
   const copy = TAB_COPY[tab];
 
@@ -215,12 +225,6 @@ export default function Settings() {
         title="Settings"
         description="System configuration, security, and operational policies."
       />
-
-      {message && (
-        <AutoDismissAlert variant="success" onDismiss={() => setMessage("")}>
-          {message}
-        </AutoDismissAlert>
-      )}
 
       <div className="settings-hub">
         <nav className="settings-hub-nav" aria-label="Settings sections">
@@ -509,7 +513,9 @@ export default function Settings() {
                       </FieldRow>
                     )}
                     {chatbotStatus.error && (
-                      <AutoDismissAlert variant="error">{chatbotStatus.error}</AutoDismissAlert>
+                      <p className="settings-field-hint settings-field-hint--inline" style={{ color: "var(--color-error)" }}>
+                        {chatbotStatus.error}
+                      </p>
                     )}
                   </>
                 )}

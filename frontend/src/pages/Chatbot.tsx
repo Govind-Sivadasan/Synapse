@@ -2,16 +2,18 @@ import { useQuery } from "@tanstack/react-query";
 import { Sparkles, Trash2 } from "lucide-react";
 import { apiFetch } from "../api/client";
 import ChatPanel from "../components/chat/ChatPanel";
+import ActionButton from "../components/ui/ActionButton";
 import PageHeader from "../components/ui/PageHeader";
 import { useConfirmDialog } from "../hooks/useConfirmDialog";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ChatbotStatus } from "../types/api";
+import { PageLoading } from "../components/ui/LoadingScreen";
 
 export default function Chatbot() {
   const queryClient = useQueryClient();
   const { confirm, ConfirmDialog } = useConfirmDialog();
 
-  const { data: status } = useQuery({
+  const { data: status, isLoading } = useQuery({
     queryKey: ["chatbot-status"],
     queryFn: () => apiFetch<ChatbotStatus>("/api/v1/chatbot/status"),
     refetchInterval: 30000,
@@ -27,7 +29,26 @@ export default function Chatbot() {
   const { data: history } = useQuery({
     queryKey: ["chatbot-messages"],
     queryFn: () => apiFetch<{ items: unknown[] }>("/api/v1/chatbot/messages?limit=200"),
+    enabled: status?.enabled !== false,
   });
+
+  if (isLoading) return <PageLoading label="Loading Synapse Assistant…" />;
+
+  if (status && !status.enabled) {
+    return (
+      <div className="chatbot-page">
+        <PageHeader
+          title="Synapse Assistant"
+          description="The assistant is currently disabled by an administrator."
+        />
+        <div className="card">
+          <p style={{ margin: 0, color: "var(--color-text-secondary)" }}>
+            Enable Synapse Assistant under Settings → Chatbot / LLM to restore access.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   const hasMessages = (history?.items?.length ?? 0) > 0;
 
@@ -55,15 +76,14 @@ export default function Chatbot() {
         actions={
           <>
             {hasMessages && (
-              <button
-                type="button"
-                className="btn-secondary"
+              <ActionButton
+                variant="secondary"
+                icon={<Trash2 size={16} />}
                 onClick={confirmClearChat}
                 disabled={clearMutation.isPending}
               >
-                <Trash2 size={16} />
                 Clear chat
-              </button>
+              </ActionButton>
             )}
             {status && (
               <div

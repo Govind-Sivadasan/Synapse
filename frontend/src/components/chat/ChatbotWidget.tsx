@@ -29,12 +29,14 @@ export default function ChatbotWidget({ roles }: Props) {
   const canUse = roles.some((r) => CHAT_ROLES.includes(r));
   const onChatPage = location.pathname === "/chatbot";
 
-  const { data: status } = useQuery({
+  const { data: status, isLoading } = useQuery({
     queryKey: ["chatbot-status"],
     queryFn: () => apiFetch<ChatbotStatus>("/api/v1/chatbot/status"),
     refetchInterval: 30000,
     enabled: canUse && !onChatPage,
   });
+
+  const chatbotEnabled = status?.enabled !== false;
 
   useEffect(() => {
     const toggle = () => setOpen((v) => !v);
@@ -54,7 +56,7 @@ export default function ChatbotWidget({ roles }: Props) {
     [onPointerDown],
   );
 
-  if (!canUse || onChatPage) return null;
+  if (!canUse || onChatPage || isLoading || !chatbotEnabled) return null;
 
   const statusDot =
     status?.available && status.model_ready

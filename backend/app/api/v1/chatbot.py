@@ -18,6 +18,8 @@ from app.services.chat_history import append_message, clear_user_messages, count
 
 router = APIRouter(prefix="/chatbot", tags=["Chatbot"])
 
+from app.services.runtime_config import get_runtime_config
+
 _engine = ChatbotEngine()
 
 
@@ -25,8 +27,11 @@ _engine = ChatbotEngine()
 async def get_chatbot_status(
     _: CurrentUser = Depends(require_roles("viewer", "service_user", "operator", "admin")),
 ) -> ChatbotStatusResponse:
+    config = get_runtime_config()
+    enabled = bool(config.get("chatbot_enabled", True))
     status = await check_ollama_health()
     return ChatbotStatusResponse(
+        enabled=enabled,
         available=status.get("available", False),
         model=status.get("model", ""),
         model_ready=status.get("model_ready", False),
