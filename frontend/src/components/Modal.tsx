@@ -8,15 +8,17 @@ interface Props {
   children: ReactNode;
   wide?: boolean;
   extraWide?: boolean;
+  nested?: boolean;
 }
 
-export default function Modal({ title, open, onClose, children, wide, extraWide }: Props) {
+export default function Modal({ title, open, onClose, children, wide, extraWide, nested }: Props) {
   if (!open) return null;
 
   const sizeClass = extraWide ? "modal-xl" : wide ? "modal-wide" : "";
+  const overlayClass = nested ? "modal-overlay modal-overlay--nested" : "modal-overlay";
 
   return (
-    <div className="modal-overlay">
+    <div className={overlayClass}>
       <div className={`modal ${sizeClass}`} onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h3>{title}</h3>

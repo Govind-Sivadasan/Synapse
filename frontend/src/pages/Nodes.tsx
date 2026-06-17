@@ -8,10 +8,12 @@ import Modal from "../components/Modal";
 import PageHeader from "../components/ui/PageHeader";
 import StatusBadge from "../components/ui/StatusBadge";
 import { PageLoading } from "../components/ui/LoadingScreen";
-import AutoDismissAlert from "../components/ui/AutoDismissAlert";
+import Switch from "../components/ui/Switch";
 import { useConfirmDialog } from "../hooks/useConfirmDialog";
 import { useAppMetadata } from "../hooks/useAppMetadata";
 import { buildNodePayload, NodeFormState } from "../lib/nodes";
+import { formatNodeEchoMessage, formatNotificationMessage } from "../lib/notificationMessages";
+import { useNotifications } from "../services/notifications";
 import { Node, NodeEchoResult } from "../types/api";
 
 const emptyForm: NodeFormState = {
@@ -30,16 +32,23 @@ export default function Nodes() {
   const queryClient = useQueryClient();
   const { confirm, ConfirmDialog } = useConfirmDialog();
   const { data: metadata } = useAppMetadata();
+  const { success, error: notifyError } = useNotifications();
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
-  const [error, setError] = useState("");
-  const [echoResult, setEchoResult] = useState<{ nodeId: string; result: NodeEchoResult } | null>(null);
 
   const { data: nodes = [], isLoading } = useQuery({
     queryKey: ["nodes"],
     queryFn: () => apiFetch<Node[]>("/api/v1/nodes"),
   });
+
+  const nodeName = (id: string) => nodes.find((n) => n.id === id)?.name ?? "Node";
+
+  const notifyEcho = (nodeId: string, result: NodeEchoResult) => {
+    const message = formatNodeEchoMessage(nodeName(nodeId), result.message, result.latency_ms);
+    if (result.success) success(message);
+    else notifyError(message);
+  };
 
   const saveMutation = useMutation({
     mutationFn: ({ nodeId, payload }: { nodeId: string | null; payload: ReturnType<typeof buildNodePayload> }) =>
@@ -51,30 +60,30 @@ export default function Nodes() {
       setModalOpen(false);
       setEditingId(null);
       setForm(emptyForm);
-      setError("");
+      success("Node saved.");
     },
-    onError: (err: Error) => setError(err.message),
+    onError: (err: Error) => notifyError(formatNotificationMessage(err.message)),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => apiFetch<void>(`/api/v1/nodes/${id}`, { method: "DELETE" }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["nodes"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["nodes"] });
+      success("Node deleted.");
+    },
+    onError: (err: Error) => notifyError(formatNotificationMessage(err.message)),
   });
 
   const echoMutation = useMutation({
     mutationFn: (id: string) => apiFetch<NodeEchoResult>(`/api/v1/nodes/${id}/echo`, { method: "POST" }),
-    onSuccess: (result, nodeId) => setEchoResult({ nodeId, result }),
+    onSuccess: (result, nodeId) => notifyEcho(nodeId, result),
     onError: (err: Error, nodeId) =>
-      setEchoResult({
-        nodeId,
-        result: { success: false, protocol: "", message: err.message },
-      }),
+      notifyError(formatNodeEchoMessage(nodeName(nodeId), err.message)),
   });
 
   const openCreate = () => {
     setEditingId(null);
     setForm(emptyForm);
-    setError("");
     setModalOpen(true);
   };
 
@@ -91,7 +100,6 @@ export default function Nodes() {
       auth_type: node.auth_type ?? "none",
       is_active: node.is_active,
     });
-    setError("");
     setModalOpen(true);
   };
 
@@ -130,21 +138,6 @@ export default function Nodes() {
         }
       />
 
-      {echoResult && (
-        <AutoDismissAlert
-          variant={echoResult.result.success ? "success" : "error"}
-          onDismiss={() => setEchoResult(null)}
-        >
-          <span>
-            <strong>{nodes.find((n) => n.id === echoResult.nodeId)?.name ?? "Node"}:</strong>{" "}
-            {echoResult.result.message}
-            {echoResult.result.latency_ms != null && (
-              <span className="alert-muted"> ({echoResult.result.latency_ms} ms)</span>
-            )}
-          </span>
-        </AutoDismissAlert>
-      )}
-
       {isLoading ? (
         <PageLoading label="Loading nodes…" />
       ) : (
@@ -180,10 +173,7 @@ export default function Nodes() {
                         type="button"
                         className="btn-sm btn-secondary"
                         disabled={echoMutation.isPending}
-                        onClick={() => {
-                          setEchoResult(null);
-                          echoMutation.mutate(n.id);
-                        }}
+                        onClick={() => echoMutation.mutate(n.id)}
                       >
                         {echoing ? <Loader2 size={14} className="spin-icon" /> : <Radio size={14} />}
                         {echoing ? "Testing…" : "Echo"}
@@ -227,11 +217,6 @@ export default function Nodes() {
         }}
         wide
       >
-        {error && (
-          <AutoDismissAlert variant="error" onDismiss={() => setError("")}>
-            {error}
-          </AutoDismissAlert>
-        )}
         <form onSubmit={handleSubmit}>
           <div className="form-grid">
             <div className="form-field">
@@ -325,14 +310,11 @@ export default function Nodes() {
               </select>
             </div>
             <div className="form-field">
-              <label>
-                <input
-                  type="checkbox"
-                  checked={form.is_active}
-                  onChange={(e) => setForm({ ...form, is_active: e.target.checked })}
-                />{" "}
-                Active
-              </label>
+              <label>Active</label>
+              <Switch
+                checked={form.is_active}
+                onChange={(is_active) => setForm({ ...form, is_active })}
+              />
             </div>
           </div>
           <div className="form-actions">

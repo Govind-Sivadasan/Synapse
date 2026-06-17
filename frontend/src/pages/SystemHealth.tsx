@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Activity, RefreshCw, Server } from "lucide-react";
 import { apiFetch } from "../api/client";
@@ -5,7 +6,8 @@ import PageHeader from "../components/ui/PageHeader";
 import StatusBadge, { statusVariant } from "../components/ui/StatusBadge";
 import { PageLoading } from "../components/ui/LoadingScreen";
 import ActionButton from "../components/ui/ActionButton";
-import AutoDismissAlert from "../components/ui/AutoDismissAlert";
+import { formatNotificationMessage } from "../lib/notificationMessages";
+import { useNotifications } from "../services/notifications";
 
 interface HealthComponent {
   name: string;
@@ -28,11 +30,26 @@ function healthIconClass(status: string) {
 }
 
 export default function SystemHealth() {
+  const { error: notifyError } = useNotifications();
+  const lastError = useRef<string | null>(null);
+
   const { data, isLoading, error, refetch, isFetching } = useQuery({
     queryKey: ["health"],
     queryFn: () => apiFetch<HealthResponse>("/api/v1/health"),
     refetchInterval: 15000,
   });
+
+  useEffect(() => {
+    if (!error) {
+      lastError.current = null;
+      return;
+    }
+    const message = formatNotificationMessage((error as Error).message);
+    const full = `Error: ${message}`;
+    if (lastError.current === full) return;
+    lastError.current = full;
+    notifyError(full);
+  }, [error, notifyError]);
 
   const overallVariant = data ? statusVariant(data.status) : "neutral";
   const bannerClass =
@@ -57,9 +74,6 @@ export default function SystemHealth() {
       />
 
       {isLoading && <PageLoading label="Checking services…" />}
-      {error && (
-        <AutoDismissAlert variant="error">Error: {(error as Error).message}</AutoDismissAlert>
-      )}
 
       {data && (
         <>

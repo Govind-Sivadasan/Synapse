@@ -5,8 +5,9 @@ import { apiFetch } from "../../api/client";
 import { useAuth } from "../../auth/AuthProvider";
 import { ChatbotAvatar } from "../brand/BrandImage";
 import StatusBadge from "../ui/StatusBadge";
-import AutoDismissAlert from "../ui/AutoDismissAlert";
 import { useConfirmDialog } from "../../hooks/useConfirmDialog";
+import { formatNotificationMessage } from "../../lib/notificationMessages";
+import { useNotifications } from "../../services/notifications";
 import { formatChatDateLabel, formatChatTime, isSameChatDay } from "../../lib/chatFormat";
 import { ChatQueryResponse } from "../../types/api";
 import {
@@ -28,9 +29,12 @@ interface Props {
 export default function ChatPanel({ variant = "page", showSuggestions = variant === "page" }: Props) {
   const queryClient = useQueryClient();
   const { confirm, ConfirmDialog } = useConfirmDialog();
+  const { info, error: notifyError } = useNotifications();
   const { roles } = useAuth();
   const [input, setInput] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
+  const phiNoticeShown = useRef(false);
+  const lastChatError = useRef<string | null>(null);
 
   const isViewer = roles.includes("viewer") && !roles.some((r) => ["admin", "operator", "service_user"].includes(r));
   const isWidget = variant === "widget";
@@ -97,6 +101,23 @@ export default function ChatPanel({ variant = "page", showSuggestions = variant 
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, showTypingIndicator, pendingUserText]);
 
+  useEffect(() => {
+    if (!isViewer || isWidget || phiNoticeShown.current) return;
+    phiNoticeShown.current = true;
+    info("PHI redaction is enabled for your viewer role. Patient IDs and Study UIDs are masked in responses.", 7000);
+  }, [isViewer, isWidget, info]);
+
+  useEffect(() => {
+    if (!queryMutation.isError) {
+      lastChatError.current = null;
+      return;
+    }
+    const message = formatNotificationMessage((queryMutation.error as Error).message);
+    if (lastChatError.current === message) return;
+    lastChatError.current = message;
+    notifyError(message);
+  }, [queryMutation.isError, queryMutation.error, notifyError]);
+
   const sendMessage = (text: string) => {
     const trimmed = text.trim();
     if (!trimmed || queryMutation.isPending || awaitingResponse) return;
@@ -122,12 +143,6 @@ export default function ChatPanel({ variant = "page", showSuggestions = variant 
 
   return (
     <>
-      {isViewer && !isWidget && (
-        <AutoDismissAlert variant="info" style={{ marginBottom: "1rem" }}>
-          PHI redaction is enabled for your viewer role. Patient IDs and Study UIDs are masked in responses.
-        </AutoDismissAlert>
-      )}
-
       <div className={isWidget ? "chatbot-widget-body" : "chatbot-layout"}>
         <div className={`card chatbot-panel${isWidget ? " chatbot-panel--widget" : ""}`}>
           {isWidget && hasConversation && (
@@ -234,12 +249,6 @@ export default function ChatPanel({ variant = "page", showSuggestions = variant 
                   </div>
                 </div>
               </div>
-            )}
-
-            {queryMutation.isError && (
-              <AutoDismissAlert variant="error">
-                {(queryMutation.error as Error).message}
-              </AutoDismissAlert>
             )}
 
             <div ref={bottomRef} />

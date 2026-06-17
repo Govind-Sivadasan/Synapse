@@ -41,25 +41,27 @@ export default function HotkeysHelpModal({ open, onClose, prefs }: Props) {
             Esc
           </button>
         </div>
-        <p className="hotkeys-modal-desc">
-          Customize shortcuts in Account settings. Shortcuts are disabled while typing in a field.
-        </p>
-        {(Object.keys(byCategory) as Array<keyof typeof byCategory>).map((category) => (
-          <section key={category} className="hotkeys-section">
-            <h3>{category}</h3>
-            <ul className="hotkeys-list">
-              {byCategory[category].map((action) => {
-                const combo = getHotkeyBinding(action.id, prefs);
-                return (
-                  <li key={action.id}>
-                    <span>{action.label}</span>
-                    {combo ? <HotkeyComboDisplay combo={combo} /> : <kbd>Disabled</kbd>}
-                  </li>
-                );
-              })}
-            </ul>
-          </section>
-        ))}
+        <div className="hotkeys-modal-body">
+          <p className="hotkeys-modal-desc">
+            Customize shortcuts in Account settings. Shortcuts are disabled while typing in a field.
+          </p>
+          {(Object.keys(byCategory) as Array<keyof typeof byCategory>).map((category) => (
+            <section key={category} className="hotkeys-section">
+              <h3>{category}</h3>
+              <ul className="hotkeys-list">
+                {byCategory[category].map((action) => {
+                  const combo = getHotkeyBinding(action.id, prefs);
+                  return (
+                    <li key={action.id}>
+                      <span>{action.label}</span>
+                      {combo ? <HotkeyComboDisplay combo={combo} /> : <kbd>Disabled</kbd>}
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          ))}
+        </div>
       </div>
     </div>
   );

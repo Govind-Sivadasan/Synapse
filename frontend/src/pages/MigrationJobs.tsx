@@ -1,21 +1,24 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Plus, Play, Square, RefreshCw, Copy, Trash2 } from "lucide-react";
 import { apiFetch } from "../api/client";
 import DataTable from "../components/DataTable";
 import FilterChips from "../components/ui/FilterChips";
 import Modal from "../components/Modal";
+import NodeSelectField from "../components/nodes/NodeSelectField";
+import TagMorphingRulePicker from "../components/tagMorphing/TagMorphingRulePicker";
 import ActionButton from "../components/ui/ActionButton";
 import PageHeader from "../components/ui/PageHeader";
 import StatusBadge from "../components/ui/StatusBadge";
 import StudyProgressRing from "../components/ui/StudyProgressRing";
 import { PageLoading } from "../components/ui/LoadingScreen";
-import AutoDismissAlert from "../components/ui/AutoDismissAlert";
 import TableSearch from "../components/ui/TableSearch";
 import { useConfirmDialog } from "../hooks/useConfirmDialog";
 import { useAppMetadata } from "../hooks/useAppMetadata";
+import { formatNotificationMessage } from "../lib/notificationMessages";
 import { useNotifications } from "../services/notifications";
-import { migrationDestinationNodes, migrationSourceNodes, nodeLabel } from "../lib/nodes";
+import { migrationDestinationNodes, migrationSourceNodes } from "../lib/nodes";
+import { DICOM_MODALITIES } from "../lib/dicomModalities";
 import { MigrationJob, MigrationJobList, MigrationStudyList, Node, TagMorphingRule } from "../types/api";
 
 const emptyForm = {
@@ -234,7 +237,6 @@ export default function MigrationJobs() {
   const [isDuplicating, setIsDuplicating] = useState(false);
   const [selectedJob, setSelectedJob] = useState<MigrationJob | null>(null);
   const [form, setForm] = useState(emptyForm);
-  const [error, setError] = useState("");
   const [jobsSearch, setJobsSearch] = useState("");
   const [jobsStatusFilter, setJobsStatusFilter] = useState("");
   const [jobsPage, setJobsPage] = useState(0);
@@ -309,6 +311,19 @@ export default function MigrationJobs() {
     refetchInterval: displayJob?.status === "in_progress" ? 3000 : false,
   });
 
+  const lastStudiesError = useRef<string | null>(null);
+  useEffect(() => {
+    if (!studiesError) {
+      lastStudiesError.current = null;
+      return;
+    }
+    const message = formatNotificationMessage((studiesError as Error).message);
+    const full = `Failed to load studies: ${message}`;
+    if (lastStudiesError.current === full) return;
+    lastStudiesError.current = full;
+    notifyError(full);
+  }, [studiesError, notifyError]);
+
   const openJobDetails = (job: MigrationJob) => {
     setSelectedJob(job);
     queryClient.invalidateQueries({ queryKey: ["migration-job", job.id] });
@@ -325,7 +340,6 @@ export default function MigrationJobs() {
 
   const openNewJobModal = async () => {
     await queryClient.refetchQueries({ queryKey: ["nodes"] });
-    setError("");
     setIsDuplicating(false);
     setForm(emptyForm);
     setModalOpen(true);
@@ -333,7 +347,6 @@ export default function MigrationJobs() {
 
   const duplicateJob = async (job: MigrationJob) => {
     await queryClient.refetchQueries({ queryKey: ["nodes"] });
-    setError("");
     setIsDuplicating(true);
     setForm(jobFormFromJob(job));
     setModalOpen(true);
@@ -347,9 +360,9 @@ export default function MigrationJobs() {
       setModalOpen(false);
       setForm(emptyForm);
       setIsDuplicating(false);
-      setError("");
+      success("Migration job created.");
     },
-    onError: (err: Error) => setError(err.message),
+    onError: (err: Error) => notifyError(formatNotificationMessage(err.message)),
   });
 
   const deleteMutation = useMutation({
@@ -790,12 +803,6 @@ export default function MigrationJobs() {
             onChange={setStudiesStatusFilter}
           />
 
-          {studiesError && (
-            <AutoDismissAlert variant="error" style={{ marginBottom: "1rem" }}>
-              Failed to load studies: {(studiesError as Error).message}
-            </AutoDismissAlert>
-          )}
-
           <TableSearch
             value={studiesSearch}
             onChange={setStudiesSearch}
@@ -888,11 +895,6 @@ export default function MigrationJobs() {
         }}
         wide
       >
-        {error && (
-          <AutoDismissAlert variant="error" onDismiss={() => setError("")}>
-            {error}
-          </AutoDismissAlert>
-        )}
         <form onSubmit={handleSubmit}>
           <div className="form-grid">
             <div className="form-field full-width">
@@ -919,55 +921,38 @@ export default function MigrationJobs() {
                 ))}
               </select>
             </div>
-            <div className="form-field">
-              <label>Source PACS</label>
-              <select
-                value={form.source_node_id}
-                onChange={(e) => setForm({ ...form, source_node_id: e.target.value })}
-                required
-              >
-                <option value="">Select source…</option>
-                {sources.map((n) => (
-                  <option key={n.id} value={n.id}>
-                    {nodeLabel(n)}
-                  </option>
-                ))}
-              </select>
-              {sources.length === 0 && (
-                <p className="form-field-hint">
-                  No active source nodes with a DICOMweb URL. Add one under Nodes (type: source, DICOMweb URL required).
-                </p>
-              )}
-            </div>
-            <div className="form-field">
-              <label>Destination PACS</label>
-              <select
-                value={form.destination_node_id}
-                onChange={(e) => setForm({ ...form, destination_node_id: e.target.value })}
-                required
-              >
-                <option value="">Select destination…</option>
-                {destinations.map((n) => (
-                  <option key={n.id} value={n.id}>
-                    {nodeLabel(n)}
-                  </option>
-                ))}
-              </select>
-              {destinations.length === 0 && (
-                <p className="form-field-hint">
-                  No active destination nodes with a DICOMweb URL. Add one under Nodes (type: destination, DICOMweb URL required).
-                </p>
-              )}
-            </div>
+            <NodeSelectField
+              label="Source PACS"
+              value={form.source_node_id}
+              onChange={(source_node_id) => setForm({ ...form, source_node_id })}
+              nodes={sources}
+              nodeType="source"
+              required
+              emptyHint="No active source nodes with a DICOMweb URL. Create one below or under Nodes."
+            />
+            <NodeSelectField
+              label="Destination PACS"
+              value={form.destination_node_id}
+              onChange={(destination_node_id) => setForm({ ...form, destination_node_id })}
+              nodes={destinations}
+              nodeType="destination"
+              required
+              emptyHint="No active destination nodes with a DICOMweb URL. Create one below or under Nodes."
+            />
             {form.job_type !== "batch" && (
               <>
                 <div className="form-field">
                   <label>Modality Filter</label>
-                  <input
+                  <select
                     value={form.modality}
                     onChange={(e) => setForm({ ...form, modality: e.target.value })}
-                    placeholder="CT"
-                  />
+                  >
+                    {DICOM_MODALITIES.map((m) => (
+                      <option key={m.value || "any"} value={m.value}>
+                        {m.label}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div className="form-field">
                   <label>Patient ID Filter</label>
@@ -1006,31 +991,11 @@ export default function MigrationJobs() {
                 />
               </div>
             )}
-            <div className="form-field full-width">
-              <label>Tag Morphing Rules (optional)</label>
-              <div className="checkbox-group">
-                {morphRules.filter((r) => r.is_active).map((r) => (
-                  <label key={r.id}>
-                    <input
-                      type="checkbox"
-                      checked={form.tag_morphing_rule_ids.includes(r.id)}
-                      onChange={() => {
-                        const ids = form.tag_morphing_rule_ids.includes(r.id)
-                          ? form.tag_morphing_rule_ids.filter((id) => id !== r.id)
-                          : [...form.tag_morphing_rule_ids, r.id];
-                        setForm({ ...form, tag_morphing_rule_ids: ids });
-                      }}
-                    />
-                    {r.name} ({r.target_tag} → {r.new_value})
-                  </label>
-                ))}
-                {morphRules.length === 0 && (
-                  <span style={{ fontSize: "0.875rem", color: "var(--color-text-muted)" }}>
-                    No morphing rules configured.
-                  </span>
-                )}
-              </div>
-            </div>
+            <TagMorphingRulePicker
+              rules={morphRules}
+              selectedIds={form.tag_morphing_rule_ids}
+              onChange={(tag_morphing_rule_ids) => setForm({ ...form, tag_morphing_rule_ids })}
+            />
           </div>
           <div className="form-actions">
             <button type="submit" disabled={createMutation.isPending}>

@@ -12,6 +12,7 @@ import {
   NotificationPosition,
   loadUserPreferences,
 } from "../config/userPreferences";
+import { NOTIFICATION_DURATIONS } from "../lib/notificationMessages";
 
 export type NotificationVariant = "success" | "error" | "warning" | "info";
 
@@ -54,11 +55,12 @@ export function NotificationProvider({
   }, []);
 
   const notify = useCallback(
-    (variant: NotificationVariant, message: ReactNode, durationMs = 5000) => {
+    (variant: NotificationVariant, message: ReactNode, durationMs?: number) => {
+      const ms = durationMs ?? NOTIFICATION_DURATIONS[variant];
       const id = `toast-${++counter}`;
-      setItems((prev) => [...prev, { id, variant, message, durationMs }]);
-      if (durationMs > 0) {
-        window.setTimeout(() => dismiss(id), durationMs);
+      setItems((prev) => [...prev, { id, variant, message, durationMs: ms }]);
+      if (ms > 0) {
+        window.setTimeout(() => dismiss(id), ms);
       }
     },
     [dismiss],
@@ -109,17 +111,26 @@ function NotificationHost({
         <div
           key={item.id}
           className={`notification-toast notification-toast--${item.variant}`}
-          role="status"
+          role={item.variant === "error" || item.variant === "warning" ? "alert" : "status"}
         >
-          <div className="notification-toast__body">{item.message}</div>
-          <button
-            type="button"
-            className="notification-toast__close"
-            aria-label="Dismiss notification"
-            onClick={() => onDismiss(item.id)}
-          >
-            <X size={14} />
-          </button>
+          <div className="notification-toast__row">
+            <div className="notification-toast__body">{item.message}</div>
+            <button
+              type="button"
+              className="notification-toast__close"
+              aria-label="Dismiss notification"
+              onClick={() => onDismiss(item.id)}
+            >
+              <X size={14} />
+            </button>
+          </div>
+          {item.durationMs > 0 && (
+            <div
+              className="notification-toast__progress"
+              style={{ animationDuration: `${item.durationMs}ms` }}
+              aria-hidden
+            />
+          )}
         </div>
       ))}
     </div>,

@@ -7,7 +7,7 @@ import {
   getNavCatalog,
 } from "../../config/userPreferences";
 import { dropPosition, moveItemById, moveValue } from "../../lib/reorder";
-import AutoDismissAlert from "../ui/AutoDismissAlert";
+import { useNotifications } from "../../services/notifications";
 
 interface Props {
   roles: string[];
@@ -43,7 +43,7 @@ function sectionCatalogItems(section: SidebarSectionConfig, catalog: ReturnType<
 }
 
 export default function SidebarPreferencesPanel({ roles, prefs, onChange }: Props) {
-  const [message, setMessage] = useState("");
+  const { success } = useNotifications();
   const [dragState, setDragState] = useState<DragState | null>(null);
   const [dropHint, setDropHint] = useState<DropHint | null>(null);
 
@@ -56,7 +56,7 @@ export default function SidebarPreferencesPanel({ roles, prefs, onChange }: Prop
 
   const updateSections = (next: SidebarSectionConfig[]) => {
     onChange((prev) => ({ ...prev, sidebarSections: next }));
-    setMessage("Navigation layout updated.");
+    success("Navigation layout updated.");
   };
 
   const addSection = () => {
@@ -86,7 +86,7 @@ export default function SidebarPreferencesPanel({ roles, prefs, onChange }: Prop
 
   const resetSidebar = () => {
     onChange((prev) => ({ ...prev, sidebarSections: null }));
-    setMessage("Navigation reset to default groups.");
+    success("Navigation reset to default groups.");
   };
 
   const clearDrag = () => {
@@ -128,12 +128,6 @@ export default function SidebarPreferencesPanel({ roles, prefs, onChange }: Prop
 
   return (
     <div className="prefs-panel">
-      {message && (
-        <AutoDismissAlert variant="success" onDismiss={() => setMessage("")}>
-          {message}
-        </AutoDismissAlert>
-      )}
-
       <div className="prefs-card-header">
         <LayoutList size={18} />
         <div className="prefs-card-header-text">

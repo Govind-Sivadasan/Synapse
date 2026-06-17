@@ -8,9 +8,12 @@ import Modal from "../components/Modal";
 import PageHeader from "../components/ui/PageHeader";
 import StatusBadge from "../components/ui/StatusBadge";
 import { PageLoading } from "../components/ui/LoadingScreen";
-import AutoDismissAlert from "../components/ui/AutoDismissAlert";
+import DicomTagSelect from "../components/forms/DicomTagSelect";
+import Switch from "../components/ui/Switch";
 import { useConfirmDialog } from "../hooks/useConfirmDialog";
 import { useAppMetadata } from "../hooks/useAppMetadata";
+import { formatNotificationMessage } from "../lib/notificationMessages";
+import { useNotifications } from "../services/notifications";
 import { TagMorphingRule } from "../types/api";
 
 const emptyForm = {
@@ -27,10 +30,10 @@ export default function TagMorphing() {
   const queryClient = useQueryClient();
   const { confirm, ConfirmDialog } = useConfirmDialog();
   const { data: metadata } = useAppMetadata();
+  const { error: notifyError, success } = useNotifications();
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<TagMorphingRule | null>(null);
   const [form, setForm] = useState(emptyForm);
-  const [error, setError] = useState("");
   const [preview, setPreview] = useState<{ original_value: string; new_value: string; applies: boolean } | null>(null);
 
   const { data: rules = [], isLoading } = useQuery({
@@ -58,10 +61,10 @@ export default function TagMorphing() {
       setModalOpen(false);
       setEditing(null);
       setForm(emptyForm);
-      setError("");
       setPreview(null);
+      success("Tag morphing rule saved.");
     },
-    onError: (err: Error) => setError(err.message),
+    onError: (err: Error) => notifyError(formatNotificationMessage(err.message)),
   });
 
   const deleteMutation = useMutation({
@@ -90,7 +93,6 @@ export default function TagMorphing() {
   const openCreate = () => {
     setEditing(null);
     setForm(emptyForm);
-    setError("");
     setPreview(null);
     setModalOpen(true);
   };
@@ -106,7 +108,6 @@ export default function TagMorphing() {
       new_value: rule.new_value,
       is_active: rule.is_active,
     });
-    setError("");
     setPreview(null);
     setModalOpen(true);
   };
@@ -196,41 +197,31 @@ export default function TagMorphing() {
         onClose={() => setModalOpen(false)}
         wide
       >
-        {error && (
-          <AutoDismissAlert variant="error" onDismiss={() => setError("")}>
-            {error}
-          </AutoDismissAlert>
-        )}
         <form onSubmit={(e) => { e.preventDefault(); saveMutation.mutate(form); }}>
           <div className="form-grid">
             <div className="form-field">
               <label>Rule Name</label>
               <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
             </div>
-            <div className="form-field">
-              <label>Target Tag</label>
-              <select value={form.target_tag} onChange={(e) => setForm({ ...form, target_tag: e.target.value })}>
-                {dicomTags.map((t) => (
-                  <option key={t} value={t}>{t}</option>
-                ))}
-              </select>
-            </div>
+            <DicomTagSelect
+              label="Target Tag"
+              value={form.target_tag}
+              onChange={(target_tag) => setForm({ ...form, target_tag })}
+              baseTags={dicomTags}
+              required
+            />
             <div className="form-field full-width">
               <label>New Value</label>
               <input value={form.new_value} onChange={(e) => setForm({ ...form, new_value: e.target.value })} required />
             </div>
-            <div className="form-field">
-              <label>Condition Tag (optional)</label>
-              <select
-                value={form.condition_tag}
-                onChange={(e) => setForm({ ...form, condition_tag: e.target.value })}
-              >
-                <option value="">Always apply</option>
-                {dicomTags.map((t) => (
-                  <option key={t} value={t}>{t}</option>
-                ))}
-              </select>
-            </div>
+            <DicomTagSelect
+              label="Condition Tag (optional)"
+              value={form.condition_tag}
+              onChange={(condition_tag) => setForm({ ...form, condition_tag })}
+              baseTags={dicomTags}
+              allowEmpty
+              emptyLabel="Always apply"
+            />
             <div className="form-field">
               <label>Operator</label>
               <select
@@ -253,14 +244,11 @@ export default function TagMorphing() {
               />
             </div>
             <div className="form-field">
-              <label>
-                <input
-                  type="checkbox"
-                  checked={form.is_active}
-                  onChange={(e) => setForm({ ...form, is_active: e.target.checked })}
-                />{" "}
-                Active
-              </label>
+              <label>Active</label>
+              <Switch
+                checked={form.is_active}
+                onChange={(is_active) => setForm({ ...form, is_active })}
+              />
             </div>
           </div>
 

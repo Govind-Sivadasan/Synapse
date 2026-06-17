@@ -17,6 +17,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import ActionButton from "../components/ui/ActionButton";
+import Switch from "../components/ui/Switch";
 import { apiFetch } from "../api/client";
 import PageHeader from "../components/ui/PageHeader";
 import { PageLoading } from "../components/ui/LoadingScreen";
@@ -153,15 +154,7 @@ function ToggleRow({
         <p className="settings-field-hint">{hint}</p>
       </div>
       <div className="settings-field-control">
-        <label className="settings-switch">
-          <input
-            type="checkbox"
-            checked={checked}
-            disabled={disabled}
-            onChange={(e) => onChange(e.target.checked)}
-          />
-          <span className="settings-switch-slider" aria-hidden />
-        </label>
+        <Switch checked={checked} onChange={onChange} disabled={disabled} />
       </div>
     </div>
   );

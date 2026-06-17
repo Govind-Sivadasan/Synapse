@@ -8,6 +8,6 @@ export const BRAND = {
   /** Chatbot assistant avatar */
   chatbot: "/bot_badge.svg",
   chatbotPng: "/bot_badge.png",
-  /** Favicon */
-  favicon: "/synapse.png",
+  /** Browser tab favicon (synapse mark, black foreground, transparent background) */
+  favicon: "/favicon.png",
 } as const;

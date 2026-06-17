@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { Keyboard, RotateCcw } from "lucide-react";
 import { HOTKEY_ACTIONS, UserPreferences } from "../../config/userPreferences";
 import {
@@ -8,7 +8,8 @@ import {
   getHotkeyFieldState,
   validateHotkeyCombo,
 } from "../../lib/hotkeys";
-import AutoDismissAlert from "../ui/AutoDismissAlert";
+import { useNotifications } from "../../services/notifications";
+import Switch from "../ui/Switch";
 import HotkeyCaptureInput from "./HotkeyCaptureInput";
 
 interface Props {
@@ -17,16 +18,21 @@ interface Props {
 }
 
 export default function HotkeysPreferencesPanel({ prefs, onChange }: Props) {
-  const [message, setMessage] = useState("");
-  const [messageVariant, setMessageVariant] = useState<"success" | "error" | "warning">("success");
+  const { success, error, warning } = useNotifications();
+  const lastDuplicateMsg = useRef("");
 
   const duplicates = useMemo(() => findHotkeyDuplicates(HOTKEY_ACTIONS, prefs), [prefs]);
   const duplicateBanner = duplicateGroupsMessage(duplicates);
 
-  const notify = (text: string, variant: "success" | "error" | "warning" = "success") => {
-    setMessage(text);
-    setMessageVariant(variant);
-  };
+  useEffect(() => {
+    if (duplicateBanner && duplicateBanner !== lastDuplicateMsg.current) {
+      lastDuplicateMsg.current = duplicateBanner;
+      warning(duplicateBanner);
+    }
+    if (!duplicateBanner) {
+      lastDuplicateMsg.current = "";
+    }
+  }, [duplicateBanner, warning]);
 
   const setHotkey = (actionId: string, value: string) => {
     const validation = validateHotkeyCombo(value);
@@ -45,14 +51,14 @@ export default function HotkeysPreferencesPanel({ prefs, onChange }: Props) {
     });
 
     if (!validation.valid) {
-      notify(validation.error ?? "Invalid shortcut.", "error");
+      error(validation.error ?? "Invalid shortcut.");
       return;
     }
     if (conflictMsg) {
-      notify(conflictMsg, "warning");
+      warning(conflictMsg);
       return;
     }
-    notify(`Shortcut set to ${formatHotkeyDisplay(stored)}.`);
+    success(`Shortcut set to ${formatHotkeyDisplay(stored)}.`);
   };
 
   const toggleHotkey = (actionId: string, enabled: boolean) => {
@@ -62,26 +68,16 @@ export default function HotkeysPreferencesPanel({ prefs, onChange }: Props) {
       else disabled.add(actionId);
       return { ...prev, hotkeysDisabled: [...disabled] };
     });
-    notify(enabled ? "Shortcut enabled." : "Shortcut disabled.");
+    success(enabled ? "Shortcut enabled." : "Shortcut disabled.");
   };
 
   const resetHotkeys = () => {
     onChange((prev) => ({ ...prev, hotkeyOverrides: {}, hotkeysDisabled: [] }));
-    notify("Shortcuts reset to defaults.");
+    success("Shortcuts reset to defaults.");
   };
 
   return (
     <div className="prefs-panel">
-      {message && (
-        <AutoDismissAlert variant={messageVariant} onDismiss={() => setMessage("")}>
-          {message}
-        </AutoDismissAlert>
-      )}
-
-      {duplicateBanner && (
-        <AutoDismissAlert variant="warning">{duplicateBanner}</AutoDismissAlert>
-      )}
-
       <div className="prefs-card-header">
         <Keyboard size={18} />
         <div className="prefs-card-header-text">
@@ -139,14 +135,13 @@ export default function HotkeysPreferencesPanel({ prefs, onChange }: Props) {
                     )}
                   </td>
                   <td className="prefs-hotkey-enabled-cell">
-                    <label className="prefs-enable-check">
-                      <input
-                        type="checkbox"
+                    <div className="prefs-enable-switch">
+                      <Switch
                         checked={enabled}
-                        onChange={(e) => toggleHotkey(action.id, e.target.checked)}
+                        onChange={(v) => toggleHotkey(action.id, v)}
+                        label={enabled ? "On" : "Off"}
                       />
-                      <span>{enabled ? "On" : "Off"}</span>
-                    </label>
+                    </div>
                   </td>
                 </tr>
               );

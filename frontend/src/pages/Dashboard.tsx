@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import {
@@ -16,11 +17,15 @@ import BarChart from "../components/ui/BarChart";
 import MetricCard from "../components/ui/MetricCard";
 import PageHeader from "../components/ui/PageHeader";
 import { PageLoading } from "../components/ui/LoadingScreen";
-import AutoDismissAlert from "../components/ui/AutoDismissAlert";
+import { formatNotificationMessage } from "../lib/notificationMessages";
+import { useNotifications } from "../services/notifications";
 import { routingStatusLabel } from "../lib/statusLabels";
 import { ChartDataPoint, DashboardMetrics, VolumeChart } from "../types/api";
 
 export default function Dashboard() {
+  const { error: notifyError } = useNotifications();
+  const lastError = useRef<string | null>(null);
+
   const { data, isLoading, error } = useQuery({
     queryKey: ["dashboard-metrics"],
     queryFn: () => apiFetch<DashboardMetrics>("/api/v1/dashboard/metrics"),
@@ -51,18 +56,32 @@ export default function Dashboard() {
     refetchInterval: 10000,
   });
 
+  useEffect(() => {
+    if (!error) {
+      lastError.current = null;
+      return;
+    }
+    const message = `Error loading metrics: ${formatNotificationMessage((error as Error).message)}`;
+    if (lastError.current === message) return;
+    lastError.current = message;
+    notifyError(message);
+  }, [error, notifyError]);
+
   if (isLoading) return <PageLoading label="Loading dashboard metrics…" />;
-  if (error) {
+  if (error || !data) {
     return (
-      <AutoDismissAlert variant="error">
-        Error loading metrics: {(error as Error).message}
-      </AutoDismissAlert>
+      <div>
+        <PageHeader title="Dashboard" description="Operational overview of routing, migration, and DIMSE intake." />
+        <div className="card">
+          <p className="empty-message">Unable to load dashboard metrics. Check the notification for details.</p>
+        </div>
+      </div>
     );
   }
 
-  const routing = data!.routing;
-  const migration = data!.migration;
-  const dimse = data!.dimse;
+  const routing = data.routing;
+  const migration = data.migration;
+  const dimse = data.dimse;
 
   return (
     <div>
