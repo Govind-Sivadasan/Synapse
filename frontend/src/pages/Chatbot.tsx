@@ -1,38 +1,37 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Sparkles, Trash2 } from "lucide-react";
 import { apiFetch } from "../api/client";
 import ChatPanel from "../components/chat/ChatPanel";
+import { CHAT_MESSAGES_KEY, clearChatTransientState, fetchChatMessages } from "../components/chat/chatCache";
 import ActionButton from "../components/ui/ActionButton";
 import PageHeader from "../components/ui/PageHeader";
 import { useConfirmDialog } from "../hooks/useConfirmDialog";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ChatbotStatus } from "../types/api";
-import { PageLoading } from "../components/ui/LoadingScreen";
 
 export default function Chatbot() {
   const queryClient = useQueryClient();
   const { confirm, ConfirmDialog } = useConfirmDialog();
 
-  const { data: status, isLoading } = useQuery({
+  const { data: status } = useQuery({
     queryKey: ["chatbot-status"],
     queryFn: () => apiFetch<ChatbotStatus>("/api/v1/chatbot/status"),
     refetchInterval: 30000,
   });
 
+  const { data: history } = useQuery({
+    queryKey: CHAT_MESSAGES_KEY,
+    queryFn: fetchChatMessages,
+    enabled: status?.enabled !== false,
+    staleTime: 30_000,
+  });
+
   const clearMutation = useMutation({
     mutationFn: () => apiFetch<void>("/api/v1/chatbot/messages", { method: "DELETE" }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["chatbot-messages"] });
+      clearChatTransientState(queryClient);
+      queryClient.setQueryData(CHAT_MESSAGES_KEY, { total: 0, items: [] });
     },
   });
-
-  const { data: history } = useQuery({
-    queryKey: ["chatbot-messages"],
-    queryFn: () => apiFetch<{ items: unknown[] }>("/api/v1/chatbot/messages?limit=200"),
-    enabled: status?.enabled !== false,
-  });
-
-  if (isLoading) return <PageLoading label="Loading Synapse Assistant…" />;
 
   if (status && !status.enabled) {
     return (

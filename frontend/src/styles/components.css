@@ -1569,7 +1569,7 @@ button.user-menu-swatch:hover:not(:disabled) {
 }
 
 .metric-value {
-  font-size: 1.5rem;
+  font-size: 1.2rem;
   font-weight: 700;
   color: var(--color-text);
   letter-spacing: -0.03em;
@@ -1816,13 +1816,17 @@ button.settings-hub-item.settings-hub-tab--active:hover:not(:disabled) {
 /* Tables */
 .table-wrap {
   overflow-x: auto;
+  overflow-y: visible;
+  max-width: 100%;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
+  -webkit-overflow-scrolling: touch;
 }
 
 .data-table {
-  width: 100%;
-  min-width: 52rem;
+  width: max-content;
+  min-width: 100%;
+  table-layout: auto;
   border-collapse: collapse;
   font-size: 0.875rem;
 }
@@ -1841,10 +1845,7 @@ button.settings-hub-item.settings-hub-tab--active:hover:not(:disabled) {
 
 .table-cell-route {
   display: inline-block;
-  max-width: 11rem;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   vertical-align: middle;
 }
 
@@ -1862,6 +1863,99 @@ button.settings-hub-item.settings-hub-tab--active:hover:not(:disabled) {
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+}
+
+.data-table-th--resizable {
+  position: relative;
+  padding-right: 0.35rem;
+}
+
+.data-table-th-label {
+  display: block;
+  white-space: nowrap;
+  padding-right: 0.35rem;
+}
+
+.data-table-col-resize {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 0.45rem;
+  height: 100%;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.data-table-col-resize::after {
+  content: "";
+  position: absolute;
+  top: 20%;
+  bottom: 20%;
+  right: 0.15rem;
+  width: 2px;
+  border-radius: 1px;
+  background: color-mix(in srgb, var(--color-border) 70%, var(--color-text-muted));
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.data-table-th--resizable:hover .data-table-col-resize::after,
+.data-table-col-resize:hover::after {
+  opacity: 1;
+}
+
+.data-table td,
+.data-table th {
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.study-progress-ring-outer {
+  transform-origin: center;
+}
+
+.study-progress-ring--in_progress .study-progress-ring-arc {
+  animation: study-ring-join 1.8s ease-in-out infinite;
+}
+
+.study-progress-ring--in_progress .study-progress-ring-outer {
+  animation: study-ring-spin 2.4s linear infinite;
+}
+
+@keyframes study-ring-join {
+  0%,
+  100% {
+    opacity: 0.85;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.study-status-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.study-progress-ring {
+  display: inline-flex;
+  flex-shrink: 0;
+  line-height: 0;
+}
+
+.study-progress-ring--in_progress svg {
+  animation: none;
+}
+
+@keyframes study-ring-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .data-table tbody tr:last-child td {
@@ -2797,6 +2891,26 @@ button.settings-hub-item.settings-hub-tab--active:hover:not(:disabled) {
   gap: 1.25rem;
 }
 
+.dashboard-split {
+  grid-template-columns: 2fr 1fr;
+  align-items: start;
+  margin-bottom: 1.25rem;
+}
+
+.dashboard-split .card {
+  margin-bottom: 0;
+}
+
+.dashboard-activity-card .activity-feed {
+  max-height: 17.5rem;
+  overflow-y: auto;
+  padding-right: 0.15rem;
+}
+
+.dashboard-volume-card .dual-chart {
+  align-items: start;
+}
+
 .chart-legend {
   display: inline-block;
   font-size: 0.75rem;
@@ -2894,7 +3008,8 @@ button.settings-hub-item.settings-hub-tab--active:hover:not(:disabled) {
     grid-template-columns: 1fr;
   }
 
-  .app-content .grid[style*="2fr 1fr"] {
+  .app-content .grid[style*="2fr 1fr"],
+  .dashboard-split {
     grid-template-columns: 1fr !important;
   }
 
@@ -3937,24 +4052,43 @@ button.settings-hub-item.settings-hub-tab--active:hover:not(:disabled) {
   color: var(--color-text-muted);
 }
 
-.prefs-hotkey-input {
+.prefs-hotkey-capture.settings-input {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.125rem;
+  max-width: 14rem;
   width: 100%;
-  max-width: 12rem;
-  font-family: var(--font-mono, monospace);
-  font-size: 0.8125rem;
-}
-
-.prefs-hotkey-capture--recording .prefs-hotkey-input {
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 25%, transparent);
-}
-
-.prefs-hotkey-input {
   cursor: pointer;
+  font-family: inherit;
+  text-align: left;
 }
 
-.prefs-hotkey-input--recording {
-  cursor: text;
+.prefs-hotkey-capture--disabled {
+  opacity: 0.72;
+  cursor: not-allowed;
+}
+
+.prefs-hotkey-capture--recording {
+  background: var(--color-surface);
+  box-shadow:
+    inset 0 0 0 1px var(--color-primary),
+    0 0 0 3px color-mix(in srgb, var(--color-primary) 18%, transparent);
+}
+
+.prefs-hotkey-capture-placeholder {
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+}
+
+.prefs-hotkey-capture-hint {
+  font-size: 0.8125rem;
+  color: var(--color-primary);
+  font-weight: 500;
+}
+
+.prefs-hotkey-capture .hotkey-combo-display kbd {
+  padding: 0.12rem 0.4rem;
+  font-size: 0.75rem;
 }
 
 .prefs-hotkey-error {
@@ -3993,13 +4127,6 @@ button.settings-hub-item.settings-hub-tab--active:hover:not(:disabled) {
   margin: 0 0.15rem;
   opacity: 0.5;
   font-size: 0.75rem;
-}
-
-.prefs-hotkey-preview {
-  display: block;
-  margin-top: 0.25rem;
-  font-size: 0.75rem;
-  color: var(--color-text-muted);
 }
 
 .prefs-hotkey-enabled-cell {

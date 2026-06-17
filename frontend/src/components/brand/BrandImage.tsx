@@ -23,7 +23,7 @@ export function SynapseLogo({ className, size = 40 }: { className?: string; size
 export function ChatbotAvatar({ className, size = 32 }: { className?: string; size?: number }) {
   return (
     <img
-      src={BRAND.chatbot}
+      src={BRAND.chatbotPng}
       alt=""
       aria-hidden
       className={className}

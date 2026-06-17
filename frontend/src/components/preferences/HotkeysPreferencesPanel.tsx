@@ -9,7 +9,7 @@ import {
   validateHotkeyCombo,
 } from "../../lib/hotkeys";
 import AutoDismissAlert from "../ui/AutoDismissAlert";
-import HotkeyCaptureInput, { HotkeyComboDisplay } from "./HotkeyCaptureInput";
+import HotkeyCaptureInput from "./HotkeyCaptureInput";
 
 interface Props {
   prefs: UserPreferences;
@@ -133,11 +133,6 @@ export default function HotkeysPreferencesPanel({ prefs, onChange }: Props) {
                       onChange={(v) => setHotkey(action.id, v)}
                       aria-label={`Shortcut for ${action.label}`}
                     />
-                    {field.display && enabled && (
-                      <span className="prefs-hotkey-preview">
-                        Preview: <HotkeyComboDisplay combo={field.display} />
-                      </span>
-                    )}
                     {field.error && <span className="prefs-hotkey-error">{field.error}</span>}
                     {!field.error && field.warning && (
                       <span className="prefs-hotkey-warning">{field.warning}</span>

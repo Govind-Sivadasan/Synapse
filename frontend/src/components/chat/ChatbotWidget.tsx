@@ -1,11 +1,12 @@
 import { CSSProperties, useCallback, useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { GripVertical, Maximize2, Sparkles, X } from "lucide-react";
 import { apiFetch } from "../../api/client";
 import { BRAND } from "../../config/brand";
 import { useDraggablePosition } from "../../hooks/useDraggablePosition";
 import { ChatbotStatus } from "../../types/api";
+import { ensureChatMessages } from "./chatCache";
 import ChatPanel from "./ChatPanel";
 
 const CHAT_ROLES = ["viewer", "service_user", "operator", "admin"];
@@ -19,6 +20,7 @@ interface Props {
 
 export default function ChatbotWidget({ roles }: Props) {
   const location = useLocation();
+  const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const { pos, dragging, onPointerDown, resetPosition, consumeClickIfDragged, positionStyle } =
     useDraggablePosition({
@@ -107,7 +109,17 @@ export default function ChatbotWidget({ roles }: Props) {
               </div>
             </div>
             <div className="chatbot-drawer-actions">
-              <Link to="/chatbot" title="Open full page" onClick={() => setOpen(false)}>
+              <Link
+                to="/chatbot"
+                title="Open full page"
+                onMouseEnter={() => {
+                  void ensureChatMessages(queryClient);
+                }}
+                onClick={() => {
+                  void ensureChatMessages(queryClient);
+                  setOpen(false);
+                }}
+              >
                 <Maximize2 size={16} />
               </Link>
               <button type="button" onClick={() => setOpen(false)} aria-label="Close chat">

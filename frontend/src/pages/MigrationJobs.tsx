@@ -8,6 +8,7 @@ import Modal from "../components/Modal";
 import ActionButton from "../components/ui/ActionButton";
 import PageHeader from "../components/ui/PageHeader";
 import StatusBadge from "../components/ui/StatusBadge";
+import StudyProgressRing from "../components/ui/StudyProgressRing";
 import { PageLoading } from "../components/ui/LoadingScreen";
 import AutoDismissAlert from "../components/ui/AutoDismissAlert";
 import TableSearch from "../components/ui/TableSearch";
@@ -185,22 +186,27 @@ function JobConfigurationPanel({
   );
 }
 
+function processedStudies(job: MigrationJob): number {
+  return job.completed_studies + job.failed_studies;
+}
+
 function progressPct(job: MigrationJob): number {
   const total = job.total_studies ?? 0;
   if (!total) return 0;
-  return Math.round(((job.completed_studies + job.failed_studies) / total) * 100);
+  return Math.round((processedStudies(job) / total) * 100);
 }
 
 function JobProgressCell({ job }: { job: MigrationJob }) {
   const total = job.total_studies ?? 0;
   const active = job.status === "in_progress";
+  const processed = processedStudies(job);
   let label: string;
   if (!total && active) {
     label = "Discovering…";
   } else if (!total) {
     label = "—";
   } else {
-    label = `${job.completed_studies}/${total} (${progressPct(job)}%)`;
+    label = `${processed}/${total} (${progressPct(job)}%)`;
   }
 
   return (
@@ -277,7 +283,8 @@ export default function MigrationJobs() {
     queryKey: ["migration-job", selectedJob?.id],
     queryFn: () => apiFetch<MigrationJob>(`/api/v1/migration-jobs/${selectedJob!.id}`),
     enabled: !!selectedJob,
-    refetchInterval: selectedJob?.status === "in_progress" ? 3000 : false,
+    refetchInterval: (query) =>
+      (query.state.data?.status ?? selectedJob?.status) === "in_progress" ? 3000 : false,
   });
 
   const displayJob = jobDetail ?? selectedJob;
@@ -381,30 +388,36 @@ export default function MigrationJobs() {
   };
 
   const patchJobInCache = (jobId: string, patch: Partial<MigrationJob>) => {
-    queryClient.setQueryData<MigrationJobList>(["migration-jobs"], (old) => {
+    queryClient.setQueriesData<MigrationJobList>({ queryKey: ["migration-jobs"] }, (old) => {
       if (!old) return old;
       return {
         ...old,
         items: old.items.map((j) => (j.id === jobId ? { ...j, ...patch } : j)),
       };
     });
+    queryClient.setQueryData<MigrationJob>(["migration-job", jobId], (old) =>
+      old ? { ...old, ...patch } : old,
+    );
     setSelectedJob((prev) => (prev?.id === jobId ? { ...prev, ...patch } : prev));
   };
 
   const startMutation = useMutation({
     mutationFn: (id: string) =>
       apiFetch<MigrationJob>(`/api/v1/migration-jobs/${id}/start`, { method: "POST" }),
+    onMutate: (id) => {
+      success("Starting migration job…");
+      patchJobInCache(id, { status: "in_progress" });
+    },
     onSuccess: (job) => {
       patchJobInCache(job.id, job);
       setSelectedJob((prev) => (prev?.id === job.id ? job : prev));
-      queryClient.setQueryData<MigrationJobList>(["migration-jobs"], (old) => {
-        if (!old) return old;
-        return { ...old, items: old.items.map((j) => (j.id === job.id ? job : j)) };
-      });
       queryClient.invalidateQueries({ queryKey: ["migration-job-studies", job.id] });
+      queryClient.invalidateQueries({ queryKey: ["migration-jobs"] });
     },
-    onError: (err: Error) => {
+    onError: (err: Error, id) => {
       notifyError(err.message);
+      queryClient.invalidateQueries({ queryKey: ["migration-jobs"] });
+      queryClient.invalidateQueries({ queryKey: ["migration-job", id] });
     },
   });
 
@@ -437,10 +450,21 @@ export default function MigrationJobs() {
         `/api/v1/migration-jobs/${jobId}/studies/retry-failed`,
         { method: "POST" },
       ),
-    onSuccess: (result) => {
-      success(`Retry queued for ${result.enqueued} failed study record${result.enqueued === 1 ? "" : "s"}.`);
-      queryClient.invalidateQueries({ queryKey: ["migration-job-studies", selectedJob?.id] });
-      queryClient.invalidateQueries({ queryKey: ["migration-job", selectedJob?.id] });
+    onMutate: (jobId) => {
+      success("Queuing retries for failed studies…");
+      patchJobInCache(jobId, { status: "in_progress" });
+    },
+    onSuccess: (result, jobId) => {
+      if (result.enqueued === 0) {
+        notifyError("No failed or pending studies to retry.");
+      } else {
+        success(
+          `Retry queued for ${result.enqueued} study record${result.enqueued === 1 ? "" : "s"}.`,
+        );
+      }
+      patchJobInCache(jobId, { status: "in_progress" });
+      queryClient.invalidateQueries({ queryKey: ["migration-job-studies", jobId] });
+      queryClient.invalidateQueries({ queryKey: ["migration-job", jobId] });
       queryClient.invalidateQueries({ queryKey: ["migration-jobs"] });
     },
     onError: (err: Error) => {
@@ -523,43 +547,31 @@ export default function MigrationJobs() {
               onPageChange: setJobsPage,
             }}
             columns={[
-              { key: "name", header: "Name" },
-              { key: "job_type", header: "Type" },
+              { key: "name", header: "Name", width: 200, minWidth: 120 },
+              { key: "job_type", header: "Type", width: 110, minWidth: 88 },
               {
                 key: "route",
                 header: "Route",
+                width: 300,
+                minWidth: 180,
                 render: (j) => {
                   const route = `${j.source_node_name ?? "?"} → ${j.destination_node_name ?? "?"}`;
-                  return (
-                    <span className="table-cell-route" title={route}>
-                      {route}
-                    </span>
-                  );
+                  return <span className="table-cell-route">{route}</span>;
                 },
               },
-              {
-                key: "status",
-                header: "Status",
-                render: (j) => <StatusBadge status={j.status} />,
-              },
-              {
-                key: "progress",
-                header: "Progress",
-                render: (j) => <JobProgressCell job={j} />,
-              },
-              {
-                key: "failed",
-                header: "Failed",
-                render: (j) => j.failed_studies,
-              },
+              { key: "status", header: "Status", width: 130, minWidth: 110, render: (j) => <StatusBadge status={j.status} /> },
+              { key: "progress", header: "Progress", width: 130, minWidth: 100, render: (j) => <JobProgressCell job={j} /> },
+              { key: "failed", header: "Failed", width: 72, minWidth: 64, render: (j) => j.failed_studies },
               {
                 key: "actions",
                 header: "Actions",
+                width: 340,
+                minWidth: 280,
                 render: (j) => {
                   const starting = isStarting(j.id);
                   const cancelling = isCancelling(j.id);
                   const canStart =
-                    ["not_started", "failed", "partial"].includes(j.status) ||
+                    ["not_started", "failed", "partial", "cancelled"].includes(j.status) ||
                     (j.status === "completed" && (j.total_studies ?? 0) === 0);
 
                   return (
@@ -694,7 +706,7 @@ export default function MigrationJobs() {
           <JobConfigurationPanel job={displayJob} morphRules={morphRules} />
 
           <div className="job-detail-actions">
-            {(["not_started", "failed", "partial"].includes(displayJob.status) ||
+            {(["not_started", "failed", "partial", "cancelled"].includes(displayJob.status) ||
               (displayJob.status === "completed" && (displayJob.total_studies ?? 0) === 0)) && (
               <button
                 type="button"
@@ -752,7 +764,7 @@ export default function MigrationJobs() {
               <RefreshCw size={16} />
               Refresh studies
             </button>
-            {displayJob.failed_studies > 0 && (
+            {(displayJob.failed_studies > 0 || displayJob.status === "cancelled") && (
               <button
                 type="button"
                 className="btn-secondary"
@@ -764,7 +776,7 @@ export default function MigrationJobs() {
                 ) : (
                   <RefreshCw size={16} />
                 )}
-                Retry all failed
+                {displayJob.status === "cancelled" ? "Retry incomplete" : "Retry all failed"}
               </button>
             )}
           </div>
@@ -811,18 +823,29 @@ export default function MigrationJobs() {
                 {
                   key: "study_uid",
                   header: "Study UID",
+                  width: 340,
+                  minWidth: 260,
                   render: (s) => <code>{s.study_uid}</code>,
                 },
-                { key: "modality", header: "Modality" },
-                { key: "patient_id", header: "Patient ID" },
+                { key: "modality", header: "Modality", width: 90, minWidth: 72 },
+                { key: "patient_id", header: "Patient ID", width: 140, minWidth: 100 },
                 {
                   key: "status",
                   header: "Status",
-                  render: (s) => <StatusBadge status={s.status} />,
+                  width: 150,
+                  minWidth: 130,
+                  render: (s) => (
+                    <div className="study-status-cell">
+                      <StudyProgressRing status={s.status} />
+                      <StatusBadge status={s.status} dot={false} />
+                    </div>
+                  ),
                 },
                 {
                   key: "failure",
                   header: "Failure",
+                  width: 220,
+                  minWidth: 140,
                   render: (s) => (
                     <span style={{ fontSize: "0.8125rem", color: "var(--color-error)" }}>
                       {s.failure_reason ?? "—"}

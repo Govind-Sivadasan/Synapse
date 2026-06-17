@@ -249,7 +249,7 @@ async def start_migration_job(
     job = await db.get(MigrationJob, job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Migration job not found")
-    restartable = job.status in ("not_started", "failed", "partial") or (
+    restartable = job.status in ("not_started", "failed", "partial", "cancelled") or (
         job.status == "completed" and (job.total_studies or 0) == 0
     )
     if not restartable:
@@ -328,7 +328,7 @@ async def retry_migration_study(
     record.failure_reason = None
     record.completed_at = None
     job.retry_count += 1
-    if job.status in ("failed", "partial", "completed"):
+    if job.status in ("failed", "partial", "completed", "cancelled"):
         job.status = "in_progress"
         job.end_time = None
 
@@ -355,10 +355,14 @@ async def retry_failed_migration_studies(
     if not job:
         raise HTTPException(status_code=404, detail="Migration job not found")
 
+    retry_statuses = ("failed", "skipped")
+    if job.status == "cancelled":
+        retry_statuses = ("failed", "skipped", "pending")
+
     result = await db.execute(
         select(MigrationStudyRecord)
         .where(MigrationStudyRecord.job_id == job_id)
-        .where(MigrationStudyRecord.status.in_(("failed", "skipped")))
+        .where(MigrationStudyRecord.status.in_(retry_statuses))
     )
     records = list(result.scalars().all())
     if not records:
@@ -373,7 +377,7 @@ async def retry_failed_migration_studies(
         enqueue_migrate_study(str(job_id), record.study_uid)
 
     job.retry_count += len(records)
-    if job.status in ("failed", "partial", "completed"):
+    if job.status in ("failed", "partial", "completed", "cancelled"):
         job.status = "in_progress"
         job.end_time = None
 

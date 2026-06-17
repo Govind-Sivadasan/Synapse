@@ -47,7 +47,7 @@ export default function Dashboard() {
 
   const { data: activity } = useQuery({
     queryKey: ["dashboard-activity"],
-    queryFn: () => apiFetch<{ items: ActivityItem[] }>("/api/v1/dashboard/activity?limit=12"),
+    queryFn: () => apiFetch<{ items: ActivityItem[] }>("/api/v1/dashboard/activity?limit=8"),
     refetchInterval: 10000,
   });
 
@@ -108,8 +108,8 @@ export default function Dashboard() {
         />
       </div>
 
-      <div className="grid" style={{ gridTemplateColumns: "2fr 1fr", marginBottom: "1.25rem" }}>
-        <div className="card">
+      <div className="grid dashboard-split">
+        <div className="card dashboard-volume-card">
           <h3 className="card-title">Volume — Last 7 Days</h3>
           <div className="dual-chart">
             <div>
@@ -134,7 +134,7 @@ export default function Dashboard() {
             </div>
           </div>
         </div>
-        <div className="card">
+        <div className="card dashboard-activity-card">
           <h3 className="card-title">Recent Activity</h3>
           <ActivityFeed items={activity?.items ?? []} />
         </div>

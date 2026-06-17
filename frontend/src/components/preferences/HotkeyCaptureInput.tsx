@@ -17,14 +17,14 @@ export default function HotkeyCaptureInput({
   "aria-label": ariaLabel,
 }: Props) {
   const [recording, setRecording] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const captureRef = useRef<HTMLDivElement>(null);
 
   const commitCombo = (combo: string) => {
     onChange(combo);
     setRecording(false);
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (disabled) return;
 
     e.preventDefault();
@@ -32,7 +32,7 @@ export default function HotkeyCaptureInput({
 
     if (e.key === "Escape") {
       setRecording(false);
-      inputRef.current?.blur();
+      captureRef.current?.blur();
       return;
     }
 
@@ -55,23 +55,39 @@ export default function HotkeyCaptureInput({
     }
   };
 
+  const displayValue = value ? formatHotkeyDisplay(value) : "";
+
   return (
-    <div className={`prefs-hotkey-capture${recording ? " prefs-hotkey-capture--recording" : ""}`}>
-      <input
-        ref={inputRef}
-        className={`prefs-hotkey-input${recording ? " prefs-hotkey-input--recording" : ""}`}
-        value={value}
-        disabled={disabled}
-        readOnly
-        placeholder={recording ? "Press keys… (Esc to cancel)" : placeholder ?? "Click & press keys"}
-        aria-label={ariaLabel}
-        onFocus={() => {
-          if (!disabled) setRecording(true);
-        }}
-        onBlur={handleBlur}
-        onKeyDown={handleKeyDown}
-        title="Click here and press a key combination (e.g. Alt+Shift+R). Esc cancels."
-      />
+    <div
+      ref={captureRef}
+      role="textbox"
+      tabIndex={disabled ? -1 : 0}
+      aria-label={ariaLabel}
+      aria-readonly="true"
+      className={[
+        "settings-input",
+        "prefs-hotkey-capture",
+        recording ? "prefs-hotkey-capture--recording" : "",
+        disabled ? "prefs-hotkey-capture--disabled" : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
+      onFocus={() => {
+        if (!disabled) setRecording(true);
+      }}
+      onBlur={handleBlur}
+      onKeyDown={handleKeyDown}
+      title="Click here and press a key combination (e.g. Alt+Shift+R). Esc cancels."
+    >
+      {recording ? (
+        <span className="prefs-hotkey-capture-hint">Press keys… (Esc to cancel)</span>
+      ) : displayValue ? (
+        <HotkeyComboDisplay combo={value} />
+      ) : (
+        <span className="prefs-hotkey-capture-placeholder">
+          {placeholder ?? "Click & press keys"}
+        </span>
+      )}
     </div>
   );
 }

@@ -320,12 +320,12 @@ input#password:focus-visible {
 
 .synapse-login-logo {
   display: block;
-  width: 72px;
-  height: 72px;
+  width: 80px;
+  height: 80px;
   object-fit: contain;
   margin-bottom: 0.65rem;
   border-radius: 14px;
-  box-shadow: 0 8px 28px rgba(13, 148, 136, 0.35);
+  /* box-shadow: 0 8px 28px rgba(13, 148, 136, 0.35); */
 }
 
 .synapse-login-brand-text {

@@ -8,7 +8,17 @@ import StatusBadge from "../ui/StatusBadge";
 import AutoDismissAlert from "../ui/AutoDismissAlert";
 import { useConfirmDialog } from "../../hooks/useConfirmDialog";
 import { formatChatDateLabel, formatChatTime, isSameChatDay } from "../../lib/chatFormat";
-import { ChatMessageList, ChatQueryResponse } from "../../types/api";
+import { ChatQueryResponse } from "../../types/api";
+import {
+  appendChatMessages,
+  CHAT_AWAITING_KEY,
+  CHAT_MESSAGES_KEY,
+  CHAT_PENDING_KEY,
+  clearChatTransientState,
+  fetchChatMessages,
+  setChatAwaiting,
+  setChatPending,
+} from "./chatCache";
 
 interface Props {
   variant?: "page" | "widget";
@@ -20,7 +30,6 @@ export default function ChatPanel({ variant = "page", showSuggestions = variant 
   const { confirm, ConfirmDialog } = useConfirmDialog();
   const { roles } = useAuth();
   const [input, setInput] = useState("");
-  const [pendingUserText, setPendingUserText] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const isViewer = roles.includes("viewer") && !roles.some((r) => ["admin", "operator", "service_user"].includes(r));
@@ -32,9 +41,24 @@ export default function ChatPanel({ variant = "page", showSuggestions = variant 
     enabled: showSuggestions,
   });
 
-  const { data: history, isLoading: historyLoading } = useQuery({
-    queryKey: ["chatbot-messages"],
-    queryFn: () => apiFetch<ChatMessageList>("/api/v1/chatbot/messages?limit=200"),
+  const { data: history, isPending: historyPending } = useQuery({
+    queryKey: CHAT_MESSAGES_KEY,
+    queryFn: fetchChatMessages,
+    staleTime: 30_000,
+    refetchOnMount: "always",
+    placeholderData: (previous) => previous,
+  });
+
+  const { data: pendingUserText = null } = useQuery<string | null>({
+    queryKey: CHAT_PENDING_KEY,
+    enabled: false,
+    initialData: null,
+  });
+
+  const { data: awaitingResponse = false } = useQuery<boolean>({
+    queryKey: CHAT_AWAITING_KEY,
+    enabled: false,
+    initialData: false,
   });
 
   const messages = history?.items ?? [];
@@ -47,31 +71,35 @@ export default function ChatPanel({ variant = "page", showSuggestions = variant 
       }),
     onMutate: (message) => {
       setInput("");
-      setPendingUserText(message);
+      setChatPending(queryClient, message);
+      setChatAwaiting(queryClient, true);
     },
-    onSuccess: () => {
-      setPendingUserText(null);
-      queryClient.invalidateQueries({ queryKey: ["chatbot-messages"] });
+    onSuccess: (data) => {
+      appendChatMessages(queryClient, data.user_message, data.assistant_message);
+      clearChatTransientState(queryClient);
     },
     onError: () => {
-      setPendingUserText(null);
+      clearChatTransientState(queryClient);
     },
   });
+
+  const showTypingIndicator = queryMutation.isPending || awaitingResponse;
 
   const clearMutation = useMutation({
     mutationFn: () => apiFetch<void>("/api/v1/chatbot/messages", { method: "DELETE" }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["chatbot-messages"] });
+      clearChatTransientState(queryClient);
+      queryClient.setQueryData(CHAT_MESSAGES_KEY, { total: 0, items: [] });
     },
   });
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, queryMutation.isPending, pendingUserText]);
+  }, [messages, showTypingIndicator, pendingUserText]);
 
   const sendMessage = (text: string) => {
     const trimmed = text.trim();
-    if (!trimmed || queryMutation.isPending) return;
+    if (!trimmed || queryMutation.isPending || awaitingResponse) return;
     queryMutation.mutate(trimmed);
   };
 
@@ -90,6 +118,7 @@ export default function ChatPanel({ variant = "page", showSuggestions = variant 
   };
 
   const suggestions = suggestionsData?.suggestions ?? [];
+  const hasConversation = messages.length > 0 || !!pendingUserText || showTypingIndicator;
 
   return (
     <>
@@ -101,7 +130,7 @@ export default function ChatPanel({ variant = "page", showSuggestions = variant 
 
       <div className={isWidget ? "chatbot-widget-body" : "chatbot-layout"}>
         <div className={`card chatbot-panel${isWidget ? " chatbot-panel--widget" : ""}`}>
-          {isWidget && messages.length > 0 && (
+          {isWidget && hasConversation && (
             <div className="chatbot-widget-toolbar">
               <button
                 type="button"
@@ -116,13 +145,13 @@ export default function ChatPanel({ variant = "page", showSuggestions = variant 
           )}
 
           <div className="chatbot-messages">
-            {historyLoading && messages.length === 0 && (
+            {historyPending && messages.length === 0 && !pendingUserText && !showTypingIndicator && (
               <div className="chatbot-welcome">
                 <p>Loading conversation…</p>
               </div>
             )}
 
-            {!historyLoading && messages.length === 0 && !queryMutation.isPending && (
+            {!historyPending && messages.length === 0 && !showTypingIndicator && !pendingUserText && (
               <div className="chatbot-welcome">
                 <div className="chatbot-welcome-icon">
                   <ChatbotAvatar size={isWidget ? 56 : 72} />
@@ -137,7 +166,7 @@ export default function ChatPanel({ variant = "page", showSuggestions = variant 
                         type="button"
                         className="chat-suggestion-chip"
                         onClick={() => sendMessage(s)}
-                        disabled={queryMutation.isPending}
+                        disabled={queryMutation.isPending || awaitingResponse}
                       >
                         {s}
                       </button>
@@ -194,7 +223,7 @@ export default function ChatPanel({ variant = "page", showSuggestions = variant 
               </div>
             )}
 
-            {queryMutation.isPending && (
+            {showTypingIndicator && (
               <div className="chat-row chat-row--assistant">
                 <ChatbotAvatar className="chat-avatar" size={isWidget ? 32 : 36} />
                 <div className="chat-bubble chat-bubble--assistant">
@@ -221,9 +250,9 @@ export default function ChatPanel({ variant = "page", showSuggestions = variant 
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Ask about routing, migration, or system status…"
-              disabled={queryMutation.isPending}
+              disabled={queryMutation.isPending || awaitingResponse}
             />
-            <button type="submit" disabled={queryMutation.isPending || !input.trim()}>
+            <button type="submit" disabled={queryMutation.isPending || awaitingResponse || !input.trim()}>
               <Send size={18} />
             </button>
           </form>
@@ -239,7 +268,7 @@ export default function ChatPanel({ variant = "page", showSuggestions = variant 
                   type="button"
                   className="chat-suggestion-chip"
                   onClick={() => sendMessage(s)}
-                  disabled={queryMutation.isPending}
+                  disabled={queryMutation.isPending || awaitingResponse}
                 >
                   {s}
                 </button>

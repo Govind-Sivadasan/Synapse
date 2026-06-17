@@ -16,7 +16,7 @@ export default function Modal({ title, open, onClose, children, wide, extraWide 
   const sizeClass = extraWide ? "modal-xl" : wide ? "modal-wide" : "";
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className={`modal ${sizeClass}`} onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h3>{title}</h3>
