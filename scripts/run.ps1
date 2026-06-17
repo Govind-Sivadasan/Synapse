@@ -249,7 +249,7 @@ function Start-FrontendDev {
         throw "frontend/package.json not found."
     }
     if (-not (Test-Path (Join-Path $frontendDir "node_modules"))) {
-        Write-Info "Installing frontend dependencies…"
+        Write-Info "Installing frontend dependencies..."
         Push-Location $frontendDir
         try {
             if (Get-Command npm -ErrorAction SilentlyContinue) {
@@ -261,7 +261,11 @@ function Start-FrontendDev {
             Pop-Location
         }
     }
-    Write-Info "Starting Vite dev server (Ctrl+C to stop)…"
+    Write-Info "Starting Vite dev server (Ctrl+C to stop)..."
+    Write-Host ""
+    Write-Host "  Hot reload UI:  http://localhost:5173  (edit frontend/src - changes apply in ~1s)"
+    Write-Host "  Do not use       http://localhost:3000  (Docker frontend - rebuild required per change)"
+    Write-Host ""
     Push-Location $frontendDir
     try {
         npm run dev
@@ -364,7 +368,7 @@ switch ($Command) {
         $composeArgs += "-d"
         $composeArgs += @($targets)
 
-        Write-Info "Starting backend stack in Docker (no frontend container)…"
+        Write-Info "Starting backend stack in Docker (no frontend container)..."
         docker @composeArgs
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 

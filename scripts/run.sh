@@ -164,10 +164,14 @@ start_frontend_dev() {
     exit 1
   fi
   if [[ ! -d frontend/node_modules ]]; then
-    info "Installing frontend dependencies…"
+    info "Installing frontend dependencies..."
     (cd frontend && npm install)
   fi
-  info "Starting Vite dev server (Ctrl+C to stop)…"
+  info "Starting Vite dev server (Ctrl+C to stop)..."
+  echo ""
+  echo "  Hot reload UI:  http://localhost:5173  (edit frontend/src - changes apply in ~1s)"
+  echo "  Do not use       http://localhost:3000  (Docker frontend - rebuild required per change)"
+  echo ""
   (cd frontend && npm run dev)
 }
 
@@ -235,7 +239,7 @@ case "$COMMAND" in
     args=(compose up)
     [[ $BUILD -eq 1 ]] && args+=(--build)
     args+=(-d "${targets[@]}")
-    info "Starting backend stack in Docker (no frontend container)…"
+    info "Starting backend stack in Docker (no frontend container)..."
     docker "${args[@]}"
     show_urls dev
     start_frontend_dev

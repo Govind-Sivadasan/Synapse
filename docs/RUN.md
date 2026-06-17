@@ -108,18 +108,54 @@ run.bat up -Detach -Build
 
 Everything runs in Docker, including the frontend on port 3000.
 
-### Development (`dev`)
+### Development (`dev`) — fast UI hot reload
 
 ```powershell
 .\scripts\run.ps1 dev
 ```
 
-1. Starts postgres, redis, keycloak, orthanc, ollama, backend, and Celery workers in Docker (detached).
-2. Skips the frontend container.
-3. Runs `npm install` in `frontend/` if `node_modules` is missing.
-4. Starts `npm run dev` (Vite) in the foreground at http://localhost:5173.
+```bat
+run.bat dev
+```
 
-Use this when iterating on React UI with hot reload while keeping the backend in Docker.
+1. Starts postgres, redis, keycloak, orthanc, ollama, backend, and Celery workers in Docker (detached).
+2. Skips the frontend container (no image rebuild per UI edit).
+3. Runs `npm install` in `frontend/` if `node_modules` is missing.
+4. Starts **Vite** (`npm run dev`) in the foreground at **http://localhost:5173**.
+
+#### How hot reload works
+
+| Mode | URL | UI change speed |
+|------|-----|-----------------|
+| **Dev** (Vite) | http://localhost:5173 | **Instant** — save a `.tsx` / `.css` file and the browser updates in ~1s |
+| **Full stack** (Docker) | http://localhost:3000 | **Slow** — requires `run.bat restart frontend -Build` |
+
+Vite watches `frontend/src/`. On save it sends changed modules to the browser via **HMR (Hot Module Replacement)**. React **Fast Refresh** keeps component state when possible (e.g. toggles, form input) instead of reloading the whole page.
+
+The dev server **proxies** `/api` and `/ws` to `http://localhost:8000`, so the UI talks to the same Docker backend without CORS issues.
+
+**Use http://localhost:5173 while `dev` is running** — not port 3000 (that is the production-like Docker frontend).
+
+#### Frontend only (backend already running)
+
+If Docker stack is already up:
+
+```powershell
+cd frontend
+npm install   # first time only
+npm run dev
+```
+
+#### Troubleshooting dev reload
+
+| Issue | Fix |
+|-------|-----|
+| Edits not detected | Set `VITE_USE_POLLING=true` before `npm run dev` |
+| Wrong port | Open **5173**, not 3000 |
+| API errors | Ensure backend is up: `run.bat health` |
+| Login redirect fails | Keycloak allows `http://localhost:5173` in `keycloak/realm-export.json` |
+
+Use dev mode when iterating on React UI. Use full stack (`up -Detach`) for production-like smoke tests.
 
 ### Infrastructure only
 
@@ -223,7 +259,7 @@ Default UI login: `admin` / `admin123`
 | `dev` fails on `npm` | Install Node.js 18+ or use full stack (`run.bat up -Detach`) instead. |
 | Port already in use | Stop conflicting services or change compose port mappings. |
 | Stale data after schema changes | `run.bat down -KeepOllama` (keeps model) or `run.bat down -Volumes` (full wipe). |
-| UI changes not visible (Docker frontend) | `run.bat restart frontend -Build` |
+| UI changes not visible (Docker frontend) | Use `run.bat dev` and open http://localhost:5173, or `run.bat restart frontend -Build` |
 | Keycloak login theme not updated | `run.bat restart keycloak` (theme is mounted from `keycloak/themes/`) |
 | **`A positional parameter cannot be found that accepts argument 'frontend'`** | Use `run.bat restart frontend -Build` or `run.bat restart -Service frontend -Build` — not `restart frontend` as a bare second positional before the script was updated. |
 

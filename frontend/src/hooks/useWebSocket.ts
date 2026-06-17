@@ -1,6 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 
-const WS_URL = import.meta.env.VITE_WS_URL || "ws://localhost:8000/ws/events";
+function resolveWebSocketUrl(): string {
+  if (import.meta.env.VITE_WS_URL) return import.meta.env.VITE_WS_URL;
+  if (import.meta.env.DEV && typeof window !== "undefined") {
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    return `${protocol}//${window.location.host}/ws/events`;
+  }
+  return "ws://localhost:8000/ws/events";
+}
+
+const WS_URL = resolveWebSocketUrl();
 
 export interface WsEvent {
   event_type: string;
