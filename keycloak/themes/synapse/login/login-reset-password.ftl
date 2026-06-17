@@ -1,5 +1,6 @@
 <#import "template.ftl" as layout>
 <#import "brand-header.ftl" as brand>
+<#import "field-error.ftl" as fieldError>
 <@layout.registrationLayout displayInfo=true displayMessage=!messagesPerField.existsError('username'); section>
     <#if section = "header">
         <@brand.show pageTitle=msg("emailForgotTitle") />
@@ -16,9 +17,7 @@
                            aria-invalid="<#if messagesPerField.existsError('username')>true</#if>" />
                 </span>
                 <#if messagesPerField.existsError('username')>
-                    <span id="input-error-username" class="${properties.kcInputErrorMessageClass!}" aria-live="polite">
-                        ${kcSanitize(messagesPerField.get('username'))?no_esc}
-                    </span>
+                    <@fieldError.show id="input-error-username" text=kcSanitize(messagesPerField.get('username'))?no_esc />
                 </#if>
             </div>
 

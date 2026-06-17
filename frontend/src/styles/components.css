@@ -367,6 +367,7 @@ a:hover {
 
 .sidebar-nav {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: 0.65rem 0.6rem;
 }
@@ -2554,7 +2555,7 @@ button.modal-close:hover:not(:disabled) {
 .auto-dismiss-alert {
   position: relative;
   overflow: hidden;
-  padding-bottom: calc(0.75rem + 4px);
+  padding-bottom: calc(0.75rem + 3px);
 }
 
 .auto-dismiss-alert--modal {
@@ -2575,15 +2576,14 @@ button.modal-close:hover:not(:disabled) {
   position: absolute;
   left: 0;
   bottom: 0;
-  height: 4px;
+  height: 3px;
   width: 100%;
   background: var(--alert-progress-color, var(--color-primary));
-  opacity: 0.92;
   transform-origin: left center;
   animation-name: alert-dismiss-progress;
   animation-timing-function: linear;
   animation-fill-mode: forwards;
-  border-radius: 0 0 calc(var(--radius-md) - 1px) calc(var(--radius-md) - 1px);
+  border-radius: 0;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -4409,12 +4409,12 @@ button.account-tab:active:not(:disabled) {
 }
 
 .notification-host--top-right {
-  top: calc(var(--app-topbar-height, 3.25rem) + 8.5rem);
+  top: calc(var(--app-topbar-height, 3.25rem) + 0.5rem);
   right: 1rem;
 }
 
 .notification-host--top-left {
-  top: calc(var(--app-topbar-height, 3.25rem) + 8.5rem);
+  top: calc(var(--app-topbar-height, 3.25rem) + 0.5rem);
   left: calc(var(--sidebar-width, 260px) + 1rem);
 }
 
@@ -4440,8 +4440,7 @@ button.account-tab:active:not(:disabled) {
     0 0 0 1px rgba(15, 23, 42, 0.06);
   background: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-left-width: 3px;
-  border-left-color: var(--color-border);
+  border-bottom: none;
   pointer-events: auto;
   animation: notification-in 0.2s ease-out;
 }
@@ -4462,46 +4461,37 @@ button.account-tab:active:not(:disabled) {
   align-items: flex-start;
   gap: 0.65rem;
   padding: 0.75rem 0.85rem;
-  padding-bottom: calc(0.75rem + 4px);
 }
 
 .notification-toast--success {
-  border-left-color: var(--color-success);
   background: var(--color-success-bg);
   --alert-progress-color: var(--color-success);
 }
 
 .notification-toast--error {
-  border-left-color: var(--color-error);
   background: var(--color-error-bg);
   --alert-progress-color: var(--color-error);
 }
 
 .notification-toast--warning {
-  border-left-color: var(--color-warning);
   background: var(--color-warning-bg);
   --alert-progress-color: var(--color-warning);
 }
 
 .notification-toast--info {
-  border-left-color: var(--color-info);
   background: var(--color-info-bg);
   --alert-progress-color: var(--color-info);
 }
 
 .notification-toast__progress {
-  position: absolute;
-  left: 0;
-  bottom: 0;
-  height: 4px;
+  flex-shrink: 0;
+  height: 3px;
   width: 100%;
   background: var(--alert-progress-color, var(--color-primary));
-  opacity: 0.92;
   transform-origin: left center;
   animation-name: alert-dismiss-progress;
   animation-timing-function: linear;
   animation-fill-mode: forwards;
-  border-radius: 0 0 calc(var(--radius-md) - 1px) calc(var(--radius-md) - 1px);
 }
 
 .notification-toast__body {

@@ -989,6 +989,51 @@ a.pf-v5-c-button.pf-m-link {
   color: #fca5a5 !important;
 }
 
+.synapse-field-error {
+  display: flex !important;
+  align-items: flex-start;
+  gap: 0.45rem;
+  line-height: 1.4;
+}
+
+.synapse-field-error__icon {
+  flex-shrink: 0;
+  color: #f87171;
+  font-size: 0.875rem;
+  line-height: 1.35;
+  margin-top: 0.05rem;
+}
+
+.synapse-field-error__text {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Field errors — message below only; no in-field icon or partial underline bar */
+.synapse-login-card .pf-v5-c-form-control__utilities {
+  display: none !important;
+}
+
+.synapse-login-card .pf-v5-c-form-control.pf-m-error,
+.synapse-login-card .pf-v5-c-form__group > .pf-v5-c-form-control.pf-m-error,
+.synapse-login-card .pf-v5-c-form__group > .pf-v5-c-form-control:has(.pf-m-error) {
+  border: none !important;
+  background: var(--synapse-input-bg) !important;
+  box-shadow: var(--synapse-input-shadow), 0 0 0 2px rgba(220, 38, 38, 0.42) !important;
+}
+
+.synapse-login-card .pf-v5-c-form-control.pf-m-error::before,
+.synapse-login-card .pf-v5-c-form-control.pf-m-error::after,
+.synapse-login-card .pf-v5-c-form-control.pf-m-status::before,
+.synapse-login-card .pf-v5-c-form-control.pf-m-status::after {
+  display: none !important;
+  content: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  border: 0 !important;
+  background: none !important;
+}
+
 /* Password visibility toggle — hide inner field border when inside input group */
 .pf-v5-c-input-group .pf-v5-c-form-control.pf-m-error {
   border: none !important;

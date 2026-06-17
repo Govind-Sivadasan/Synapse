@@ -1,5 +1,6 @@
 <#import "template.ftl" as layout>
 <#import "brand-header.ftl" as brand>
+<#import "field-error.ftl" as fieldError>
 <#import "user-profile-commons.ftl" as userProfileCommons>
 <#import "register-commons.ftl" as registerCommons>
 <@layout.registrationLayout displayMessage=messagesPerField.exists('global') displayRequiredFields=true; section>
@@ -30,9 +31,7 @@
                                 </button>
                             </div>
                             <#if messagesPerField.existsError('password')>
-                                <span id="input-error-password" class="${properties.kcInputErrorMessageClass!}" aria-live="polite">
-                                    ${kcSanitize(messagesPerField.get('password'))?no_esc}
-                                </span>
+                                <@fieldError.show id="input-error-password" text=kcSanitize(messagesPerField.get('password'))?no_esc />
                             </#if>
                         </div>
                         <div class="${properties.kcFormGroupClass!}">
@@ -55,9 +54,7 @@
                                 </button>
                             </div>
                             <#if messagesPerField.existsError('password-confirm')>
-                                <span id="input-error-password-confirm" class="${properties.kcInputErrorMessageClass!}" aria-live="polite">
-                                    ${kcSanitize(messagesPerField.get('password-confirm'))?no_esc}
-                                </span>
+                                <@fieldError.show id="input-error-password-confirm" text=kcSanitize(messagesPerField.get('password-confirm'))?no_esc />
                             </#if>
                         </div>
                     </#if>

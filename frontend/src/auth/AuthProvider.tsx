@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, ReactNode, useMemo } from "react";
 import { apiFetch } from "../api/client";
 import LoadingScreen from "../components/ui/LoadingScreen";
 import keycloak from "./keycloak";
@@ -19,6 +19,7 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [authTick, setAuthTick] = useState(0);
 
   useEffect(() => {
     bindKeycloakTokenPersistence();
@@ -28,18 +29,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         bindKeycloakTokenPersistence();
         setIsAuthenticated(authenticated);
         setIsLoading(false);
+        setAuthTick((t) => t + 1);
         if (authenticated) {
           apiFetch("/api/v1/auth/login-audit", { method: "POST" }).catch(() => {});
         }
       })
       .catch(() => setIsLoading(false));
+
+    keycloak.onAuthRefreshSuccess = () => setAuthTick((t) => t + 1);
+    keycloak.onAuthSuccess = () => setAuthTick((t) => t + 1);
   }, []);
+
+  const roles = useMemo(() => {
+    void authTick;
+    return (
+      keycloak.realmAccess?.roles ??
+      (keycloak.tokenParsed as { realm_access?: { roles?: string[] } } | undefined)?.realm_access
+        ?.roles ??
+      []
+    );
+  }, [authTick]);
 
   const value: AuthContextValue = {
     isAuthenticated,
     isLoading,
     token: keycloak.token,
-    roles: keycloak.realmAccess?.roles ?? [],
+    roles,
     username: keycloak.tokenParsed?.preferred_username ?? "",
     login: () => keycloak.login(),
     logout: logoutFromKeycloak,

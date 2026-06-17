@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useMemo, useState } from "react";
 import { NavLink } from "react-router-dom";
 import { CircleHelp, LogOut } from "lucide-react";
 import { BRAND } from "../../config/brand";
@@ -27,20 +27,19 @@ export default function Sidebar({
   onResizeStart,
   onStartTour,
 }: Props) {
-  const [sections, setSections] = useState(() =>
-    resolveNavSections(roles, loadUserPreferences(username)),
-  );
+  const [prefsTick, setPrefsTick] = useState(0);
 
-  const refreshNav = useCallback(() => {
-    setSections(resolveNavSections(roles, loadUserPreferences(username)));
-  }, [roles, username]);
+  usePreferencesSync(username, () => setPrefsTick((t) => t + 1));
 
-  usePreferencesSync(username, refreshNav);
-
-  const visibleSections = sections.map((section) => ({
-    ...section,
-    items: section.items.filter((item) => chatbotEnabled || item.path !== "/chatbot"),
-  })).filter((section) => section.items.length > 0);
+  const visibleSections = useMemo(() => {
+    const sections = resolveNavSections(roles, loadUserPreferences(username));
+    return sections
+      .map((section) => ({
+        ...section,
+        items: section.items.filter((item) => chatbotEnabled || item.path !== "/chatbot"),
+      }))
+      .filter((section) => section.items.length > 0);
+  }, [roles, username, chatbotEnabled, prefsTick]);
 
   return (
     <aside className={`app-sidebar${collapsed ? " app-sidebar--collapsed" : ""}`}>

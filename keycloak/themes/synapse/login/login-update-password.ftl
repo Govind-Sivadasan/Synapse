@@ -1,6 +1,7 @@
 <#import "template.ftl" as layout>
 <#import "password-commons.ftl" as passwordCommons>
 <#import "brand-header.ftl" as brand>
+<#import "field-error.ftl" as fieldError>
 <@layout.registrationLayout displayMessage=!messagesPerField.existsError('password','password-confirm'); section>
     <#if section = "header">
         <@brand.show pageTitle=msg("updatePasswordTitle") />
@@ -23,9 +24,7 @@
                     </button>
                 </div>
                 <#if messagesPerField.existsError('password')>
-                    <span id="input-error-password" class="${properties.kcInputErrorMessageClass!}" aria-live="polite">
-                        ${kcSanitize(messagesPerField.get('password'))?no_esc}
-                    </span>
+                    <@fieldError.show id="input-error-password" text=kcSanitize(messagesPerField.get('password'))?no_esc />
                 </#if>
             </div>
 
@@ -46,9 +45,7 @@
                     </button>
                 </div>
                 <#if messagesPerField.existsError('password-confirm')>
-                    <span id="input-error-password-confirm" class="${properties.kcInputErrorMessageClass!}" aria-live="polite">
-                        ${kcSanitize(messagesPerField.get('password-confirm'))?no_esc}
-                    </span>
+                    <@fieldError.show id="input-error-password-confirm" text=kcSanitize(messagesPerField.get('password-confirm'))?no_esc />
                 </#if>
             </div>
 

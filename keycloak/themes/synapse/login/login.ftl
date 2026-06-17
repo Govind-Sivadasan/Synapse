@@ -1,5 +1,6 @@
 <#import "template.ftl" as layout>
 <#import "brand-header.ftl" as brand>
+<#import "field-error.ftl" as fieldError>
 <@layout.registrationLayout displayMessage=!messagesPerField.existsError('username','password') displayInfo=realm.password && realm.registrationAllowed && !registrationDisabled??; section>
     <#if section = "header">
         <@brand.show pageTitle=msg("loginAccountTitle") />
@@ -20,19 +21,10 @@
                                 <input tabindex="1" id="username" name="username" value="${(login.username!'')}" type="text" autofocus autocomplete="username"
                                        aria-invalid="<#if messagesPerField.existsError('username','password')>true</#if>"
                                 />
-                                <#if messagesPerField.existsError('username','password')>
-                                    <span class="pf-v5-c-form-control__utilities">
-                                        <span class="pf-v5-c-form-control__icon pf-m-status">
-                                        <i class="fas fa-exclamation-circle" aria-hidden="true"></i>
-                                        </span>
-                                    </span>
-                                </#if>
                             </span>
 
                             <#if messagesPerField.existsError('username','password')>
-                                <span id="input-error" class="${properties.kcInputErrorMessageClass!}" aria-live="polite">
-                                        ${kcSanitize(messagesPerField.getFirstError('username','password'))?no_esc}
-                                </span>
+                                <@fieldError.show id="input-error" text=kcSanitize(messagesPerField.getFirstError('username','password'))?no_esc />
                             </#if>
 
                         </div>
@@ -58,9 +50,7 @@
                         </div>
 
                         <#if usernameHidden?? && messagesPerField.existsError('username','password')>
-                            <span id="input-error" class="${properties.kcInputErrorMessageClass!}" aria-live="polite">
-                                    ${kcSanitize(messagesPerField.getFirstError('username','password'))?no_esc}
-                            </span>
+                            <@fieldError.show id="input-error" text=kcSanitize(messagesPerField.getFirstError('username','password'))?no_esc />
                         </#if>
 
                     </div>
