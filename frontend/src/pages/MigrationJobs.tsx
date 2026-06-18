@@ -810,7 +810,7 @@ export default function MigrationJobs() {
           />
 
           {studiesLoading ? (
-            <PageLoading label="Loading studies…" />
+            <PageLoading label="Loading studies…" compact />
           ) : (
             <DataTable
               data={studiesData?.items ?? []}

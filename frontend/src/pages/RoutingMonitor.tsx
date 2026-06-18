@@ -65,7 +65,7 @@ interface DimseStatus {
 
 export default function RoutingMonitor() {
   const queryClient = useQueryClient();
-  const { events, connected } = useWebSocket();
+  const { events, connected, reconnecting, reconnect } = useWebSocket();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [dateFrom, setDateFrom] = useState("");
@@ -100,8 +100,9 @@ export default function RoutingMonitor() {
   });
 
   const refreshAll = () => {
-    refetch();
-    refetchDimse();
+    void refetch();
+    void refetchDimse();
+    reconnect();
   };
 
   const retryMutation = useMutation({
@@ -131,12 +132,16 @@ export default function RoutingMonitor() {
           <>
             <span className={`connection-pill ${connected ? "connection-pill--live" : "connection-pill--offline"}`}>
               {connected ? <Wifi size={14} /> : <WifiOff size={14} />}
-              WebSocket {connected ? "live" : "offline"}
+              WebSocket {connected ? "live" : reconnecting ? "connecting…" : "offline"}
             </span>
             <ActionButton
-              icon={<RefreshCw size={16} className={isFetching || dimseFetching ? "spin-icon" : undefined} />}
+              icon={
+                <RefreshCw
+                  size={16}
+                  className={isFetching || dimseFetching || reconnecting ? "spin-icon" : undefined}
+                />
+              }
               onClick={refreshAll}
-              disabled={isFetching || dimseFetching}
             >
               Refresh
             </ActionButton>
@@ -231,7 +236,7 @@ export default function RoutingMonitor() {
           placeholder="Search study UID, patient, modality…"
         />
         {isLoading ? (
-          <PageLoading label="Loading transactions…" />
+          <PageLoading label="Loading transactions…" compact />
         ) : (transactions?.items ?? []).length === 0 ? (
           <p className="empty-message">
             No studies received yet. Send a C-STORE to the DIMSE listener to test routing.

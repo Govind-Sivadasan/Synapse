@@ -217,16 +217,20 @@ export default function Reports() {
                   </Link>
                 )}
               </div>
-              <BarChart
-                data={summary.routing_by_status}
-                color="var(--color-accent)"
-                emptyLabel={routingEmpty}
-                formatLabel={routingStatusLabel}
-              />
+              <div className="reports-chart-body">
+                <BarChart
+                  data={summary.routing_by_status}
+                  color="var(--color-accent)"
+                  emptyLabel={routingEmpty}
+                  formatLabel={routingStatusLabel}
+                />
+              </div>
               {summary.routing_studies === 0 && canRouting && (
-                <Link to="/routing-monitor" className="reports-empty-cta">
-                  Send a test study via DIMSE
-                </Link>
+                <div className="reports-chart-footer">
+                  <Link to="/routing-monitor" className="reports-empty-cta">
+                    Send a test study via DIMSE
+                  </Link>
+                </div>
               )}
             </div>
             <div className="card reports-chart-card">
@@ -238,14 +242,16 @@ export default function Reports() {
                   </Link>
                 )}
               </div>
-              <BarChart
-                data={summary.top_modalities}
-                emptyLabel={
-                  days <= 0
-                    ? "No modality data recorded yet."
-                    : "No modalities in this period."
-                }
-              />
+              <div className="reports-chart-body">
+                <BarChart
+                  data={summary.top_modalities}
+                  emptyLabel={
+                    days <= 0
+                      ? "No modality data recorded yet."
+                      : "No modalities in this period."
+                  }
+                />
+              </div>
             </div>
             <div className="card reports-chart-card">
               <div className="reports-chart-head">
@@ -256,19 +262,23 @@ export default function Reports() {
                   </Link>
                 )}
               </div>
-              <BarChart
-                data={auditSummary}
-                color="var(--color-warning)"
-                emptyLabel={
-                  days <= 0
-                    ? "No audit events recorded yet."
-                    : "No audit events in this period."
-                }
-              />
+              <div className="reports-chart-body">
+                <BarChart
+                  data={auditSummary}
+                  color="var(--color-warning)"
+                  emptyLabel={
+                    days <= 0
+                      ? "No audit events recorded yet."
+                      : "No audit events in this period."
+                  }
+                />
+              </div>
               {canExport && summary.audit_events > 0 && (
-                <button type="button" className="reports-empty-cta" onClick={() => void handleExport()} disabled={exporting}>
-                  {exporting ? "Exporting…" : "Download audit CSV for this period"}
-                </button>
+                <div className="reports-chart-footer">
+                  <button type="button" className="reports-empty-cta" onClick={() => void handleExport()} disabled={exporting}>
+                    {exporting ? "Exporting…" : "Download audit CSV for this period"}
+                  </button>
+                </div>
               )}
             </div>
           </div>

@@ -10,7 +10,7 @@ import { useSidebarLayout } from "../../hooks/useSidebarLayout";
 import { useHotkeys } from "../../hooks/useHotkeys";
 import { useChatbotEnabled } from "../../hooks/useChatbotEnabled";
 import { loadUserPreferences } from "../../config/userPreferences";
-import { NotificationProvider, useNotifications } from "../../services/notifications";
+import { NotificationProvider } from "../../services/notifications";
 
 interface Props {
   username: string;
@@ -22,7 +22,6 @@ interface Props {
 function AppShellInner({ username, roles, onLogout, children }: Props) {
   const sidebar = useSidebarLayout();
   const { enabled: chatbotEnabled } = useChatbotEnabled(roles);
-  const { setPosition } = useNotifications();
   const [hotkeysOpen, setHotkeysOpen] = useState(false);
   const [tourOpen, setTourOpen] = useState(false);
   const [prefs, setPrefs] = useState(() => loadUserPreferences(username));
@@ -44,14 +43,12 @@ function AppShellInner({ username, roles, onLogout, children }: Props) {
 
   useEffect(() => {
     const sync = () => {
-      const next = loadUserPreferences(username);
-      setPrefs(next);
-      setPosition(next.notificationPosition);
+      setPrefs(loadUserPreferences(username));
     };
     sync();
     window.addEventListener("synapse:prefs-changed", sync);
     return () => window.removeEventListener("synapse:prefs-changed", sync);
-  }, [username, setPosition]);
+  }, [username]);
 
   useEffect(() => {
     const startTour = () => setTourOpen(true);

@@ -39,6 +39,11 @@
 
   --z-notification: 99999;
 
+  /* Shell chrome (fixed toasts are portaled to body) */
+  --app-topbar-height: 3.25rem;
+  --app-status-footer-height: 2.75rem;
+  --notification-edge-gap: 0.5rem;
+
   /* Alert text/border (background uses status bg tokens above) */
   --alert-success-text: #166534;
   --alert-success-border: #bbf7d0;

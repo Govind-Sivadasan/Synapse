@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 function resolveWebSocketUrl(): string {
   if (import.meta.env.VITE_WS_URL) return import.meta.env.VITE_WS_URL;
@@ -19,7 +19,16 @@ export interface WsEvent {
 export function useWebSocket(enabled = true) {
   const [events, setEvents] = useState<WsEvent[]>([]);
   const [connected, setConnected] = useState(false);
+  const [reconnecting, setReconnecting] = useState(false);
+  const [connectKey, setConnectKey] = useState(0);
   const wsRef = useRef<WebSocket | null>(null);
+
+  const reconnect = useCallback(() => {
+    setReconnecting(true);
+    setConnected(false);
+    wsRef.current?.close();
+    setConnectKey((key) => key + 1);
+  }, []);
 
   useEffect(() => {
     if (!enabled) return;
@@ -27,9 +36,18 @@ export function useWebSocket(enabled = true) {
     const ws = new WebSocket(WS_URL);
     wsRef.current = ws;
 
-    ws.onopen = () => setConnected(true);
-    ws.onclose = () => setConnected(false);
-    ws.onerror = () => setConnected(false);
+    ws.onopen = () => {
+      setConnected(true);
+      setReconnecting(false);
+    };
+    ws.onclose = () => {
+      setConnected(false);
+      setReconnecting(false);
+    };
+    ws.onerror = () => {
+      setConnected(false);
+      setReconnecting(false);
+    };
     ws.onmessage = (msg) => {
       try {
         const payload = JSON.parse(msg.data) as WsEvent;
@@ -49,7 +67,7 @@ export function useWebSocket(enabled = true) {
       clearInterval(ping);
       ws.close();
     };
-  }, [enabled]);
+  }, [enabled, connectKey]);
 
-  return { events, connected };
+  return { events, connected, reconnecting, reconnect };
 }

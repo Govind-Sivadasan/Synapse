@@ -72,6 +72,8 @@ a:hover {
   display: flex;
   min-height: 100vh;
   --app-topbar-height: 3.25rem;
+  --app-status-footer-height: 2.75rem;
+  --notification-edge-gap: 0.5rem;
 }
 
 .app-sidebar {
@@ -1438,33 +1440,44 @@ button.user-menu-swatch:hover:not(:disabled) {
   overscroll-behavior: contain;
 }
 
+.app-content > div {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  width: 100%;
+}
+
 /* Page header */
 .page-header {
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 1rem;
+  flex-direction: column;
+  gap: 0.35rem;
   margin-bottom: 1.75rem;
+}
+
+.page-header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
   flex-wrap: wrap;
 }
 
-.page-header-text {
-  flex: 1;
-  min-width: 0;
-}
-
-.page-header-text h2 {
-  margin: 0 0 0.25rem;
+.page-header-title {
+  margin: 0;
   font-size: 1.5rem;
   font-weight: 700;
   letter-spacing: -0.02em;
   color: var(--color-text);
 }
 
-.page-header-text p {
+.page-header-description {
   margin: 0;
   color: var(--color-text-secondary);
   font-size: 0.9375rem;
+  line-height: 1.5;
+  max-width: none;
 }
 
 .page-header-actions {
@@ -1472,6 +1485,8 @@ button.user-menu-swatch:hover:not(:disabled) {
   gap: 0.5rem;
   align-items: center;
   flex-wrap: wrap;
+  flex-shrink: 0;
+  margin-left: auto;
 }
 
 /* Cards & grid */
@@ -1649,7 +1664,7 @@ button,
 }
 
 button:hover:not(:disabled):where(
-    :not(.btn-secondary):not(.btn-ghost):not(.btn-danger):not(.btn-text):not(.account-tab):not(.modal-close):not(.confirm-modal-close):not(.settings-hub-item):not(.user-menu-item):not(.sidebar-collapse-btn):not(.sidebar-panel-btn):not(.chat-suggestion-chip):not(.chatbot-fab):not(.reports-empty-cta):not(.user-menu-swatch)
+    :not(.btn-secondary):not(.btn-ghost):not(.btn-danger):not(.btn-text):not(.account-tab):not(.modal-close):not(.confirm-modal-close):not(.settings-hub-item):not(.user-menu-item):not(.sidebar-collapse-btn):not(.sidebar-panel-btn):not(.chat-suggestion-chip):not(.chatbot-fab):not(.reports-empty-cta):not(.user-menu-swatch):not(.notification-position-option):not(.notification-direction-option)
   ),
 .btn:hover:not(:disabled) {
   background: var(--color-primary-hover);
@@ -2759,11 +2774,38 @@ button.modal-close:hover:not(:disabled) {
 
 .page-loading {
   display: flex;
+  flex: 1;
   align-items: center;
   justify-content: center;
   gap: 0.75rem;
-  padding: 3rem;
+  width: 100%;
+  min-height: min(
+    56vh,
+    calc(100vh - var(--app-topbar-height, 3.25rem) - var(--app-status-footer-height, 2.75rem) - 7rem)
+  );
+  padding: 2rem;
   color: var(--color-text-secondary);
+  box-sizing: border-box;
+  text-align: center;
+}
+
+.app-content > .page-loading {
+  flex: 1;
+  min-height: 0;
+}
+
+.page-loading--compact {
+  flex: 0 0 auto;
+  min-height: 10rem;
+  padding: 2.5rem 1rem;
+}
+
+.page-loading .loading-spinner--page {
+  width: 1.25rem;
+  height: 1.25rem;
+  border: 2px solid var(--color-border);
+  border-top-color: var(--color-primary);
+  flex-shrink: 0;
 }
 
 @keyframes spin {
@@ -3872,6 +3914,238 @@ button.account-tab:active:not(:disabled) {
   gap: 1rem;
 }
 
+.prefs-notification-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 1.35rem;
+}
+
+.prefs-notification-heading {
+  margin: 0 0 0.65rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.prefs-notification-display {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 1rem 1.5rem;
+}
+
+.prefs-notification-duration {
+  min-width: 220px;
+  max-width: 320px;
+  margin: 0;
+}
+
+.prefs-notification-progress-toggle {
+  padding-bottom: 0.35rem;
+}
+
+.prefs-notification-direction {
+  min-width: 220px;
+  margin: 0;
+}
+
+.prefs-notification-direction--disabled {
+  opacity: 0.55;
+}
+
+.prefs-notification-direction-label {
+  display: block;
+  margin-bottom: 0.4rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.notification-direction-toggle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.notification-direction-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.45rem 0.65rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 0.78rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    border-color var(--transition),
+    background var(--transition),
+    box-shadow var(--transition),
+    color var(--transition);
+}
+
+button.notification-direction-option,
+button.notification-position-option {
+  background: var(--color-surface);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  font-weight: 500;
+}
+
+button.notification-direction-option:active:not(:disabled),
+button.notification-position-option:active:not(:disabled) {
+  transform: none;
+}
+
+.notification-direction-option:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--color-primary) 35%, var(--color-border));
+  background: color-mix(in srgb, var(--color-primary) 4%, var(--color-surface));
+  color: var(--color-text);
+}
+
+button.notification-direction-option:hover:not(:disabled),
+button.notification-position-option:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-primary) 4%, var(--color-surface));
+  color: var(--color-text);
+}
+
+.notification-direction-option--active {
+  border-color: color-mix(in srgb, var(--color-primary) 55%, var(--color-border));
+  background: color-mix(in srgb, var(--color-primary) 8%, var(--color-surface));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-primary) 18%, transparent);
+  color: var(--color-primary);
+}
+
+button.notification-direction-option.notification-direction-option--active,
+button.notification-direction-option.notification-direction-option--active:hover:not(:disabled),
+button.notification-position-option.notification-position-option--active,
+button.notification-position-option.notification-position-option--active:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-primary) 12%, var(--color-surface));
+  color: var(--color-primary);
+}
+
+.notification-direction-option:disabled {
+  cursor: not-allowed;
+}
+
+.notification-direction-preview {
+  position: relative;
+  width: 2.5rem;
+  height: 0.35rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-text-muted) 18%, transparent);
+  overflow: hidden;
+}
+
+.notification-direction-preview__bar {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: inherit;
+  background: var(--color-primary);
+}
+
+.notification-direction-preview--left-to-right .notification-direction-preview__bar {
+  width: 65%;
+}
+
+.notification-direction-preview--right-to-left .notification-direction-preview__bar {
+  width: 35%;
+}
+
+.notification-position-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+  max-width: 360px;
+}
+
+.notification-position-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.65rem 0.5rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  cursor: pointer;
+  transition:
+    border-color var(--transition),
+    background var(--transition),
+    box-shadow var(--transition);
+}
+
+.notification-position-option:hover {
+  border-color: color-mix(in srgb, var(--color-primary) 35%, var(--color-border));
+  background: color-mix(in srgb, var(--color-primary) 4%, var(--color-surface));
+  color: var(--color-text);
+}
+
+.notification-position-option--active {
+  border-color: color-mix(in srgb, var(--color-primary) 55%, var(--color-border));
+  background: color-mix(in srgb, var(--color-primary) 8%, var(--color-surface));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-primary) 18%, transparent);
+  color: var(--color-primary);
+}
+
+.notification-position-option__label {
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: inherit;
+}
+
+.notification-position-preview {
+  position: relative;
+  width: 3.25rem;
+  height: 2rem;
+  border-radius: var(--radius-sm);
+  border: 1px dashed color-mix(in srgb, var(--color-text-muted) 45%, transparent);
+  background: color-mix(in srgb, var(--color-text-muted) 6%, transparent);
+}
+
+.notification-position-preview__dot {
+  position: absolute;
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 999px;
+  background: var(--color-primary);
+}
+
+.notification-position-preview--top-right .notification-position-preview__dot {
+  top: 0.25rem;
+  right: 0.25rem;
+}
+
+.notification-position-preview--top-left .notification-position-preview__dot {
+  top: 0.25rem;
+  left: 0.25rem;
+}
+
+.notification-position-preview--bottom-right .notification-position-preview__dot {
+  bottom: 0.25rem;
+  right: 0.25rem;
+}
+
+.notification-position-preview--bottom-left .notification-position-preview__dot {
+  bottom: 0.25rem;
+  left: 0.25rem;
+}
+
+.notification-preview-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.notification-preview-actions .btn-sm {
+  min-width: 5.5rem;
+}
+
 /* Interactive metric cards & reports */
 .metric-card__footer {
   display: flex;
@@ -3991,6 +4265,24 @@ button.account-tab:active:not(:disabled) {
   justify-content: space-between;
   gap: 0.75rem;
   margin-bottom: 0.5rem;
+  flex-shrink: 0;
+}
+
+.reports-chart-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+.reports-chart-body {
+  flex: 1;
+  min-height: 0;
+}
+
+.reports-chart-footer {
+  margin-top: auto;
+  padding-top: 0.75rem;
+  flex-shrink: 0;
 }
 
 .reports-chart-head .card-title {
@@ -4013,7 +4305,6 @@ button.account-tab:active:not(:disabled) {
 
 .reports-empty-cta {
   display: inline-flex;
-  margin-top: 0.75rem;
   padding: 0;
   border: none;
   background: none;
@@ -4409,22 +4700,28 @@ button.account-tab:active:not(:disabled) {
 }
 
 .notification-host--top-right {
-  top: calc(var(--app-topbar-height, 3.25rem) + 0.5rem);
+  top: calc(var(--app-topbar-height, 3.25rem) + var(--notification-edge-gap, 0.5rem));
   right: 1rem;
 }
 
 .notification-host--top-left {
-  top: calc(var(--app-topbar-height, 3.25rem) + 0.5rem);
+  top: calc(var(--app-topbar-height, 3.25rem) + var(--notification-edge-gap, 0.5rem));
   left: calc(var(--sidebar-width, 260px) + 1rem);
 }
 
 .notification-host--bottom-right {
-  bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
+  bottom: calc(
+    var(--app-status-footer-height, 2.75rem) + var(--notification-edge-gap, 0.5rem) +
+      env(safe-area-inset-bottom, 0px)
+  );
   right: 1rem;
 }
 
 .notification-host--bottom-left {
-  bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+  bottom: calc(
+    var(--app-status-footer-height, 2.75rem) + var(--notification-edge-gap, 0.5rem) +
+      env(safe-area-inset-bottom, 0px)
+  );
   left: calc(var(--sidebar-width, 260px) + 1rem);
 }
 
@@ -4483,15 +4780,50 @@ button.account-tab:active:not(:disabled) {
   --alert-progress-color: var(--color-info);
 }
 
-.notification-toast__progress {
+.notification-toast__progress-track {
   flex-shrink: 0;
   height: 3px;
   width: 100%;
+  background: color-mix(in srgb, var(--alert-progress-color, var(--color-primary)) 20%, transparent);
+  overflow: hidden;
+}
+
+.notification-toast__progress {
+  height: 100%;
+  width: 100%;
   background: var(--alert-progress-color, var(--color-primary));
-  transform-origin: left center;
-  animation-name: alert-dismiss-progress;
   animation-timing-function: linear;
   animation-fill-mode: forwards;
+}
+
+.notification-toast__progress--right-to-left {
+  transform-origin: left center;
+  transform: scaleX(1);
+  animation-name: notification-progress-deplete;
+}
+
+.notification-toast__progress--left-to-right {
+  transform-origin: left center;
+  transform: scaleX(0);
+  animation-name: notification-progress-fill;
+}
+
+@keyframes notification-progress-fill {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes notification-progress-deplete {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
 }
 
 .notification-toast__body {

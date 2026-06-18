@@ -157,7 +157,7 @@ export default function AuditLogs() {
         />
 
         {isLoading ? (
-          <PageLoading label="Loading audit logs…" />
+          <PageLoading label="Loading audit logs…" compact />
         ) : (
           <DataTable
             data={logs}

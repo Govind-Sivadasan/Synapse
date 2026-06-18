@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { KeyRound, Keyboard, LayoutList, RotateCcw, Shield, User } from "lucide-react";
+import { Bell, KeyRound, Keyboard, LayoutList, RotateCcw, Shield, User } from "lucide-react";
 import { useAuth } from "../auth/AuthProvider";
 import { getAccountProfile, startPasswordChange } from "../auth/account";
 import HotkeysPreferencesPanel from "../components/preferences/HotkeysPreferencesPanel";
@@ -10,7 +10,7 @@ import PageHeader from "../components/ui/PageHeader";
 import StatusBadge from "../components/ui/StatusBadge";
 import { useUserPreferences } from "../hooks/useUserPreferences";
 
-type AccountTab = "profile" | "navigation" | "shortcuts";
+type AccountTab = "profile" | "navigation" | "shortcuts" | "notifications";
 
 function displayRoles(roles: string[]): string[] {
   return roles.filter((r) => !r.startsWith("default-roles"));
@@ -20,6 +20,7 @@ const TABS: { id: AccountTab; label: string; icon: typeof User }[] = [
   { id: "profile", label: "Profile", icon: User },
   { id: "navigation", label: "Navigation", icon: LayoutList },
   { id: "shortcuts", label: "Shortcuts", icon: Keyboard },
+  { id: "notifications", label: "Notifications", icon: Bell },
 ];
 
 export default function Account() {
@@ -33,7 +34,7 @@ export default function Account() {
     <div>
       <PageHeader
         title="Account"
-        description="Profile, sidebar layout, and keyboard shortcuts — saved locally for your user."
+        description="Profile, sidebar layout, keyboard shortcuts, and notification toasts — saved locally for your user."
       />
 
       <div className="account-tabs" role="tablist" aria-label="Account sections">
@@ -124,13 +125,18 @@ export default function Account() {
           <div className="card prefs-card">
             <HotkeysPreferencesPanel prefs={prefs} onChange={setPrefs} />
           </div>
-          <div className="card prefs-card">
-            <NotificationPreferencesPanel prefs={prefs} onChange={setPrefs} />
-          </div>
           <div className="prefs-reset-all">
             <ActionButton variant="secondary" icon={<RotateCcw size={16} />} onClick={resetPrefs}>
               Reset all preferences to defaults
             </ActionButton>
+          </div>
+        </div>
+      )}
+
+      {tab === "notifications" && (
+        <div role="tabpanel" className="account-tab-panel">
+          <div className="card prefs-card">
+            <NotificationPreferencesPanel prefs={prefs} onChange={setPrefs} />
           </div>
         </div>
       )}

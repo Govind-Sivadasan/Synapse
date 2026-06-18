@@ -19,10 +19,17 @@ export default function LoadingScreen({ message = "Authenticating with Keycloak�
   );
 }
 
-export function PageLoading({ label = "Loading…" }: { label?: string }) {
+export function PageLoading({
+  label = "Loading…",
+  compact = false,
+}: {
+  label?: string;
+  /** Smaller region for tables, cards, and modals */
+  compact?: boolean;
+}) {
   return (
-    <div className="page-loading">
-      <div className="loading-spinner" style={{ width: 20, height: 20, borderWidth: 2 }} />
+    <div className={`page-loading${compact ? " page-loading--compact" : ""}`} role="status" aria-live="polite">
+      <div className="loading-spinner loading-spinner--page" aria-hidden />
       <span>{label}</span>
     </div>
   );

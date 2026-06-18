@@ -8,12 +8,12 @@ interface Props {
 
 export default function PageHeader({ title, description, actions }: Props) {
   return (
-    <div className="page-header">
-      <div className="page-header-text">
-        <h2>{title}</h2>
-        {description && <p>{description}</p>}
+    <header className="page-header">
+      <div className="page-header-top">
+        <h2 className="page-header-title">{title}</h2>
+        {actions && <div className="page-header-actions">{actions}</div>}
       </div>
-      {actions && <div className="page-header-actions">{actions}</div>}
-    </div>
+      {description && <p className="page-header-description">{description}</p>}
+    </header>
   );
 }

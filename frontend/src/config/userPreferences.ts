@@ -17,6 +17,10 @@ export interface SidebarSectionConfig {
 
 export type NotificationPosition = "top-right" | "top-left" | "bottom-right" | "bottom-left";
 
+export type NotificationDurationScale = "short" | "normal" | "long";
+
+export type NotificationProgressDirection = "left-to-right" | "right-to-left";
+
 export interface UserPreferences {
   /** null = built-in default layout */
   sidebarSections: SidebarSectionConfig[] | null;
@@ -25,6 +29,9 @@ export interface UserPreferences {
   /** action ids disabled by user */
   hotkeysDisabled: string[];
   notificationPosition: NotificationPosition;
+  notificationDurationScale: NotificationDurationScale;
+  notificationShowProgress: boolean;
+  notificationProgressDirection: NotificationProgressDirection;
 }
 
 export interface HotkeyAction {
@@ -55,6 +62,9 @@ const DEFAULT_PREFS: UserPreferences = {
   hotkeyOverrides: {},
   hotkeysDisabled: [],
   notificationPosition: "top-right",
+  notificationDurationScale: "normal",
+  notificationShowProgress: true,
+  notificationProgressDirection: "right-to-left",
 };
 
 function storageKey(username: string) {
@@ -71,6 +81,9 @@ export function loadUserPreferences(username: string): UserPreferences {
       hotkeyOverrides: parsed.hotkeyOverrides ?? {},
       hotkeysDisabled: parsed.hotkeysDisabled ?? [],
       notificationPosition: parsed.notificationPosition ?? "top-right",
+      notificationDurationScale: parsed.notificationDurationScale ?? "normal",
+      notificationShowProgress: parsed.notificationShowProgress ?? true,
+      notificationProgressDirection: parsed.notificationProgressDirection ?? "right-to-left",
     };
   } catch {
     return { ...DEFAULT_PREFS };

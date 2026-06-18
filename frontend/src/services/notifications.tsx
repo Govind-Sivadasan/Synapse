@@ -3,16 +3,19 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
 } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import {
+  NotificationDurationScale,
   NotificationPosition,
+  NotificationProgressDirection,
   loadUserPreferences,
 } from "../config/userPreferences";
-import { NOTIFICATION_DURATIONS } from "../lib/notificationMessages";
+import { resolveNotificationDuration } from "../lib/notificationMessages";
 
 export type NotificationVariant = "success" | "error" | "warning" | "info";
 
@@ -21,6 +24,13 @@ export interface NotificationItem {
   variant: NotificationVariant;
   message: ReactNode;
   durationMs: number;
+}
+
+interface NotificationSettings {
+  position: NotificationPosition;
+  durationScale: NotificationDurationScale;
+  showProgress: boolean;
+  progressDirection: NotificationProgressDirection;
 }
 
 interface NotificationContextValue {
@@ -38,6 +48,16 @@ const NotificationContext = createContext<NotificationContextValue | null>(null)
 
 let counter = 0;
 
+function readNotificationSettings(username: string): NotificationSettings {
+  const prefs = loadUserPreferences(username);
+  return {
+    position: prefs.notificationPosition,
+    durationScale: prefs.notificationDurationScale,
+    showProgress: prefs.notificationShowProgress,
+    progressDirection: prefs.notificationProgressDirection,
+  };
+}
+
 export function NotificationProvider({
   username,
   children,
@@ -46,9 +66,14 @@ export function NotificationProvider({
   children: ReactNode;
 }) {
   const [items, setItems] = useState<NotificationItem[]>([]);
-  const [position, setPositionState] = useState<NotificationPosition>(() =>
-    loadUserPreferences(username).notificationPosition,
-  );
+  const [settings, setSettings] = useState<NotificationSettings>(() => readNotificationSettings(username));
+
+  useEffect(() => {
+    const sync = () => setSettings(readNotificationSettings(username));
+    sync();
+    window.addEventListener("synapse:prefs-changed", sync);
+    return () => window.removeEventListener("synapse:prefs-changed", sync);
+  }, [username]);
 
   const dismiss = useCallback((id: string) => {
     setItems((prev) => prev.filter((n) => n.id !== id));
@@ -56,20 +81,24 @@ export function NotificationProvider({
 
   const notify = useCallback(
     (variant: NotificationVariant, message: ReactNode, durationMs?: number) => {
-      const ms = durationMs ?? NOTIFICATION_DURATIONS[variant];
+      const ms = durationMs ?? resolveNotificationDuration(variant, settings.durationScale);
       const id = `toast-${++counter}`;
       setItems((prev) => [...prev, { id, variant, message, durationMs: ms }]);
       if (ms > 0) {
         window.setTimeout(() => dismiss(id), ms);
       }
     },
-    [dismiss],
+    [dismiss, settings.durationScale],
   );
+
+  const setPosition = useCallback((position: NotificationPosition) => {
+    setSettings((prev) => ({ ...prev, position }));
+  }, []);
 
   const value = useMemo<NotificationContextValue>(
     () => ({
-      position,
-      setPosition: setPositionState,
+      position: settings.position,
+      setPosition,
       notify,
       success: (message, durationMs) => notify("success", message, durationMs),
       error: (message, durationMs) => notify("error", message, durationMs),
@@ -77,13 +106,19 @@ export function NotificationProvider({
       info: (message, durationMs) => notify("info", message, durationMs),
       dismiss,
     }),
-    [position, notify, dismiss],
+    [settings.position, setPosition, notify, dismiss],
   );
 
   return (
     <NotificationContext.Provider value={value}>
       {children}
-      <NotificationHost items={items} position={position} onDismiss={dismiss} />
+      <NotificationHost
+        items={items}
+        position={settings.position}
+        showProgress={settings.showProgress}
+        progressDirection={settings.progressDirection}
+        onDismiss={dismiss}
+      />
     </NotificationContext.Provider>
   );
 }
@@ -97,10 +132,14 @@ export function useNotifications() {
 function NotificationHost({
   items,
   position,
+  showProgress,
+  progressDirection,
   onDismiss,
 }: {
   items: NotificationItem[];
   position: NotificationPosition;
+  showProgress: boolean;
+  progressDirection: NotificationProgressDirection;
   onDismiss: (id: string) => void;
 }) {
   if (!items.length) return null;
@@ -124,12 +163,13 @@ function NotificationHost({
               <X size={14} />
             </button>
           </div>
-          {item.durationMs > 0 && (
-            <div
-              className="notification-toast__progress"
-              style={{ animationDuration: `${item.durationMs}ms` }}
-              aria-hidden
-            />
+          {showProgress && item.durationMs > 0 && (
+            <div className="notification-toast__progress-track" aria-hidden>
+              <div
+                className={`notification-toast__progress notification-toast__progress--${progressDirection}`}
+                style={{ animationDuration: `${item.durationMs}ms` }}
+              />
+            </div>
           )}
         </div>
       ))}
