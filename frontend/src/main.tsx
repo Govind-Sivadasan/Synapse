@@ -14,6 +14,9 @@ try {
     const { accent, mode } = JSON.parse(raw);
     if (accent) document.documentElement.setAttribute("data-accent", accent);
     if (mode) document.documentElement.setAttribute("data-mode", mode);
+    else document.documentElement.setAttribute("data-mode", "light");
+  } else {
+    document.documentElement.setAttribute("data-mode", "light");
   }
 } catch { /* ignore */ }
 

@@ -13,6 +13,8 @@ import { useAppMetadata } from "../hooks/useAppMetadata";
 import { formatNotificationMessage } from "../lib/notificationMessages";
 import { useNotifications } from "../services/notifications";
 import DicomTagSelect from "../components/forms/DicomTagSelect";
+import ModalitySelect from "../components/forms/ModalitySelect";
+import { isModalityTag } from "../lib/dicomModalities";
 import DestinationNodePicker from "../components/nodes/DestinationNodePicker";
 import TagMorphingRulePicker from "../components/tagMorphing/TagMorphingRulePicker";
 import Switch from "../components/ui/Switch";
@@ -233,15 +235,27 @@ export default function RoutingRules() {
                 ))}
               </select>
             </div>
-            <div className="form-field full-width">
-              <label>Condition Value</label>
-              <input
-                value={form.condition_value}
-                onChange={(e) => setForm({ ...form, condition_value: e.target.value })}
-                required
-                placeholder='e.g. CT, "Hospital A", CHEST'
-              />
-            </div>
+            {isModalityTag(form.condition_tag) ? (
+              <div className="full-width">
+                <ModalitySelect
+                  label="Condition Value"
+                  value={form.condition_value}
+                  onChange={(condition_value) => setForm({ ...form, condition_value })}
+                  includeAny={false}
+                  required
+                />
+              </div>
+            ) : (
+              <div className="form-field full-width">
+                <label>Condition Value</label>
+                <input
+                  value={form.condition_value}
+                  onChange={(e) => setForm({ ...form, condition_value: e.target.value })}
+                  required
+                  placeholder='e.g. CT, "Hospital A", CHEST'
+                />
+              </div>
+            )}
             <DestinationNodePicker
               nodes={nodes}
               selectedIds={form.destination_node_ids}

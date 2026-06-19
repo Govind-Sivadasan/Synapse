@@ -1,4 +1,5 @@
 import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import Pagination from "./ui/Pagination";
 import TableSearch from "./ui/TableSearch";
 
@@ -42,6 +43,24 @@ function buildInitialWidths<T>(columns: Column<T>[]): Record<string, number> {
   return widths;
 }
 
+function measureColumnWidths<T>(
+  table: HTMLTableElement,
+  columns: Column<T>[],
+  fallback: Record<string, number>,
+): Record<string, number> {
+  const headers = table.querySelectorAll("thead th");
+  const widths: Record<string, number> = {};
+
+  columns.forEach((col, index) => {
+    const th = headers[index] as HTMLElement | undefined;
+    widths[col.key] = Math.round(
+      th?.getBoundingClientRect().width ?? fallback[col.key] ?? DEFAULT_COL_WIDTH,
+    );
+  });
+
+  return widths;
+}
+
 function rowMatchesSearch<T extends Record<string, unknown>>(
   row: T,
   query: string,
@@ -73,7 +92,12 @@ export default function DataTable<T extends Record<string, unknown>>({
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>(() =>
     buildInitialWidths(columns),
   );
+  const [layoutLocked, setLayoutLocked] = useState(false);
+  const [tableWidth, setTableWidth] = useState<number | null>(null);
+  const [isResizing, setIsResizing] = useState(false);
   const tableRef = useRef<HTMLTableElement>(null);
+  const columnWidthsRef = useRef(columnWidths);
+  const layoutLockedRef = useRef(layoutLocked);
   const resizeRef = useRef<{
     key: string;
     partnerKey: string;
@@ -85,6 +109,9 @@ export default function DataTable<T extends Record<string, unknown>>({
   } | null>(null);
 
   const columnKeys = useMemo(() => columns.map((col) => col.key).join("|"), [columns]);
+
+  columnWidthsRef.current = columnWidths;
+  layoutLockedRef.current = layoutLocked;
 
   const search = searchValue ?? internalSearch;
   const setSearch = onSearchChange ?? setInternalSearch;
@@ -124,6 +151,12 @@ export default function DataTable<T extends Record<string, unknown>>({
     return filteredData.slice(start, start + activePageSize);
   }, [filteredData, data, paginate, usingServerPagination, activePage, activePageSize]);
 
+  const syncWidthsFromDom = useCallback(() => {
+    const table = tableRef.current;
+    if (!table) return;
+    setColumnWidths(measureColumnWidths(table, columns, columnWidthsRef.current));
+  }, [columns]);
+
   const handleResizeMove = useCallback((event: MouseEvent) => {
     const state = resizeRef.current;
     if (!state) return;
@@ -143,40 +176,65 @@ export default function DataTable<T extends Record<string, unknown>>({
 
     setColumnWidths((prev) => ({
       ...prev,
-      [state.key]: nextWidth,
-      [state.partnerKey]: partnerWidth,
+      [state.key]: Math.round(nextWidth),
+      [state.partnerKey]: Math.round(partnerWidth),
     }));
   }, []);
 
   const handleResizeEnd = useCallback(() => {
     resizeRef.current = null;
+    setIsResizing(false);
     document.removeEventListener("mousemove", handleResizeMove);
     document.removeEventListener("mouseup", handleResizeEnd);
     document.body.style.cursor = "";
     document.body.style.userSelect = "";
-  }, [handleResizeMove]);
 
-  const startResize = (key: string, index: number, event: React.MouseEvent) => {
+    if (layoutLockedRef.current) {
+      syncWidthsFromDom();
+    }
+  }, [handleResizeMove, syncWidthsFromDom]);
+
+  const startResize = (key: string, index: number, event: React.MouseEvent<HTMLSpanElement>) => {
     if (!resizable) return;
-    const partnerKey = columns[index + 1]?.key ?? columns[index - 1]?.key;
+    const partnerKey = columns[index + 1]?.key;
     if (!partnerKey) return;
 
     event.preventDefault();
     event.stopPropagation();
 
+    const table = tableRef.current;
+    if (!table) return;
+
+    const measured = measureColumnWidths(table, columns, columnWidthsRef.current);
+    const lockedWidth = Math.round(table.getBoundingClientRect().width);
+
+    if (!layoutLockedRef.current) {
+      flushSync(() => {
+        setColumnWidths(measured);
+        setTableWidth(lockedWidth);
+        setLayoutLocked(true);
+      });
+      layoutLockedRef.current = true;
+      columnWidthsRef.current = measured;
+    } else {
+      setColumnWidths(measured);
+      columnWidthsRef.current = measured;
+    }
+
     const col = columns[index];
-    const partnerCol = columns.find((c) => c.key === partnerKey);
+    const partnerCol = columns[index + 1];
 
     resizeRef.current = {
       key,
       partnerKey,
       startX: event.clientX,
-      startWidth: columnWidths[key] ?? DEFAULT_COL_WIDTH,
-      startPartnerWidth: columnWidths[partnerKey] ?? DEFAULT_COL_WIDTH,
+      startWidth: measured[key],
+      startPartnerWidth: measured[partnerKey],
       minWidth: col.minWidth ?? DEFAULT_MIN_WIDTH,
       minPartnerWidth: partnerCol?.minWidth ?? DEFAULT_MIN_WIDTH,
     };
 
+    setIsResizing(true);
     document.body.style.cursor = "col-resize";
     document.body.style.userSelect = "none";
     document.addEventListener("mousemove", handleResizeMove);
@@ -184,6 +242,11 @@ export default function DataTable<T extends Record<string, unknown>>({
   };
 
   useEffect(() => () => handleResizeEnd(), [handleResizeEnd]);
+
+  const tableStyle =
+    layoutLocked && tableWidth != null
+      ? { width: tableWidth, tableLayout: "fixed" as const }
+      : undefined;
 
   return (
     <div className="data-table-panel">
@@ -198,8 +261,12 @@ export default function DataTable<T extends Record<string, unknown>>({
       {pageData.length === 0 ? (
         <p className="empty-message">{emptyMessage}</p>
       ) : (
-        <div className="table-wrap">
-          <table ref={tableRef} className="data-table">
+        <div className={`table-wrap${isResizing ? " table-wrap--resizing" : ""}`}>
+          <table
+            ref={tableRef}
+            className={`data-table${layoutLocked ? " data-table--locked" : ""}`}
+            style={tableStyle}
+          >
             <colgroup>
               {columns.map((col) => (
                 <col
@@ -216,10 +283,14 @@ export default function DataTable<T extends Record<string, unknown>>({
                 {columns.map((col, index) => (
                   <th
                     key={col.key}
-                    style={{
-                      width: columnWidths[col.key] ?? DEFAULT_COL_WIDTH,
-                      minWidth: col.minWidth ?? DEFAULT_MIN_WIDTH,
-                    }}
+                    style={
+                      layoutLocked
+                        ? {
+                            width: columnWidths[col.key] ?? DEFAULT_COL_WIDTH,
+                            minWidth: col.minWidth ?? DEFAULT_MIN_WIDTH,
+                          }
+                        : undefined
+                    }
                     className={resizable ? "data-table-th--resizable" : undefined}
                   >
                     <span className="data-table-th-label">{col.header}</span>

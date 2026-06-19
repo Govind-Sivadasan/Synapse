@@ -9,6 +9,8 @@ import PageHeader from "../components/ui/PageHeader";
 import StatusBadge from "../components/ui/StatusBadge";
 import { PageLoading } from "../components/ui/LoadingScreen";
 import DicomTagSelect from "../components/forms/DicomTagSelect";
+import ModalitySelect from "../components/forms/ModalitySelect";
+import { isModalityTag } from "../lib/dicomModalities";
 import Switch from "../components/ui/Switch";
 import { useConfirmDialog } from "../hooks/useConfirmDialog";
 import { useAppMetadata } from "../hooks/useAppMetadata";
@@ -235,14 +237,26 @@ export default function TagMorphing() {
                 ))}
               </select>
             </div>
-            <div className="form-field full-width">
-              <label>Condition Value</label>
-              <input
-                value={form.condition_value}
-                onChange={(e) => setForm({ ...form, condition_value: e.target.value })}
-                disabled={!form.condition_tag}
-              />
-            </div>
+            {form.condition_tag && isModalityTag(form.condition_tag) ? (
+              <div className="full-width">
+                <ModalitySelect
+                  label="Condition Value"
+                  value={form.condition_value}
+                  onChange={(condition_value) => setForm({ ...form, condition_value })}
+                  includeAny={false}
+                  disabled={!form.condition_tag}
+                />
+              </div>
+            ) : (
+              <div className="form-field full-width">
+                <label>Condition Value</label>
+                <input
+                  value={form.condition_value}
+                  onChange={(e) => setForm({ ...form, condition_value: e.target.value })}
+                  disabled={!form.condition_tag}
+                />
+              </div>
+            )}
             <div className="form-field">
               <label>Active</label>
               <Switch

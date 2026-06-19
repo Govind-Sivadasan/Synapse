@@ -56,15 +56,26 @@
   --color-accent-light: #ecfdf5;
 }
 
-/* Sidebar accent tokens (derived from --color-primary per accent) */
+/* Sidebar accent + shell chrome (light mode default) */
 :root,
-[data-accent] {
+[data-mode="light"] {
+  --sidebar-bg: #ffffff;
+  --sidebar-bg-hover: #f1f5f9;
+  --sidebar-border: var(--color-border);
+  --sidebar-text: var(--color-text-secondary);
+  --sidebar-text-muted: var(--color-text-muted);
+  --sidebar-text-active: var(--color-text);
+  --sidebar-icon-accent: var(--color-primary);
+  --sidebar-scrollbar: var(--color-border-strong);
+  --sidebar-scrollbar-hover: var(--color-text-muted);
+  --sidebar-collapse-border: var(--color-border);
+  --sidebar-collapse-color: var(--color-text-muted);
   --sidebar-active: linear-gradient(
     90deg,
-    color-mix(in srgb, var(--color-primary) 34%, transparent) 0%,
+    color-mix(in srgb, var(--color-primary) 12%, transparent) 0%,
     transparent 100%
   );
-  --sidebar-border-accent: color-mix(in srgb, var(--color-primary) 18%, rgba(255, 255, 255, 0.06));
+  --sidebar-border-accent: color-mix(in srgb, var(--color-primary) 16%, var(--color-border));
 }
 
 /* ===== Dark mode tokens (applied on [data-mode="dark"]) ===== */
@@ -78,6 +89,24 @@
   --color-text: #f1f5f9;
   --color-text-secondary: #cbd5e1;
   --color-text-muted: #64748b;
+
+  --sidebar-bg: #0c1222;
+  --sidebar-bg-hover: #1a2332;
+  --sidebar-border: rgba(255, 255, 255, 0.06);
+  --sidebar-text: #94a3b8;
+  --sidebar-text-muted: #64748b;
+  --sidebar-text-active: #f8fafc;
+  --sidebar-icon-accent: var(--color-primary-muted);
+  --sidebar-scrollbar: rgba(255, 255, 255, 0.1);
+  --sidebar-scrollbar-hover: rgba(255, 255, 255, 0.2);
+  --sidebar-collapse-border: rgba(255, 255, 255, 0.08);
+  --sidebar-collapse-color: #64748b;
+  --sidebar-active: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--color-primary) 34%, transparent) 0%,
+    transparent 100%
+  );
+  --sidebar-border-accent: color-mix(in srgb, var(--color-primary) 18%, rgba(255, 255, 255, 0.06));
 
   --color-success-bg: rgba(5, 150, 105, 0.18);
   --color-warning-bg: rgba(217, 119, 6, 0.18);
@@ -98,9 +127,9 @@
   --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.4);
 }
 
-/* Dark mode: sidebar stays dark but adjust subtle borders */
+/* Dark mode: sidebar border follows shell tokens */
 [data-mode="dark"] .app-sidebar {
-  border-right-color: #1e293b;
+  border-right-color: var(--sidebar-border-accent);
 }
 
 /* Dark mode: cards get dark surface */

@@ -173,7 +173,11 @@ async def get_modality_chart(db: AsyncSession, days: int = 30) -> list[ChartData
         )
     )
     if days > 0:
-        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+        now = datetime.now(timezone.utc)
+        if days == 1:
+            cutoff = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        else:
+            cutoff = now - timedelta(days=days)
         query = query.where(RoutingTransaction.received_at >= cutoff)
     rows = (
         await db.execute(

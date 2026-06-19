@@ -1,6 +1,7 @@
-import { FormEvent, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
+import { createPortal } from "react-dom";
 import { apiFetch } from "../../api/client";
 import { useAppMetadata } from "../../hooks/useAppMetadata";
 import Modal from "../Modal";
@@ -55,14 +56,17 @@ export default function QuickCreateMorphRuleDialog({ open, onClose, onCreated }:
     onError: (err: Error) => notifyError(formatNotificationMessage(err.message)),
   });
 
-  const handleSubmit = (e: FormEvent) => {
-    e.preventDefault();
+  const handleCreate = useCallback(() => {
+    if (!form.name.trim() || !form.new_value.trim()) {
+      notifyError("Rule name and new value are required.");
+      return;
+    }
     saveMutation.mutate();
-  };
+  }, [form, notifyError, saveMutation]);
 
-  return (
+  const dialog = (
     <Modal title="Add tag morphing rule" open={open} onClose={onClose} wide nested>
-      <form onSubmit={handleSubmit}>
+      <div className="quick-create-form">
         <p className="form-field-hint" style={{ marginTop: 0 }}>
           Create a morphing rule without leaving this form. Your other entries are kept.
         </p>
@@ -99,7 +103,15 @@ export default function QuickCreateMorphRuleDialog({ open, onClose, onCreated }:
           </div>
         </div>
         <div className="form-actions">
-          <button type="submit" disabled={saveMutation.isPending}>
+          <button
+            type="button"
+            disabled={saveMutation.isPending}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleCreate();
+            }}
+          >
             {saveMutation.isPending ? (
               <>
                 <Loader2 size={16} className="spin-icon" />
@@ -113,7 +125,11 @@ export default function QuickCreateMorphRuleDialog({ open, onClose, onCreated }:
             Cancel
           </button>
         </div>
-      </form>
+      </div>
     </Modal>
   );
+
+  if (!open) return null;
+
+  return createPortal(dialog, document.body);
 }

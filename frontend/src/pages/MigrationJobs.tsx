@@ -18,7 +18,7 @@ import { useAppMetadata } from "../hooks/useAppMetadata";
 import { formatNotificationMessage } from "../lib/notificationMessages";
 import { useNotifications } from "../services/notifications";
 import { migrationDestinationNodes, migrationSourceNodes } from "../lib/nodes";
-import { DICOM_MODALITIES } from "../lib/dicomModalities";
+import ModalitySelect from "../components/forms/ModalitySelect";
 import { MigrationJob, MigrationJobList, MigrationStudyList, Node, TagMorphingRule } from "../types/api";
 
 const emptyForm = {
@@ -35,20 +35,20 @@ const emptyForm = {
 };
 
 const JOB_STATUS_FILTERS = [
-  { value: "", label: "All jobs" },
-  { value: "in_progress", label: "In progress" },
-  { value: "failed", label: "Failed" },
-  { value: "partial", label: "Partial" },
-  { value: "completed", label: "Completed" },
-  { value: "not_started", label: "Not started" },
+  { value: "", label: "All jobs", tone: "neutral" as const },
+  { value: "in_progress", label: "In progress", tone: "info" as const },
+  { value: "failed", label: "Failed", tone: "error" as const },
+  { value: "partial", label: "Partial", tone: "warning" as const },
+  { value: "completed", label: "Completed", tone: "success" as const },
+  { value: "not_started", label: "Not started", tone: "neutral" as const },
 ];
 
 const STUDY_STATUS_FILTERS = [
-  { value: "", label: "All studies" },
-  { value: "failed", label: "Failed" },
-  { value: "skipped", label: "Skipped" },
-  { value: "success", label: "Success" },
-  { value: "pending", label: "Pending" },
+  { value: "", label: "All studies", tone: "neutral" as const },
+  { value: "failed", label: "Failed", tone: "error" as const },
+  { value: "skipped", label: "Skipped", tone: "neutral" as const },
+  { value: "success", label: "Success", tone: "success" as const },
+  { value: "pending", label: "Pending", tone: "warning" as const },
 ];
 
 type JobForm = typeof emptyForm;
@@ -574,7 +574,7 @@ export default function MigrationJobs() {
               },
               { key: "status", header: "Status", width: 130, minWidth: 110, render: (j) => <StatusBadge status={j.status} /> },
               { key: "progress", header: "Progress", width: 130, minWidth: 100, render: (j) => <JobProgressCell job={j} /> },
-              { key: "failed", header: "Failed", width: 72, minWidth: 64, render: (j) => j.failed_studies },
+              { key: "failed", header: "Failed", width: 96, minWidth: 80, render: (j) => j.failed_studies },
               {
                 key: "actions",
                 header: "Actions",
@@ -941,19 +941,11 @@ export default function MigrationJobs() {
             />
             {form.job_type !== "batch" && (
               <>
-                <div className="form-field">
-                  <label>Modality Filter</label>
-                  <select
-                    value={form.modality}
-                    onChange={(e) => setForm({ ...form, modality: e.target.value })}
-                  >
-                    {DICOM_MODALITIES.map((m) => (
-                      <option key={m.value || "any"} value={m.value}>
-                        {m.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <ModalitySelect
+                  label="Modality Filter"
+                  value={form.modality}
+                  onChange={(modality) => setForm({ ...form, modality })}
+                />
                 <div className="form-field">
                   <label>Patient ID Filter</label>
                   <input

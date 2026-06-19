@@ -31,17 +31,18 @@ async def create_node(
     payload: NodeCreate,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    user: CurrentUser = Depends(require_roles("admin")),
+    user: CurrentUser = Depends(require_roles("admin", "operator")),
 ) -> Node:
     node = Node(**payload.model_dump())
     db.add(node)
     await db.flush()
     await db.refresh(node)
+    role = "admin" if "admin" in user.roles else "operator"
     await AuditLogger.log(
         db,
         "CONFIG_CHANGE",
         user_id=user.sub,
-        user_role="admin",
+        user_role=role,
         entity_type="Node",
         entity_id=node.id,
         details={"action": "create", "name": node.name, "node_type": node.node_type},

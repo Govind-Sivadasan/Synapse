@@ -113,6 +113,27 @@ export interface MigrationJobList {
   items: MigrationJob[];
 }
 
+export interface RoutingDestination {
+  id: string;
+  destination_node_id: string;
+  destination_name: string | null;
+  status: string;
+  retry_count: number;
+  failure_reason: string | null;
+}
+
+export interface RoutingTransaction {
+  id: string;
+  study_uid: string;
+  patient_id: string | null;
+  modality: string | null;
+  accession_number: string | null;
+  instances_count: number | null;
+  overall_status: string;
+  received_at: string | null;
+  destinations: RoutingDestination[];
+}
+
 export interface MigrationStudyRecord {
   id: string;
   job_id: string;

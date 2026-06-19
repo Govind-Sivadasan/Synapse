@@ -13,17 +13,45 @@ export interface ActivityItem {
 interface Props {
   items: ActivityItem[];
   emptyLabel?: string;
+  onSelectStudyUid?: (studyUid: string) => void;
+  selectedStudyUid?: string | null;
 }
 
-export default function ActivityFeed({ items, emptyLabel = "No recent activity" }: Props) {
+export default function ActivityFeed({
+  items,
+  emptyLabel = "No recent activity",
+  onSelectStudyUid,
+  selectedStudyUid,
+}: Props) {
   if (!items.length) {
     return <p className="empty-message">{emptyLabel}</p>;
   }
 
   return (
     <div className="activity-feed">
-      {items.map((item) => (
-        <div key={item.id} className="activity-feed-item">
+      {items.map((item) => {
+        const studyUid = item.type === "routing" && item.subtitle ? item.subtitle : null;
+        const selectable = Boolean(studyUid && onSelectStudyUid);
+        return (
+        <div
+          key={item.id}
+          className={`activity-feed-item${selectable ? " activity-feed-item--selectable" : ""}${
+            studyUid && studyUid === selectedStudyUid ? " activity-feed-item--selected" : ""
+          }`}
+          role={selectable ? "button" : undefined}
+          tabIndex={selectable ? 0 : undefined}
+          onClick={selectable ? () => onSelectStudyUid!(studyUid!) : undefined}
+          onKeyDown={
+            selectable
+              ? (e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    onSelectStudyUid!(studyUid!);
+                  }
+                }
+              : undefined
+          }
+        >
           <div className={`activity-feed-icon activity-feed-icon--${item.type}`}>
             {item.type === "migration" ? <ArrowLeftRight size={16} /> : <Radio size={16} />}
           </div>
@@ -36,7 +64,8 @@ export default function ActivityFeed({ items, emptyLabel = "No recent activity" 
             <time>{new Date(item.timestamp).toLocaleString()}</time>
           </div>
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

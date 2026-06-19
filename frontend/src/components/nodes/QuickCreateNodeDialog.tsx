@@ -1,6 +1,7 @@
-import { FormEvent, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type KeyboardEvent } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
+import { createPortal } from "react-dom";
 import { apiFetch } from "../../api/client";
 import Modal from "../Modal";
 import { buildNodePayload, NodeFormState } from "../../lib/nodes";
@@ -23,6 +24,10 @@ function emptyForm(nodeType: "source" | "destination"): NodeFormState {
     auth_type: "none",
     is_active: true,
   };
+}
+
+function isFormValid(form: NodeFormState): boolean {
+  return !!(form.name.trim() && form.host.trim() && form.dicomweb_url.trim());
 }
 
 interface Props {
@@ -57,14 +62,25 @@ export default function QuickCreateNodeDialog({ open, nodeType, onClose, onCreat
     onError: (err: Error) => notifyError(formatNotificationMessage(err.message)),
   });
 
-  const handleSubmit = (e: FormEvent) => {
-    e.preventDefault();
+  const handleCreate = useCallback(() => {
+    if (!isFormValid(form)) {
+      notifyError("Name, host, and DICOMweb URL are required.");
+      return;
+    }
     saveMutation.mutate();
+  }, [form, notifyError, saveMutation]);
+
+  const handleFieldKeyDown = (e: KeyboardEvent) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      e.stopPropagation();
+      handleCreate();
+    }
   };
 
   const label = nodeType === "source" ? "source" : "destination";
 
-  return (
+  const dialog = (
     <Modal
       title={`Add ${label} node`}
       open={open}
@@ -72,7 +88,7 @@ export default function QuickCreateNodeDialog({ open, nodeType, onClose, onCreat
       wide
       nested
     >
-      <form onSubmit={handleSubmit}>
+      <div className="quick-create-form">
         <p className="form-field-hint" style={{ marginTop: 0 }}>
           Create a node without leaving this form. Your other entries are kept.
         </p>
@@ -82,6 +98,7 @@ export default function QuickCreateNodeDialog({ open, nodeType, onClose, onCreat
             <input
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
+              onKeyDown={handleFieldKeyDown}
               placeholder={nodeType === "source" ? "On-prem PACS" : "Cloud PACS"}
               required
             />
@@ -91,6 +108,7 @@ export default function QuickCreateNodeDialog({ open, nodeType, onClose, onCreat
             <input
               value={form.host}
               onChange={(e) => setForm({ ...form, host: e.target.value })}
+              onKeyDown={handleFieldKeyDown}
               placeholder="orthanc-onprem"
               required
             />
@@ -100,6 +118,7 @@ export default function QuickCreateNodeDialog({ open, nodeType, onClose, onCreat
             <input
               value={form.dicomweb_url}
               onChange={(e) => setForm({ ...form, dicomweb_url: e.target.value })}
+              onKeyDown={handleFieldKeyDown}
               placeholder="http://orthanc-onprem:8042/dicom-web"
               required
             />
@@ -114,6 +133,7 @@ export default function QuickCreateNodeDialog({ open, nodeType, onClose, onCreat
                   onChange={(e) =>
                     setForm({ ...form, port: e.target.value ? Number(e.target.value) : null })
                   }
+                  onKeyDown={handleFieldKeyDown}
                 />
               </div>
               <div className="form-field">
@@ -121,6 +141,7 @@ export default function QuickCreateNodeDialog({ open, nodeType, onClose, onCreat
                 <input
                   value={form.ae_title}
                   onChange={(e) => setForm({ ...form, ae_title: e.target.value })}
+                  onKeyDown={handleFieldKeyDown}
                   maxLength={16}
                 />
               </div>
@@ -128,7 +149,15 @@ export default function QuickCreateNodeDialog({ open, nodeType, onClose, onCreat
           )}
         </div>
         <div className="form-actions">
-          <button type="submit" disabled={saveMutation.isPending}>
+          <button
+            type="button"
+            disabled={saveMutation.isPending}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleCreate();
+            }}
+          >
             {saveMutation.isPending ? (
               <>
                 <Loader2 size={16} className="spin-icon" />
@@ -142,7 +171,11 @@ export default function QuickCreateNodeDialog({ open, nodeType, onClose, onCreat
             Cancel
           </button>
         </div>
-      </form>
+      </div>
     </Modal>
   );
+
+  if (!open) return null;
+
+  return createPortal(dialog, document.body);
 }
