@@ -86,6 +86,32 @@ export interface AuditLogList {
   items: AuditLog[];
 }
 
+export interface MigrationJobProgress {
+  discovered: number;
+  enqueued: number;
+  in_flight: number;
+  done: number;
+  success: number;
+  failed: number;
+  skipped: number;
+}
+
+export interface MigrationThroughputSample {
+  timestamp: string;
+  studies: number;
+  studies_per_minute: number;
+  megabytes_per_second: number;
+}
+
+export interface MigrationJobThroughput {
+  studies_per_minute: number;
+  megabytes_per_second: number;
+  elapsed_seconds: number;
+  completed_studies: number;
+  bytes_transferred: number;
+  samples: MigrationThroughputSample[];
+}
+
 export interface MigrationJob {
   id: string;
   name: string;

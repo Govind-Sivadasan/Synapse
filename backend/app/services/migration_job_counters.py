@@ -61,6 +61,16 @@ async def ensure_job_counters_initialized(session: AsyncSession, job_id: uuid.UU
     init_job_counters(job_id, completed=job.completed_studies, failed=job.failed_studies)
 
 
+def cancel_study_in_progress(job_id: uuid.UUID | str) -> None:
+    """Undo in_progress counter when a study task exits without completing."""
+    if not settings.migration_redis_counters_enabled:
+        return
+    client = _redis()
+    key = _key(job_id)
+    if int(client.hget(key, "in_progress") or 0) > 0:
+        client.hincrby(key, "in_progress", -1)
+
+
 def record_study_in_progress(job_id: uuid.UUID | str) -> None:
     if not settings.migration_redis_counters_enabled:
         return

@@ -19,6 +19,7 @@ const STATUS_MAP: Record<string, BadgeVariant> = {
   not_started: "neutral",
   in_progress: "info",
   discovering: "info",
+  paused: "warning",
   completed: "success",
   cancelled: "neutral",
   skipped: "neutral",

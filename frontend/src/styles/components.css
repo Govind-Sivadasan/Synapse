@@ -2789,6 +2789,136 @@ button.modality-combobox-option:hover:not(:disabled) {
   border-bottom: 1px solid var(--color-border);
 }
 
+.migration-ops-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.job-progress-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.job-detail-section {
+  margin-top: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.job-detail-section .card-title {
+  margin-bottom: 0.5rem;
+}
+
+.job-progress-breakdown-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.job-progress-breakdown-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.job-progress-breakdown-stat span {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.job-progress-breakdown-stat strong {
+  font-size: 1.125rem;
+}
+
+.job-progress-breakdown-bar {
+  display: flex;
+  height: 0.5rem;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+}
+
+.job-progress-breakdown-segment {
+  min-width: 2px;
+  transition: width 0.3s ease;
+}
+
+.job-progress-breakdown-note {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+}
+
+.migration-throughput-panel {
+  margin: 1rem 0;
+  padding: 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-subtle);
+}
+
+.migration-throughput-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.migration-throughput-charts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.migration-throughput-chart-label {
+  margin: 0 0 0.35rem;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.throughput-spark {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 72px;
+  padding: 0.35rem 0.25rem 0;
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+}
+
+.throughput-spark-bar-wrap {
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+  height: 100%;
+}
+
+.throughput-spark-bar {
+  width: 100%;
+  min-height: 4px;
+  border-radius: 2px 2px 0 0;
+  background: var(--color-primary);
+  opacity: 0.85;
+}
+
+.throughput-spark-empty {
+  margin: 0;
+  padding: 1rem;
+  font-size: 0.8125rem;
+}
+
+@media (max-width: 720px) {
+  .job-progress-breakdown-stats,
+  .migration-throughput-metrics,
+  .migration-throughput-charts {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
 .modal .form-grid {
   grid-template-columns: 1fr 1fr;
   gap: 1.1rem 1.25rem;
@@ -3147,6 +3277,19 @@ button.modal-close:hover:not(:disabled) {
 }
 
 /* Dashboard quick links */
+.dashboard-charts-row {
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  margin-bottom: 1.25rem;
+}
+
+.dashboard-quick-access {
+  margin-bottom: 1.5rem;
+}
+
+.dashboard-quick-access > .card-title {
+  margin-bottom: 0.75rem;
+}
+
 .quick-links {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));

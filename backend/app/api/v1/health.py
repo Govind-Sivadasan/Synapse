@@ -98,6 +98,12 @@ async def _check_celery_workers() -> HealthComponent:
     return HealthComponent(name="celery_workers", status="degraded", message=message, latency_ms=latency)
 
 
+@router.get("/health/live")
+async def health_live() -> dict[str, str]:
+    """Fast liveness probe for Docker/orchestrator (no Celery inspect)."""
+    return {"status": "ok"}
+
+
 @router.get("/health", response_model=HealthResponse)
 async def health_check() -> HealthResponse:
     components = [

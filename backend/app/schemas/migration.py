@@ -77,3 +77,29 @@ class MigrationStudyListResponse(BaseModel):
 class MigrationJobListResponse(BaseModel):
     total: int
     items: list[MigrationJobResponse]
+
+
+class MigrationJobProgressResponse(BaseModel):
+    discovered: int
+    enqueued: int
+    in_flight: int
+    done: int
+    success: int
+    failed: int
+    skipped: int
+
+
+class MigrationThroughputSample(BaseModel):
+    timestamp: str
+    studies: int
+    studies_per_minute: float
+    megabytes_per_second: float
+
+
+class MigrationJobThroughputResponse(BaseModel):
+    studies_per_minute: float
+    megabytes_per_second: float
+    elapsed_seconds: float
+    completed_studies: int
+    bytes_transferred: int
+    samples: list[MigrationThroughputSample]

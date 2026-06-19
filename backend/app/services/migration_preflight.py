@@ -26,7 +26,7 @@ async def ensure_no_other_active_migration_job(
         .select_from(MigrationJob)
         .where(
             MigrationJob.id != job_id,
-            MigrationJob.status.in_(("in_progress", "discovering")),
+            MigrationJob.status.in_(("in_progress", "discovering", "paused")),
         )
     )
     if active_count:

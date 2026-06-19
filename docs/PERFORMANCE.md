@@ -9,7 +9,7 @@ Synapse includes a **performance engine** (separate from product phases in the R
 | **2** | Pipeline architecture — coordinator, WADO/STOW, backpressure |
 | **3** | Data layer & observability — partitions, archival, tracing |
 | **4** | Horizontal scale — replicas, shared storage, destination rate limits |
-| **5** | Operator UI at scale — throughput charts, pause, queue widget |
+| **5** | Operator UI at scale — throughput charts, pause, queue widget, progress pipeline |
 
 > Product **Phase 4** in README = migration UI. This doc uses **performance phases 0–5** above. Full checklist: `.cursor/skills/synapse-performance/SKILL.md`.
 

@@ -27,12 +27,14 @@ from app.services.audit_logger import AuditLogger
 from app.services.event_publisher import publish_event
 from app.services.metrics_rollup import record_migration_study_completion
 from app.services.migration_job_counters import (
+    cancel_study_in_progress,
     ensure_job_counters_initialized,
     flush_job_counters,
     record_study_in_progress,
     record_study_terminal,
     should_flush_job_counters,
 )
+from app.services.migration_job_progress import record_study_transfer
 
 logger = structlog.get_logger()
 
@@ -45,7 +47,7 @@ class MigrationEngine:
     async def discover_studies_for_job(self, job_id: uuid.UUID) -> list[QidoStudy]:
         async with async_session_factory() as session:
             job = await self._get_job(session, job_id)
-            if job.status == "cancelled":
+            if job.status in ("cancelled", "paused"):
                 return []
 
             source = await self._get_source_node(session, job.source_node_id)
@@ -101,7 +103,7 @@ class MigrationEngine:
         """Fetch one QIDO page at the job's current discovery_offset."""
         async with async_session_factory() as session:
             job = await self._get_job(session, job_id)
-            if job.status == "cancelled":
+            if job.status in ("cancelled", "paused"):
                 return [], False
 
             source = await self._get_source_node(session, job.source_node_id)
@@ -146,7 +148,7 @@ class MigrationEngine:
     ) -> None:
         async with async_session_factory() as session:
             job = await self._get_job(session, job_id)
-            if job.status == "cancelled":
+            if job.status in ("cancelled", "paused"):
                 return
 
             page_count = len(page)
@@ -207,7 +209,7 @@ class MigrationEngine:
     async def enqueue_study_records(self, job_id: uuid.UUID, studies: list[QidoStudy]) -> int:
         async with async_session_factory() as session:
             job = await self._get_job(session, job_id)
-            if job.status == "cancelled":
+            if job.status in ("cancelled", "paused"):
                 return 0
 
             created = 0
@@ -240,7 +242,7 @@ class MigrationEngine:
             )
             if job.status in ("not_started", "discovering"):
                 job.status = "discovering" if settings.migration_streaming_discovery else "in_progress"
-            elif job.status not in ("cancelled",):
+            elif job.status not in ("cancelled", "paused"):
                 job.status = "in_progress"
             job.start_time = job.start_time or datetime.now(timezone.utc)
             await session.commit()
@@ -252,7 +254,7 @@ class MigrationEngine:
 
         async with async_session_factory() as session:
             job = await self._get_job(session, job_id)
-            if job.status in ("cancelled", "not_started"):
+            if job.status in ("cancelled", "paused", "not_started"):
                 return {"status": "skipped", "reason": f"job_{job.status}"}
 
             record = await session.scalar(
@@ -265,6 +267,8 @@ class MigrationEngine:
                 return {"status": "skipped", "reason": "record_not_found"}
             if record.status == "success":
                 return {"status": "skipped", "reason": "already_success"}
+            if record.status == "in_progress":
+                return {"status": "skipped", "reason": "already_in_progress"}
 
             record.status = "in_progress"
             record.trace_id = get_trace_id()
@@ -281,6 +285,18 @@ class MigrationEngine:
                     await self._refresh_job_counters(session, job_id, terminals=terminals)
                     await session.commit()
                     return {"status": "skipped", "reason": "job_cancelled"}
+                if job.status == "paused":
+                    record = await session.scalar(
+                        select(MigrationStudyRecord).where(
+                            MigrationStudyRecord.job_id == job_id,
+                            MigrationStudyRecord.study_uid == study_uid,
+                        )
+                    )
+                    if record and record.status == "in_progress":
+                        record.status = "pending"
+                        cancel_study_in_progress(job_id)
+                    await session.commit()
+                    return {"status": "skipped", "reason": "job_paused"}
 
                 source = await self._get_source_node(session, job.source_node_id)
                 destination = await self._get_destination_node(session, job.destination_node_id)
@@ -358,6 +374,9 @@ class MigrationEngine:
                         details={"study_uid": study_uid, "status": "success", "instances": len(upload_paths)},
                     )
                     await session.commit()
+
+            bytes_transferred = sum(path.stat().st_size for path in upload_paths if path.is_file())
+            record_study_transfer(job_id, bytes_transferred)
 
             inc_counter("synapse_migration_studies_total", {"status": "success"})
 
@@ -445,6 +464,13 @@ class MigrationEngine:
             await flush_job_counters(session, job_id, force=force)
             return
         await self._refresh_job_counters_legacy(session, job_id)
+
+    async def evaluate_job_completion(self, session: AsyncSession, job_id: uuid.UUID) -> None:
+        """Reconcile job counters and mark terminal status when no work remains."""
+        if settings.migration_redis_counters_enabled:
+            await flush_job_counters(session, job_id, force=True)
+        else:
+            await self._refresh_job_counters_legacy(session, job_id)
 
     async def _refresh_job_counters_legacy(self, session: AsyncSession, job_id: uuid.UUID) -> None:
         job = await self._get_job(session, job_id)

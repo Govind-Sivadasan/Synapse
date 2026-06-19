@@ -200,10 +200,7 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <div
-            className="grid"
-            style={{ gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", marginBottom: "1.5rem" }}
-          >
+          <div className="grid dashboard-charts-row">
             <div className="card">
               <h3 className="card-title">Routing by Status</h3>
               <BarChart data={statusBreakdown} color="var(--color-accent)" formatLabel={routingStatusLabel} />
@@ -214,10 +211,9 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <h3 className="card-title" style={{ marginBottom: "0.75rem" }}>
-            Quick access
-          </h3>
-          <div className="quick-links">
+          <section className="dashboard-quick-access" aria-label="Quick access">
+            <h3 className="card-title">Quick access</h3>
+            <div className="quick-links">
             <Link to="/routing-monitor" className="quick-link-card">
               <div className="quick-link-icon">
                 <Radio size={18} />
@@ -246,6 +242,7 @@ export default function Dashboard() {
               </div>
             </Link>
           </div>
+          </section>
         </div>
 
         <div className="monitor-sidecar-column">

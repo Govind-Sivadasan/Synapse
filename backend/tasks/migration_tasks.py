@@ -29,11 +29,53 @@ async def _mark_job_failed(job_id: str) -> None:
             await session.commit()
 
 
+async def _reclaim_in_progress_studies(job_uuid: uuid.UUID) -> int:
+    """Reset orphaned in_progress records after pause so resume can re-enqueue them."""
+    from sqlalchemy import select
+
+    from app.database import async_session_factory
+    from app.models.migration import MigrationStudyRecord
+    from app.services.migration_job_counters import cancel_study_in_progress
+
+    async with async_session_factory() as session:
+        result = await session.execute(
+            select(MigrationStudyRecord).where(
+                MigrationStudyRecord.job_id == job_uuid,
+                MigrationStudyRecord.status == "in_progress",
+            )
+        )
+        records = list(result.scalars().all())
+        if not records:
+            return 0
+        for record in records:
+            record.status = "pending"
+            record.trace_id = None
+        await session.commit()
+
+    for _ in records:
+        cancel_study_in_progress(job_uuid)
+    return len(records)
+
+
+async def _finalize_job_if_idle(job_uuid: uuid.UUID) -> None:
+    from app.database import async_session_factory
+    from app.migration.engine import MigrationEngine
+
+    async with async_session_factory() as session:
+        engine = MigrationEngine()
+        await engine.evaluate_job_completion(session, job_uuid)
+        await session.commit()
+
+
 async def _resume_enqueue(job_id: str, job_uuid: uuid.UUID) -> dict:
     from sqlalchemy import select
 
     from app.database import async_session_factory
     from app.models.migration import MigrationStudyRecord
+
+    reclaimed = await _reclaim_in_progress_studies(job_uuid)
+    if reclaimed:
+        logger.info("migration_resume_reclaimed", job_id=job_id, reclaimed=reclaimed)
 
     async with async_session_factory() as session:
         result = await session.execute(
@@ -64,10 +106,13 @@ async def _resume_enqueue(job_id: str, job_uuid: uuid.UUID) -> dict:
         )
         enqueued += 1
 
+    await _finalize_job_if_idle(job_uuid)
+
     return {
         "job_id": job_id,
         "studies_found": len(existing_records),
         "enqueued": enqueued,
+        "reclaimed": reclaimed,
         "resumed": True,
     }
 
@@ -156,6 +201,8 @@ async def _coordinator_tick(job_id: str) -> dict:
             raise ValueError(f"Migration job not found: {job_id}")
         if job.status == "cancelled":
             return {"job_id": job_id, "status": "cancelled", "enqueued": 0}
+        if job.status == "paused":
+            return {"job_id": job_id, "status": "paused", "enqueued": 0}
 
         result = await session.execute(
             select(MigrationStudyRecord).where(MigrationStudyRecord.job_id == job_uuid)
@@ -215,6 +262,19 @@ async def _coordinator_tick(job_id: str) -> dict:
         has_more=has_more,
         discovery_offset=new_offset,
     )
+
+    async with async_session_factory() as session:
+        refreshed = await session.get(MigrationJob, job_uuid)
+        if refreshed and refreshed.status == "paused":
+            return {
+                "job_id": job_id,
+                "page_size": len(page),
+                "records_created": created,
+                "enqueued": enqueued,
+                "has_more": has_more,
+                "mode": "coordinator",
+                "status": "paused",
+            }
 
     if has_more:
         enqueue_coordinator_next_page(job_id, countdown=settings.migration_coordinator_chain_delay_seconds)

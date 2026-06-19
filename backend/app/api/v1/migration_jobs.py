@@ -14,7 +14,9 @@ from app.models.node import Node
 from app.schemas.migration import (
     MigrationJobCreate,
     MigrationJobListResponse,
+    MigrationJobProgressResponse,
     MigrationJobResponse,
+    MigrationJobThroughputResponse,
     MigrationStudyListResponse,
     MigrationStudyRecordResponse,
 )
@@ -25,6 +27,8 @@ from app.services.migration_preflight import (
     verify_migration_node_connectivity,
 )
 from app.services.migration_job_counters import init_job_counters
+from app.services.migration_job_progress import build_job_progress, build_throughput_snapshot
+from app.services.migration_backpressure import wait_for_migration_queue_slot
 from app.workers.dispatch import enqueue_fetch_and_enqueue_studies, enqueue_migrate_study
 
 router = APIRouter(prefix="/migration-jobs", tags=["Migration Jobs"])
@@ -163,6 +167,34 @@ async def get_migration_job(
     return _job_response(job, nodes)
 
 
+@router.get("/{job_id}/progress", response_model=MigrationJobProgressResponse)
+async def get_migration_job_progress(
+    job_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    _: CurrentUser = Depends(require_roles("operator", "admin")),
+) -> MigrationJobProgressResponse:
+    job = await db.get(MigrationJob, job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Migration job not found")
+    progress = await build_job_progress(db, job)
+    return MigrationJobProgressResponse(**progress)
+
+
+@router.get("/{job_id}/throughput", response_model=MigrationJobThroughputResponse)
+async def get_migration_job_throughput(
+    job_id: UUID,
+    window_minutes: int = 30,
+    db: AsyncSession = Depends(get_db),
+    _: CurrentUser = Depends(require_roles("operator", "admin")),
+) -> MigrationJobThroughputResponse:
+    job = await db.get(MigrationJob, job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Migration job not found")
+    window = max(5, min(window_minutes, 120))
+    snapshot = build_throughput_snapshot(job, window_minutes=window)
+    return MigrationJobThroughputResponse(**snapshot)
+
+
 @router.get("/{job_id}/studies", response_model=MigrationStudyListResponse)
 async def list_job_studies(
     job_id: UUID,
@@ -216,10 +248,10 @@ async def delete_migration_job(
     job = await db.get(MigrationJob, job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Migration job not found")
-    if job.status in ("in_progress", "discovering"):
+    if job.status in ("in_progress", "discovering", "paused"):
         raise HTTPException(
             status_code=400,
-            detail="Cannot delete a job while it is in progress. Cancel it first.",
+            detail="Cannot delete a job while it is running. Cancel it first.",
         )
     if job.status not in DELETABLE_JOB_STATUSES:
         raise HTTPException(status_code=400, detail=f"Cannot delete job in status '{job.status}'")
@@ -329,6 +361,71 @@ async def cancel_migration_job(
     return _job_response(job, nodes)
 
 
+@router.post("/{job_id}/pause", response_model=MigrationJobResponse)
+async def pause_migration_job(
+    job_id: UUID,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    user: CurrentUser = Depends(require_roles("operator", "admin")),
+) -> MigrationJobResponse:
+    job = await db.get(MigrationJob, job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Migration job not found")
+    if job.status not in ("in_progress", "discovering"):
+        raise HTTPException(status_code=400, detail=f"Cannot pause job in status '{job.status}'")
+
+    job.status = "paused"
+    await db.flush()
+    await AuditLogger.log(
+        db,
+        "JOB_STATUS_CHANGE",
+        user_id=user.sub,
+        user_role=",".join(user.roles),
+        entity_type="MigrationJob",
+        entity_id=job.id,
+        details={"action": "pause"},
+        ip_address=request.client.host if request.client else None,
+    )
+    await db.refresh(job)
+    nodes = await _load_nodes(db, [job])
+    return _job_response(job, nodes)
+
+
+@router.post("/{job_id}/resume", response_model=MigrationJobResponse)
+async def resume_migration_job(
+    job_id: UUID,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    user: CurrentUser = Depends(require_roles("operator", "admin")),
+) -> MigrationJobResponse:
+    job = await db.get(MigrationJob, job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Migration job not found")
+    if job.status != "paused":
+        raise HTTPException(status_code=400, detail=f"Cannot resume job in status '{job.status}'")
+
+    await ensure_no_other_active_migration_job(db, job_id)
+
+    task_id = enqueue_fetch_and_enqueue_studies(str(job_id))
+    job.celery_task_id = task_id
+    job.status = "discovering" if not job.discovery_complete else "in_progress"
+    job.end_time = None
+    await db.flush()
+    await AuditLogger.log(
+        db,
+        "JOB_STATUS_CHANGE",
+        user_id=user.sub,
+        user_role=",".join(user.roles),
+        entity_type="MigrationJob",
+        entity_id=job.id,
+        details={"action": "resume", "celery_task_id": task_id},
+        ip_address=request.client.host if request.client else None,
+    )
+    await db.refresh(job)
+    nodes = await _load_nodes(db, [job])
+    return _job_response(job, nodes)
+
+
 @router.post("/{job_id}/studies/{study_record_id}/retry")
 async def retry_migration_study(
     job_id: UUID,
@@ -372,6 +469,7 @@ async def retry_migration_study(
 @router.post("/{job_id}/studies/retry-failed")
 async def retry_failed_migration_studies(
     job_id: UUID,
+    limit: int | None = None,
     db: AsyncSession = Depends(get_db),
     user: CurrentUser = Depends(require_roles("operator", "admin")),
 ) -> dict:
@@ -383,14 +481,27 @@ async def retry_failed_migration_studies(
     if job.status == "cancelled":
         retry_statuses = ("failed", "skipped", "pending")
 
+    batch_limit = limit if limit is not None else settings.migration_bulk_retry_limit
+    batch_limit = max(1, min(batch_limit, 500))
+
     result = await db.execute(
         select(MigrationStudyRecord)
         .where(MigrationStudyRecord.job_id == job_id)
         .where(MigrationStudyRecord.status.in_(retry_statuses))
+        .order_by(MigrationStudyRecord.created_at.asc())
+        .limit(batch_limit)
     )
     records = list(result.scalars().all())
     if not records:
-        return {"enqueued": 0, "study_uids": []}
+        return {"enqueued": 0, "study_uids": [], "limit": batch_limit, "remaining": 0}
+
+    remaining = await db.scalar(
+        select(func.count())
+        .select_from(MigrationStudyRecord)
+        .where(MigrationStudyRecord.job_id == job_id)
+        .where(MigrationStudyRecord.status.in_(retry_statuses))
+    )
+    remaining = max(0, int(remaining or 0) - len(records))
 
     study_uids: list[str] = []
     for record in records:
@@ -398,12 +509,17 @@ async def retry_failed_migration_studies(
         record.failure_reason = None
         record.completed_at = None
         study_uids.append(record.study_uid)
-        enqueue_migrate_study(str(job_id), record.study_uid)
 
     job.retry_count += len(records)
-    if job.status in ("failed", "partial", "completed", "cancelled"):
+    if job.status in ("failed", "partial", "completed", "cancelled", "paused"):
         job.status = "in_progress"
         job.end_time = None
+
+    await db.flush()
+
+    for study_uid in study_uids:
+        wait_for_migration_queue_slot()
+        enqueue_migrate_study(str(job_id), study_uid)
 
     await AuditLogger.log(
         db,
@@ -412,6 +528,17 @@ async def retry_failed_migration_studies(
         user_role=",".join(user.roles),
         entity_type="MigrationJob",
         entity_id=job.id,
-        details={"action": "retry_failed_bulk", "count": len(records), "study_uids": study_uids[:50]},
+        details={
+            "action": "retry_failed_bulk",
+            "count": len(records),
+            "limit": batch_limit,
+            "remaining": remaining,
+            "study_uids": study_uids[:50],
+        },
     )
-    return {"enqueued": len(records), "study_uids": study_uids}
+    return {
+        "enqueued": len(records),
+        "study_uids": study_uids,
+        "limit": batch_limit,
+        "remaining": remaining,
+    }

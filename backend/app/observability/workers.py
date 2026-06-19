@@ -71,13 +71,18 @@ def get_celery_health_summary(*, use_cache: bool = True) -> dict[str, int]:
         if inspect is None:
             return empty
 
-        ping = inspect.ping() or {}
-        if not ping:
-            logger.debug("celery_inspect_ping_empty", timeout=timeout)
-            return empty
+        from concurrent.futures import ThreadPoolExecutor
 
-        active = inspect.active() or {}
-        queue_workers = _count_workers_by_queue(inspect.active_queues())
+        with ThreadPoolExecutor(max_workers=3) as pool:
+            ping_future = pool.submit(inspect.ping)
+            active_future = pool.submit(inspect.active)
+            queues_future = pool.submit(inspect.active_queues)
+            ping = ping_future.result() or {}
+            if not ping:
+                logger.debug("celery_inspect_ping_empty", timeout=timeout)
+                return empty
+            active = active_future.result() or {}
+            queue_workers = _count_workers_by_queue(queues_future.result())
 
         routing_active = 0
         migration_active = 0

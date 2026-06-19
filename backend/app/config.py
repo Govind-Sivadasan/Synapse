@@ -68,6 +68,7 @@ class Settings(BaseSettings):
     migration_single_active_job: bool = True
     migration_redis_counters_enabled: bool = True
     migration_job_counter_flush_interval: int = 5
+    migration_bulk_retry_limit: int = 50
 
     # Performance tuning (Phase 3)
     partition_months_ahead: int = 3

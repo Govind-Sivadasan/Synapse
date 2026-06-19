@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Plus, Play, Square, RefreshCw, Copy, Trash2 } from "lucide-react";
+import { Loader2, Plus, Play, Square, RefreshCw, Copy, Trash2, Pause } from "lucide-react";
 import { apiFetch } from "../api/client";
 import DataTable from "../components/DataTable";
 import FilterChips from "../components/ui/FilterChips";
@@ -18,8 +18,11 @@ import { useAppMetadata } from "../hooks/useAppMetadata";
 import { formatNotificationMessage } from "../lib/notificationMessages";
 import { useNotifications } from "../services/notifications";
 import { migrationDestinationNodes, migrationSourceNodes } from "../lib/nodes";
+import JobProgressBreakdown from "../components/migration/JobProgressBreakdown";
+import MigrationQueueWidget from "../components/migration/MigrationQueueWidget";
+import ThroughputSparkChart from "../components/migration/ThroughputSparkChart";
 import ModalitySelect from "../components/forms/ModalitySelect";
-import { MigrationJob, MigrationJobList, MigrationStudyList, Node, TagMorphingRule } from "../types/api";
+import { MigrationJob, MigrationJobList, MigrationJobProgress, MigrationJobThroughput, MigrationStudyList, Node, TagMorphingRule } from "../types/api";
 
 const emptyForm = {
   name: "",
@@ -38,6 +41,7 @@ const JOB_STATUS_FILTERS = [
   { value: "", label: "All jobs", tone: "neutral" as const },
   { value: "discovering", label: "Discovering", tone: "info" as const },
   { value: "in_progress", label: "In progress", tone: "info" as const },
+  { value: "paused", label: "Paused", tone: "warning" as const },
   { value: "failed", label: "Failed", tone: "error" as const },
   { value: "partial", label: "Partial", tone: "warning" as const },
   { value: "completed", label: "Completed", tone: "success" as const },
@@ -79,10 +83,14 @@ function jobFormFromJob(job: MigrationJob): JobForm {
 }
 
 function canDeleteJob(job: MigrationJob): boolean {
-  return job.status !== "in_progress" && job.status !== "discovering";
+  return job.status !== "in_progress" && job.status !== "discovering" && job.status !== "paused";
 }
 
 function isJobActive(job: MigrationJob): boolean {
+  return job.status === "in_progress" || job.status === "discovering" || job.status === "paused";
+}
+
+function isJobRunning(job: MigrationJob): boolean {
   return job.status === "in_progress" || job.status === "discovering";
 }
 
@@ -295,11 +303,24 @@ export default function MigrationJobs() {
     queryKey: ["migration-job", selectedJob?.id],
     queryFn: () => apiFetch<MigrationJob>(`/api/v1/migration-jobs/${selectedJob!.id}`),
     enabled: !!selectedJob,
-    refetchInterval: (query) =>
-      (query.state.data?.status ?? selectedJob?.status) === "in_progress" ||
-      (query.state.data?.status ?? selectedJob?.status) === "discovering"
-        ? 3000
-        : false,
+    refetchInterval: (query) => {
+      const status = query.state.data?.status ?? selectedJob?.status;
+      return status === "in_progress" || status === "discovering" || status === "paused" ? 3000 : false;
+    },
+  });
+
+  const { data: jobProgress } = useQuery({
+    queryKey: ["migration-job-progress", selectedJob?.id],
+    queryFn: () => apiFetch<MigrationJobProgress>(`/api/v1/migration-jobs/${selectedJob!.id}/progress`),
+    enabled: !!selectedJob,
+    refetchInterval: selectedJob && isJobActive(selectedJob) ? 3000 : false,
+  });
+
+  const { data: jobThroughput } = useQuery({
+    queryKey: ["migration-job-throughput", selectedJob?.id],
+    queryFn: () => apiFetch<MigrationJobThroughput>(`/api/v1/migration-jobs/${selectedJob!.id}/throughput`),
+    enabled: !!selectedJob,
+    refetchInterval: selectedJob && isJobActive(selectedJob) ? 5000 : false,
   });
 
   const displayJob = jobDetail ?? selectedJob;
@@ -461,6 +482,31 @@ export default function MigrationJobs() {
     },
   });
 
+  const pauseMutation = useMutation({
+    mutationFn: (id: string) =>
+      apiFetch<MigrationJob>(`/api/v1/migration-jobs/${id}/pause`, { method: "POST" }),
+    onSuccess: (job) => {
+      patchJobInCache(job.id, job);
+      setSelectedJob((prev) => (prev?.id === job.id ? job : prev));
+      queryClient.invalidateQueries({ queryKey: ["migration-jobs"] });
+      success("Migration job paused.");
+    },
+    onError: (err: Error) => notifyError(err.message),
+  });
+
+  const resumeMutation = useMutation({
+    mutationFn: (id: string) =>
+      apiFetch<MigrationJob>(`/api/v1/migration-jobs/${id}/resume`, { method: "POST" }),
+    onSuccess: (job) => {
+      patchJobInCache(job.id, job);
+      setSelectedJob((prev) => (prev?.id === job.id ? job : prev));
+      queryClient.invalidateQueries({ queryKey: ["migration-jobs"] });
+      queryClient.invalidateQueries({ queryKey: ["migration-job-progress", job.id] });
+      success("Migration job resumed.");
+    },
+    onError: (err: Error) => notifyError(err.message),
+  });
+
   const retryStudyMutation = useMutation({
     mutationFn: ({ jobId, studyId }: { jobId: string; studyId: string }) =>
       apiFetch(`/api/v1/migration-jobs/${jobId}/studies/${studyId}/retry`, { method: "POST" }),
@@ -472,7 +518,7 @@ export default function MigrationJobs() {
 
   const retryAllFailedMutation = useMutation({
     mutationFn: (jobId: string) =>
-      apiFetch<{ enqueued: number; study_uids: string[] }>(
+      apiFetch<{ enqueued: number; study_uids: string[]; remaining: number; limit: number }>(
         `/api/v1/migration-jobs/${jobId}/studies/retry-failed`,
         { method: "POST" },
       ),
@@ -484,8 +530,10 @@ export default function MigrationJobs() {
       if (result.enqueued === 0) {
         notifyError("No failed or pending studies to retry.");
       } else {
+        const remainingNote =
+          result.remaining > 0 ? ` (${result.remaining} remaining — run again to continue)` : "";
         success(
-          `Retry queued for ${result.enqueued} study record${result.enqueued === 1 ? "" : "s"}.`,
+          `Retry queued for ${result.enqueued} study record${result.enqueued === 1 ? "" : "s"}${remainingNote}.`,
         );
       }
       patchJobInCache(jobId, { status: "in_progress" });
@@ -526,6 +574,8 @@ export default function MigrationJobs() {
   const jobs = jobsData?.items ?? [];
   const isStarting = (id: string) => startMutation.isPending && startMutation.variables === id;
   const isCancelling = (id: string) => cancelMutation.isPending && cancelMutation.variables === id;
+  const isPausing = (id: string) => pauseMutation.isPending && pauseMutation.variables === id;
+  const isResuming = (id: string) => resumeMutation.isPending && resumeMutation.variables === id;
 
   useEffect(() => {
     if (!selectedJob || !jobsData) return;
@@ -546,6 +596,8 @@ export default function MigrationJobs() {
           </ActionButton>
         }
       />
+
+      <MigrationQueueWidget />
 
       {isLoading ? (
         <PageLoading label="Loading migration jobs…" />
@@ -624,20 +676,60 @@ export default function MigrationJobs() {
                           <Play size={14} />
                           {j.status === "not_started" ? "Start" : "Resume"}
                         </button>
-                      ) : isJobActive(j) ? (
-                        <button
-                          type="button"
-                          className="btn-sm btn-secondary"
-                          disabled={cancelling}
-                          onClick={() => cancelMutation.mutate(j.id)}
-                        >
-                          {cancelling ? (
-                            <Loader2 size={14} className="spin-icon" />
-                          ) : (
+                      ) : isJobRunning(j) ? (
+                        <>
+                          <button
+                            type="button"
+                            className="btn-sm btn-secondary"
+                            disabled={isPausing(j.id)}
+                            onClick={() => pauseMutation.mutate(j.id)}
+                          >
+                            {isPausing(j.id) ? (
+                              <Loader2 size={14} className="spin-icon" />
+                            ) : (
+                              <Pause size={14} />
+                            )}
+                            {isPausing(j.id) ? "Pausing…" : "Pause"}
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-sm btn-secondary"
+                            disabled={cancelling}
+                            onClick={() => cancelMutation.mutate(j.id)}
+                          >
+                            {cancelling ? (
+                              <Loader2 size={14} className="spin-icon" />
+                            ) : (
+                              <Square size={14} />
+                            )}
+                            {cancelling ? "Cancelling…" : "Cancel"}
+                          </button>
+                        </>
+                      ) : j.status === "paused" ? (
+                        <>
+                          <button
+                            type="button"
+                            className="btn-sm"
+                            disabled={isResuming(j.id)}
+                            onClick={() => resumeMutation.mutate(j.id)}
+                          >
+                            {isResuming(j.id) ? (
+                              <Loader2 size={14} className="spin-icon" />
+                            ) : (
+                              <Play size={14} />
+                            )}
+                            {isResuming(j.id) ? "Resuming…" : "Resume"}
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-sm btn-secondary"
+                            disabled={cancelling}
+                            onClick={() => cancelMutation.mutate(j.id)}
+                          >
                             <Square size={14} />
-                          )}
-                          {cancelling ? "Cancelling…" : "Cancel"}
-                        </button>
+                            Cancel
+                          </button>
+                        </>
                       ) : null}
                       <button
                         type="button"
@@ -712,6 +804,45 @@ export default function MigrationJobs() {
             </div>
           )}
 
+          {jobProgress && (
+            <div className="job-detail-section">
+              <h4 className="card-title">Pipeline progress</h4>
+              <JobProgressBreakdown progress={jobProgress} />
+            </div>
+          )}
+
+          {jobThroughput && isJobActive(displayJob) && (
+            <div className="migration-throughput-panel">
+              <h4 className="card-title">Throughput (last 30 min)</h4>
+              <div className="migration-throughput-metrics">
+                <div className="job-detail-stat">
+                  <span>Studies / min</span>
+                  <strong>{jobThroughput.studies_per_minute.toFixed(1)}</strong>
+                </div>
+                <div className="job-detail-stat">
+                  <span>MB / s</span>
+                  <strong>{jobThroughput.megabytes_per_second.toFixed(2)}</strong>
+                </div>
+                <div className="job-detail-stat">
+                  <span>Transferred</span>
+                  <strong>
+                    {(jobThroughput.bytes_transferred / (1024 * 1024)).toFixed(1)} MB
+                  </strong>
+                </div>
+              </div>
+              <div className="migration-throughput-charts">
+                <div>
+                  <p className="migration-throughput-chart-label">Studies per minute</p>
+                  <ThroughputSparkChart samples={jobThroughput.samples} metric="studies" />
+                </div>
+                <div>
+                  <p className="migration-throughput-chart-label">Megabytes per second</p>
+                  <ThroughputSparkChart samples={jobThroughput.samples} metric="bytes" />
+                </div>
+              </div>
+            </div>
+          )}
+
           {(displayJob.failed_studies > 0 || displayJob.status === "failed" || displayJob.status === "partial") && (
             <div className="job-failure-banner">
               <strong>
@@ -751,20 +882,60 @@ export default function MigrationJobs() {
                     : "Resume"}
               </button>
             )}
-            {isJobActive(displayJob) && (
-              <button
-                type="button"
-                className="btn-secondary"
-                disabled={isCancelling(displayJob.id)}
-                onClick={() => cancelMutation.mutate(displayJob.id)}
-              >
-                {isCancelling(displayJob.id) ? (
-                  <Loader2 size={16} className="spin-icon" />
-                ) : (
+            {isJobRunning(displayJob) && (
+              <>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  disabled={isPausing(displayJob.id)}
+                  onClick={() => pauseMutation.mutate(displayJob.id)}
+                >
+                  {isPausing(displayJob.id) ? (
+                    <Loader2 size={16} className="spin-icon" />
+                  ) : (
+                    <Pause size={16} />
+                  )}
+                  Pause
+                </button>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  disabled={isCancelling(displayJob.id)}
+                  onClick={() => cancelMutation.mutate(displayJob.id)}
+                >
+                  {isCancelling(displayJob.id) ? (
+                    <Loader2 size={16} className="spin-icon" />
+                  ) : (
+                    <Square size={16} />
+                  )}
+                  Cancel
+                </button>
+              </>
+            )}
+            {displayJob.status === "paused" && (
+              <>
+                <button
+                  type="button"
+                  disabled={isResuming(displayJob.id)}
+                  onClick={() => resumeMutation.mutate(displayJob.id)}
+                >
+                  {isResuming(displayJob.id) ? (
+                    <Loader2 size={16} className="spin-icon" />
+                  ) : (
+                    <Play size={16} />
+                  )}
+                  Resume
+                </button>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  disabled={isCancelling(displayJob.id)}
+                  onClick={() => cancelMutation.mutate(displayJob.id)}
+                >
                   <Square size={16} />
-                )}
-                Cancel
-              </button>
+                  Cancel
+                </button>
+              </>
             )}
             <button
               type="button"

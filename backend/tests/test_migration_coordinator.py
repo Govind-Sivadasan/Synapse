@@ -175,9 +175,11 @@ async def test_coordinator_tick_resume_when_discovery_complete(monkeypatch):
     mock_ctx.__aexit__.return_value = None
 
     with patch("app.database.async_session_factory", return_value=mock_ctx):
-        with patch("tasks.migration_tasks.wait_for_migration_queue_slot"):
-            with patch("tasks.migration_tasks.migrate_study") as mock_migrate:
-                result = await migration_tasks._coordinator_tick(job_id)
+        with patch.object(migration_tasks, "_reclaim_in_progress_studies", AsyncMock(return_value=0)):
+            with patch.object(migration_tasks, "_finalize_job_if_idle", AsyncMock()):
+                with patch("tasks.migration_tasks.wait_for_migration_queue_slot"):
+                    with patch("tasks.migration_tasks.migrate_study") as mock_migrate:
+                        result = await migration_tasks._coordinator_tick(job_id)
 
     assert result["resumed"] is True
     assert result["enqueued"] == 1
