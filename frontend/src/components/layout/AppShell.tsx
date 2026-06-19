@@ -79,7 +79,7 @@ function AppShellInner({ username, roles, onLogout, children }: Props) {
           <UserMenu username={username} roles={roles} onLogout={onLogout} />
         </header>
         <main className="app-content" data-tour="app-content">
-          {children}
+          <div className="app-content-body">{children}</div>
         </main>
         <StatusFooter />
       </div>

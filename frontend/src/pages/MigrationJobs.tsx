@@ -258,22 +258,26 @@ export default function MigrationJobs() {
   const [jobsSearch, setJobsSearch] = useState("");
   const [jobsStatusFilter, setJobsStatusFilter] = useState("");
   const [jobsPage, setJobsPage] = useState(0);
+  const [jobsSortBy, setJobsSortBy] = useState<string | null>("created_at");
+  const [jobsSortDir, setJobsSortDir] = useState<"asc" | "desc">("desc");
   const [studiesSearch, setStudiesSearch] = useState("");
   const [studiesStatusFilter, setStudiesStatusFilter] = useState("");
   const [studiesPage, setStudiesPage] = useState(0);
+  const [studiesSortBy, setStudiesSortBy] = useState<string | null>("created_at");
+  const [studiesSortDir, setStudiesSortDir] = useState<"asc" | "desc">("desc");
   const jobsPageSize = 10;
   const studiesPageSize = 15;
 
   useEffect(() => {
     setJobsPage(0);
-  }, [jobsSearch, jobsStatusFilter]);
+  }, [jobsSearch, jobsStatusFilter, jobsSortBy, jobsSortDir]);
 
   useEffect(() => {
     setStudiesPage(0);
-  }, [studiesSearch, studiesStatusFilter, selectedJob?.id]);
+  }, [studiesSearch, studiesStatusFilter, selectedJob?.id, studiesSortBy, studiesSortDir]);
 
   const { data: jobsData, isLoading } = useQuery({
-    queryKey: ["migration-jobs", jobsSearch, jobsStatusFilter, jobsPage],
+    queryKey: ["migration-jobs", jobsSearch, jobsStatusFilter, jobsPage, jobsSortBy, jobsSortDir],
     queryFn: () => {
       const params = new URLSearchParams({
         limit: String(jobsPageSize),
@@ -281,6 +285,10 @@ export default function MigrationJobs() {
       });
       if (jobsSearch) params.set("search", jobsSearch);
       if (jobsStatusFilter) params.set("status", jobsStatusFilter);
+      if (jobsSortBy) {
+        params.set("sort_by", jobsSortBy);
+        params.set("sort_dir", jobsSortDir);
+      }
       return apiFetch<MigrationJobList>(`/api/v1/migration-jobs?${params}`);
     },
     refetchInterval: (query) => {
@@ -331,7 +339,7 @@ export default function MigrationJobs() {
     error: studiesError,
     refetch: refetchStudies,
   } = useQuery({
-    queryKey: ["migration-job-studies", selectedJob?.id, studiesSearch, studiesStatusFilter, studiesPage],
+    queryKey: ["migration-job-studies", selectedJob?.id, studiesSearch, studiesStatusFilter, studiesPage, studiesSortBy, studiesSortDir],
     queryFn: () => {
       const params = new URLSearchParams({
         limit: String(studiesPageSize),
@@ -339,6 +347,10 @@ export default function MigrationJobs() {
       });
       if (studiesSearch) params.set("search", studiesSearch);
       if (studiesStatusFilter) params.set("status_filter", studiesStatusFilter);
+      if (studiesSortBy) {
+        params.set("sort_by", studiesSortBy);
+        params.set("sort_dir", studiesSortDir);
+      }
       return apiFetch<MigrationStudyList>(`/api/v1/migration-jobs/${selectedJob!.id}/studies?${params}`);
     },
     enabled: !!selectedJob,
@@ -615,9 +627,19 @@ export default function MigrationJobs() {
             placeholder="Search jobs by name, type, status…"
           />
           <DataTable
+            tableId="migration-jobs"
             data={jobs}
             keyField="id"
             emptyMessage="No migration jobs yet. Create one to migrate studies from on-prem to cloud."
+            serverSort={{
+              sortBy: jobsSortBy,
+              sortDir: jobsSortDir,
+              defaultSort: { sortBy: "created_at", sortDir: "desc" },
+              onSortChange: (sortBy, sortDir) => {
+                setJobsSortBy(sortBy ?? "created_at");
+                setJobsSortDir(sortDir ?? "desc");
+              },
+            }}
             serverPagination={{
               page: jobsPage,
               pageSize: jobsPageSize,
@@ -625,26 +647,30 @@ export default function MigrationJobs() {
               onPageChange: setJobsPage,
             }}
             columns={[
-              { key: "name", header: "Name", width: 200, minWidth: 120 },
-              { key: "job_type", header: "Type", width: 110, minWidth: 88 },
+              { key: "name", header: "Name", width: 200, minWidth: 120, sortKey: "name" },
+              { key: "job_type", header: "Type", width: 110, minWidth: 88, sortKey: "job_type" },
               {
                 key: "route",
                 header: "Route",
                 width: 300,
                 minWidth: 180,
+                sortable: false,
                 render: (j) => {
                   const route = `${j.source_node_name ?? "?"} → ${j.destination_node_name ?? "?"}`;
                   return <span className="table-cell-route">{route}</span>;
                 },
               },
-              { key: "status", header: "Status", width: 130, minWidth: 110, render: (j) => <StatusBadge status={j.status} /> },
-              { key: "progress", header: "Progress", width: 130, minWidth: 100, render: (j) => <JobProgressCell job={j} /> },
-              { key: "failed", header: "Failed", width: 96, minWidth: 80, render: (j) => j.failed_studies },
+              { key: "status", header: "Status", width: 130, minWidth: 110, sortKey: "status", render: (j) => <StatusBadge status={j.status} /> },
+              { key: "progress", header: "Progress", width: 130, minWidth: 100, sortKey: "completed_studies", render: (j) => <JobProgressCell job={j} /> },
+              { key: "failed", header: "Failed", width: 96, minWidth: 80, sortKey: "failed_studies", render: (j) => j.failed_studies },
               {
                 key: "actions",
                 header: "Actions",
                 width: 340,
                 minWidth: 280,
+                sortable: false,
+                hideable: false,
+                defaultPin: "right",
                 render: (j) => {
                   const starting = isStarting(j.id);
                   const cancelling = isCancelling(j.id);
@@ -997,8 +1023,18 @@ export default function MigrationJobs() {
             <PageLoading label="Loading studies…" compact />
           ) : (
             <DataTable
+              tableId="migration-job-studies"
               data={studiesData?.items ?? []}
               keyField="id"
+              serverSort={{
+                sortBy: studiesSortBy,
+                sortDir: studiesSortDir,
+                defaultSort: { sortBy: "created_at", sortDir: "desc" },
+                onSortChange: (sortBy, sortDir) => {
+                  setStudiesSortBy(sortBy ?? "created_at");
+                  setStudiesSortDir(sortDir ?? "desc");
+                },
+              }}
               serverPagination={{
                 page: studiesPage,
                 pageSize: studiesPageSize,
@@ -1016,19 +1052,21 @@ export default function MigrationJobs() {
                   header: "Study UID",
                   width: 340,
                   minWidth: 260,
+                  sortKey: "study_uid",
                   render: (s) => (
                     <code className="table-cell-uid" title={s.study_uid}>
                       {s.study_uid}
                     </code>
                   ),
                 },
-                { key: "modality", header: "Modality", width: 90, minWidth: 72 },
-                { key: "patient_id", header: "Patient ID", width: 140, minWidth: 100 },
+                { key: "modality", header: "Modality", width: 90, minWidth: 72, sortKey: "modality" },
+                { key: "patient_id", header: "Patient ID", width: 140, minWidth: 100, sortKey: "patient_id" },
                 {
                   key: "status",
                   header: "Status",
                   width: 150,
                   minWidth: 130,
+                  sortKey: "status",
                   render: (s) => (
                     <div className="study-status-cell">
                       <StudyProgressRing status={s.status} />
@@ -1041,6 +1079,7 @@ export default function MigrationJobs() {
                   header: "Failure",
                   width: 220,
                   minWidth: 140,
+                  sortable: false,
                   render: (s) => (
                     <span style={{ fontSize: "0.8125rem", color: "var(--color-error)" }}>
                       {s.failure_reason ?? "—"}
@@ -1050,6 +1089,9 @@ export default function MigrationJobs() {
                 {
                   key: "actions",
                   header: "Actions",
+                  sortable: false,
+                  hideable: false,
+                  defaultPin: "right",
                   render: (s) =>
                     s.status === "failed" || s.status === "skipped" ? (
                       <div className="table-actions">

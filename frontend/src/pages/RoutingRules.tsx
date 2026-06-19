@@ -130,6 +130,7 @@ export default function RoutingRules() {
       ) : (
         <div className="card">
           <DataTable
+            tableId="routing-rules"
             data={rules}
             keyField="id"
             paginate
@@ -137,22 +138,26 @@ export default function RoutingRules() {
             searchable
             searchKeys={["name", "condition_tag", "condition_value"]}
             searchPlaceholder="Search routing rules…"
+            defaultClientSort={{ sortBy: "priority", sortDir: "asc" }}
             columns={[
               { key: "name", header: "Name" },
-              { key: "priority", header: "Priority" },
+              { key: "priority", header: "Priority", sortValue: (r) => r.priority },
               {
                 key: "condition",
                 header: "Condition",
+                sortable: false,
                 render: (r) => `${r.condition_tag} ${r.condition_operator} "${r.condition_value}"`,
               },
               {
                 key: "destinations",
                 header: "Destinations",
+                sortable: false,
                 render: (r) => r.destination_node_ids.map(nodeName).join(", "),
               },
               {
                 key: "is_active",
                 header: "Status",
+                sortValue: (r) => (r.is_active ? 1 : 0),
                 render: (r) => (
                   <StatusBadge status={r.is_active ? "active" : "inactive"} label={r.is_active ? "Active" : "Disabled"} />
                 ),
@@ -160,6 +165,9 @@ export default function RoutingRules() {
               {
                 key: "actions",
                 header: "Actions",
+                sortable: false,
+                hideable: false,
+                defaultPin: "right",
                 render: (r) => (
                   <>
                     <button className="btn-sm" onClick={() => openEdit(r)} style={{ marginRight: "0.25rem" }}>

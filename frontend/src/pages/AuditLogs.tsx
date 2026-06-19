@@ -47,11 +47,13 @@ export default function AuditLogs() {
   const [exporting, setExporting] = useState(false);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
+  const [sortBy, setSortBy] = useState<string | null>("created_at");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const pageSize = 20;
 
   useEffect(() => {
     setPage(0);
-  }, [eventType, userId, dateFrom, dateTo, search]);
+  }, [eventType, userId, dateFrom, dateTo, search, sortBy, sortDir]);
 
   const { data: eventTypes = [] } = useQuery({
     queryKey: ["audit-event-types"],
@@ -60,7 +62,7 @@ export default function AuditLogs() {
   });
 
   const { data, isLoading, refetch, error } = useQuery({
-    queryKey: ["audit-logs", eventType, userId, dateFrom, dateTo, search, page],
+    queryKey: ["audit-logs", eventType, userId, dateFrom, dateTo, search, page, sortBy, sortDir],
     queryFn: () => {
       const params = new URLSearchParams({
         limit: String(pageSize),
@@ -71,6 +73,10 @@ export default function AuditLogs() {
       if (search) params.set("search", search);
       if (dateFrom) params.set("date_from", new Date(dateFrom).toISOString());
       if (dateTo) params.set("date_to", new Date(`${dateTo}T23:59:59`).toISOString());
+      if (sortBy) {
+        params.set("sort_by", sortBy);
+        params.set("sort_dir", sortDir);
+      }
       return apiFetch<AuditLogList>(`/api/v1/audit-logs?${params}`);
     },
   });
@@ -160,8 +166,18 @@ export default function AuditLogs() {
           <PageLoading label="Loading audit logs…" compact />
         ) : (
           <DataTable
+            tableId="audit-logs"
             data={logs}
             keyField="id"
+            serverSort={{
+              sortBy,
+              sortDir,
+              defaultSort: { sortBy: "created_at", sortDir: "desc" },
+              onSortChange: (nextSortBy, nextSortDir) => {
+                setSortBy(nextSortBy ?? "created_at");
+                setSortDir(nextSortDir ?? "desc");
+              },
+            }}
             serverPagination={{
               page,
               pageSize,
@@ -172,16 +188,19 @@ export default function AuditLogs() {
               {
                 key: "created_at",
                 header: "Timestamp",
+                sortKey: "created_at",
                 render: (l) => new Date(l.created_at).toLocaleString(),
               },
               {
                 key: "event_type",
                 header: "Event",
+                sortKey: "event_type",
                 render: (l) => <EventBadge eventType={l.event_type} />,
               },
               {
                 key: "user_id",
                 header: "User",
+                sortKey: "user_id",
                 render: (l) => {
                   const user = auditUserLabel(l);
                   return (
@@ -194,10 +213,11 @@ export default function AuditLogs() {
                   );
                 },
               },
-              { key: "entity_type", header: "Entity", render: (l) => l.entity_type ?? "—" },
+              { key: "entity_type", header: "Entity", sortKey: "entity_type", render: (l) => l.entity_type ?? "—" },
               {
                 key: "details",
                 header: "Details",
+                sortable: false,
                 render: (l) => (
                   <span style={{ fontSize: "0.8125rem" }} title={l.details ? JSON.stringify(l.details) : ""}>
                     {formatDetails(l.details)}

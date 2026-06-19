@@ -1,17 +1,43 @@
-import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
+import { Columns3 } from "lucide-react";
 import Pagination from "./ui/Pagination";
 import TableSearch from "./ui/TableSearch";
+import ColumnHeaderMenu, { SortDir } from "./table/ColumnHeaderMenu";
+import ManageColumnsPanel from "./table/ManageColumnsPanel";
+import {
+  ColumnPin,
+  loadTableColumnPrefs,
+  mergeStoredColumnWidths,
+  saveTableColumnPrefs,
+  TableColumnPrefs,
+} from "../lib/tableColumnPrefs";
 
-interface Column<T> {
+export type { SortDir };
+
+export interface Column<T> {
   key: string;
   header: string;
   render?: (row: T) => ReactNode;
   width?: number;
   minWidth?: number;
+  sortable?: boolean;
+  sortKey?: string;
+  sortValue?: (row: T) => string | number | null | undefined;
+  hideable?: boolean;
+  pinnable?: boolean;
+  defaultPin?: ColumnPin;
+}
+
+export interface ServerSortState {
+  sortBy: string | null;
+  sortDir: SortDir;
+  defaultSort?: { sortBy: string; sortDir: SortDir };
+  onSortChange: (sortBy: string | null, sortDir: SortDir | null) => void;
 }
 
 interface Props<T> {
+  tableId?: string;
   columns: Column<T>[];
   data: T[];
   keyField: keyof T;
@@ -24,6 +50,9 @@ interface Props<T> {
   searchValue?: string;
   onSearchChange?: (value: string) => void;
   resizable?: boolean;
+  columnManagement?: boolean;
+  serverSort?: ServerSortState;
+  defaultClientSort?: { sortBy: string; sortDir: SortDir };
   serverPagination?: {
     page: number;
     pageSize: number;
@@ -35,12 +64,10 @@ interface Props<T> {
 const DEFAULT_COL_WIDTH = 140;
 const DEFAULT_MIN_WIDTH = 72;
 
+const EMPTY_COLUMN_PREFS: TableColumnPrefs = { hidden: [], pinned: {} };
+
 function buildInitialWidths<T>(columns: Column<T>[]): Record<string, number> {
-  const widths: Record<string, number> = {};
-  for (const col of columns) {
-    widths[col.key] = col.width ?? DEFAULT_COL_WIDTH;
-  }
-  return widths;
+  return mergeStoredColumnWidths(columns, undefined, (col) => col.width ?? DEFAULT_COL_WIDTH);
 }
 
 function measureColumnWidths<T>(
@@ -72,7 +99,49 @@ function rowMatchesSearch<T extends Record<string, unknown>>(
   return fields.some((key) => String(row[key] ?? "").toLowerCase().includes(q));
 }
 
+function compareValues(a: unknown, b: unknown): number {
+  if (a == null && b == null) return 0;
+  if (a == null) return 1;
+  if (b == null) return -1;
+  if (typeof a === "number" && typeof b === "number") return a - b;
+  return String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: "base" });
+}
+
+function isColumnSortable<T>(col: Column<T>): boolean {
+  if (col.sortable === false || col.key === "actions") return false;
+  return true;
+}
+
+function isColumnHideable<T>(col: Column<T>): boolean {
+  if (col.hideable === false || col.key === "actions") return false;
+  return true;
+}
+
+function isColumnPinnable<T>(col: Column<T>): boolean {
+  return col.pinnable !== false;
+}
+
+function resolvePin<T>(col: Column<T>, pinned: Record<string, Exclude<ColumnPin, null>>): ColumnPin {
+  return pinned[col.key] ?? col.defaultPin ?? null;
+}
+
+function orderColumns<T>(columns: Column<T>[], pinned: Record<string, Exclude<ColumnPin, null>>) {
+  const left: Column<T>[] = [];
+  const center: Column<T>[] = [];
+  const right: Column<T>[] = [];
+
+  for (const col of columns) {
+    const pin = resolvePin(col, pinned);
+    if (pin === "left") left.push(col);
+    else if (pin === "right") right.push(col);
+    else center.push(col);
+  }
+
+  return [...left, ...center, ...right];
+}
+
 export default function DataTable<T extends Record<string, unknown>>({
+  tableId,
   columns,
   data,
   keyField,
@@ -85,18 +154,33 @@ export default function DataTable<T extends Record<string, unknown>>({
   searchValue,
   onSearchChange,
   resizable = true,
+  columnManagement,
+  serverSort,
+  defaultClientSort,
   serverPagination,
 }: Props<T>) {
+  const manageColumns = columnManagement ?? Boolean(tableId);
   const [internalSearch, setInternalSearch] = useState("");
   const [clientPage, setClientPage] = useState(0);
-  const [columnWidths, setColumnWidths] = useState<Record<string, number>>(() =>
-    buildInitialWidths(columns),
+  const [clientSortBy, setClientSortBy] = useState<string | null>(
+    defaultClientSort?.sortBy ?? null,
   );
-  const [layoutLocked, setLayoutLocked] = useState(false);
+  const [clientSortDir, setClientSortDir] = useState<SortDir>(defaultClientSort?.sortDir ?? "asc");
+  const initialPrefs = tableId ? loadTableColumnPrefs(tableId) : EMPTY_COLUMN_PREFS;
+
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>(() =>
+    mergeStoredColumnWidths(columns, initialPrefs.widths, (col) => col.width ?? DEFAULT_COL_WIDTH),
+  );
+  const [layoutLocked, setLayoutLocked] = useState(
+    () => Boolean(tableId && initialPrefs.widths && Object.keys(initialPrefs.widths).length > 0),
+  );
   const [tableWidth, setTableWidth] = useState<number | null>(null);
   const [isResizing, setIsResizing] = useState(false);
+  const [manageOpen, setManageOpen] = useState(false);
+  const [columnPrefs, setColumnPrefs] = useState<TableColumnPrefs>(() => initialPrefs);
   const tableRef = useRef<HTMLTableElement>(null);
   const columnWidthsRef = useRef(columnWidths);
+  const columnPrefsRef = useRef(columnPrefs);
   const layoutLockedRef = useRef(layoutLocked);
   const resizeRef = useRef<{
     key: string;
@@ -111,11 +195,57 @@ export default function DataTable<T extends Record<string, unknown>>({
   const columnKeys = useMemo(() => columns.map((col) => col.key).join("|"), [columns]);
 
   columnWidthsRef.current = columnWidths;
+  columnPrefsRef.current = columnPrefs;
   layoutLockedRef.current = layoutLocked;
+
+  const persistTableLayout = useCallback(
+    (prefs: TableColumnPrefs, widths: Record<string, number>) => {
+      if (!tableId) return;
+      saveTableColumnPrefs(tableId, { ...prefs, widths });
+    },
+    [tableId],
+  );
+
+  useEffect(() => {
+    if (!tableId) return;
+    const prefs = loadTableColumnPrefs(tableId);
+    setColumnPrefs(prefs);
+    setColumnWidths((prev) =>
+      mergeStoredColumnWidths(columns, prefs.widths ?? prev, (col) => col.width ?? DEFAULT_COL_WIDTH),
+    );
+    if (prefs.widths && Object.keys(prefs.widths).length > 0) {
+      setLayoutLocked(true);
+    }
+  }, [tableId, columnKeys, columns]);
+
+  const persistPrefs = useCallback(
+    (next: TableColumnPrefs) => {
+      setColumnPrefs(next);
+      persistTableLayout(next, columnWidthsRef.current);
+    },
+    [persistTableLayout],
+  );
+
+  const persistWidths = useCallback(
+    (widths: Record<string, number>) => {
+      columnWidthsRef.current = widths;
+      if (!tableId) return;
+      persistTableLayout(columnPrefsRef.current, widths);
+    },
+    [persistTableLayout, tableId],
+  );
+
+  const hiddenSet = useMemo(() => new Set(columnPrefs.hidden), [columnPrefs.hidden]);
+
+  const visibleColumns = useMemo(() => {
+    const shown = columns.filter((col) => !hiddenSet.has(col.key));
+    return orderColumns(shown, columnPrefs.pinned);
+  }, [columns, hiddenSet, columnPrefs.pinned]);
 
   const search = searchValue ?? internalSearch;
   const setSearch = onSearchChange ?? setInternalSearch;
   const usingServerPagination = !!serverPagination;
+  const usingServerSort = !!serverSort;
 
   useEffect(() => {
     setColumnWidths((prev) => {
@@ -136,26 +266,43 @@ export default function DataTable<T extends Record<string, unknown>>({
     return data.filter((row) => rowMatchesSearch(row, search, searchKeys));
   }, [data, searchable, search, searchKeys, usingServerPagination]);
 
+  const sortedData = useMemo(() => {
+    if (usingServerSort) return filteredData;
+
+    const sortBy = clientSortBy;
+    if (!sortBy) return filteredData;
+
+    const col = columns.find((c) => c.key === sortBy);
+    if (!col || !isColumnSortable(col)) return filteredData;
+
+    const dir = clientSortDir === "asc" ? 1 : -1;
+    return [...filteredData].sort((rowA, rowB) => {
+      const a = col.sortValue ? col.sortValue(rowA) : rowA[col.key];
+      const b = col.sortValue ? col.sortValue(rowB) : rowB[col.key];
+      return compareValues(a, b) * dir;
+    });
+  }, [filteredData, usingServerSort, clientSortBy, clientSortDir, columns]);
+
   useEffect(() => {
     setClientPage(0);
-  }, [search, data.length]);
+  }, [search, data.length, clientSortBy, clientSortDir]);
 
   const activePage = usingServerPagination ? serverPagination.page : clientPage;
   const activePageSize = usingServerPagination ? serverPagination.pageSize : pageSize;
-  const total = usingServerPagination ? serverPagination.total : filteredData.length;
+  const total = usingServerPagination ? serverPagination.total : sortedData.length;
 
   const pageData = useMemo(() => {
-    if (!paginate && !usingServerPagination) return filteredData;
+    if (!paginate && !usingServerPagination) return sortedData;
     if (usingServerPagination) return data;
     const start = activePage * activePageSize;
-    return filteredData.slice(start, start + activePageSize);
-  }, [filteredData, data, paginate, usingServerPagination, activePage, activePageSize]);
+    return sortedData.slice(start, start + activePageSize);
+  }, [sortedData, data, paginate, usingServerPagination, activePage, activePageSize]);
 
   const syncWidthsFromDom = useCallback(() => {
     const table = tableRef.current;
     if (!table) return;
-    setColumnWidths(measureColumnWidths(table, columns, columnWidthsRef.current));
-  }, [columns]);
+    setColumnWidths(measureColumnWidths(table, visibleColumns, columnWidthsRef.current));
+  }, [visibleColumns]);
 
   const handleResizeMove = useCallback((event: MouseEvent) => {
     const state = resizeRef.current;
@@ -174,11 +321,15 @@ export default function DataTable<T extends Record<string, unknown>>({
       nextWidth = state.startWidth + state.startPartnerWidth - state.minPartnerWidth;
     }
 
-    setColumnWidths((prev) => ({
-      ...prev,
-      [state.key]: Math.round(nextWidth),
-      [state.partnerKey]: Math.round(partnerWidth),
-    }));
+    setColumnWidths((prev) => {
+      const next = {
+        ...prev,
+        [state.key]: Math.round(nextWidth),
+        [state.partnerKey]: Math.round(partnerWidth),
+      };
+      columnWidthsRef.current = next;
+      return next;
+    });
   }, []);
 
   const handleResizeEnd = useCallback(() => {
@@ -189,14 +340,21 @@ export default function DataTable<T extends Record<string, unknown>>({
     document.body.style.cursor = "";
     document.body.style.userSelect = "";
 
-    if (layoutLockedRef.current) {
-      syncWidthsFromDom();
+    const table = tableRef.current;
+    if (layoutLockedRef.current && table) {
+      const measured = measureColumnWidths(table, visibleColumns, columnWidthsRef.current);
+      columnWidthsRef.current = measured;
+      setColumnWidths(measured);
+      persistWidths(measured);
+      return;
     }
-  }, [handleResizeMove, syncWidthsFromDom]);
+
+    persistWidths(columnWidthsRef.current);
+  }, [handleResizeMove, visibleColumns, persistWidths]);
 
   const startResize = (key: string, index: number, event: React.MouseEvent<HTMLSpanElement>) => {
     if (!resizable) return;
-    const partnerKey = columns[index + 1]?.key;
+    const partnerKey = visibleColumns[index + 1]?.key;
     if (!partnerKey) return;
 
     event.preventDefault();
@@ -205,7 +363,7 @@ export default function DataTable<T extends Record<string, unknown>>({
     const table = tableRef.current;
     if (!table) return;
 
-    const measured = measureColumnWidths(table, columns, columnWidthsRef.current);
+    const measured = measureColumnWidths(table, visibleColumns, columnWidthsRef.current);
     const lockedWidth = Math.round(table.getBoundingClientRect().width);
 
     if (!layoutLockedRef.current) {
@@ -221,8 +379,8 @@ export default function DataTable<T extends Record<string, unknown>>({
       columnWidthsRef.current = measured;
     }
 
-    const col = columns[index];
-    const partnerCol = columns[index + 1];
+    const col = visibleColumns[index];
+    const partnerCol = visibleColumns[index + 1];
 
     resizeRef.current = {
       key,
@@ -243,19 +401,105 @@ export default function DataTable<T extends Record<string, unknown>>({
 
   useEffect(() => () => handleResizeEnd(), [handleResizeEnd]);
 
+  const activeSortBy = usingServerSort ? serverSort.sortBy : clientSortBy;
+  const activeSortDir = usingServerSort ? serverSort.sortDir : clientSortDir;
+
+  const handleSort = (col: Column<T>, dir: SortDir) => {
+    const sortKey = col.sortKey ?? col.key;
+    if (usingServerSort) {
+      serverSort.onSortChange(sortKey, dir);
+      return;
+    }
+    setClientSortBy(col.key);
+    setClientSortDir(dir);
+  };
+
+  const handleUnsort = (col: Column<T>) => {
+    const sortKey = col.sortKey ?? col.key;
+    const isActive = usingServerSort
+      ? serverSort.sortBy === sortKey || serverSort.sortBy === col.key
+      : clientSortBy === col.key;
+
+    if (!isActive) return;
+
+    if (usingServerSort) {
+      const fallback = serverSort.defaultSort;
+      if (fallback) {
+        serverSort.onSortChange(fallback.sortBy, fallback.sortDir);
+      } else {
+        serverSort.onSortChange(null, null);
+      }
+      return;
+    }
+
+    if (defaultClientSort) {
+      setClientSortBy(defaultClientSort.sortBy);
+      setClientSortDir(defaultClientSort.sortDir);
+    } else {
+      setClientSortBy(null);
+      setClientSortDir("asc");
+    }
+  };
+
+  const handlePin = (col: Column<T>, pin: ColumnPin) => {
+    const nextPinned = { ...columnPrefs.pinned };
+    if (pin) nextPinned[col.key] = pin;
+    else delete nextPinned[col.key];
+    persistPrefs({ ...columnPrefs, pinned: nextPinned });
+  };
+
+  const handleHide = (key: string) => {
+    if (hiddenSet.has(key)) return;
+    persistPrefs({ ...columnPrefs, hidden: [...columnPrefs.hidden, key] });
+  };
+
+  const handleToggleColumn = (key: string, visible: boolean) => {
+    if (visible) {
+      persistPrefs({ ...columnPrefs, hidden: columnPrefs.hidden.filter((k) => k !== key) });
+    } else {
+      handleHide(key);
+    }
+  };
+
   const tableStyle =
     layoutLocked && tableWidth != null
       ? { width: tableWidth, tableLayout: "fixed" as const }
-      : undefined;
+      : layoutLocked
+        ? { tableLayout: "fixed" as const }
+        : undefined;
+
+  useLayoutEffect(() => {
+    if (!layoutLocked || tableWidth != null || pageData.length === 0) return;
+    const table = tableRef.current;
+    if (!table) return;
+    setTableWidth(Math.round(table.getBoundingClientRect().width));
+  }, [layoutLocked, tableWidth, pageData.length, visibleColumns.length]);
+
+  const leftPinnedKeys = visibleColumns.filter((c) => resolvePin(c, columnPrefs.pinned) === "left").map((c) => c.key);
+  const rightPinnedKeys = visibleColumns.filter((c) => resolvePin(c, columnPrefs.pinned) === "right").map((c) => c.key);
 
   return (
     <div className="data-table-panel">
-      {searchable && (
-        <TableSearch
-          value={search}
-          onChange={setSearch}
-          placeholder={searchPlaceholder ?? "Search records…"}
-        />
+      {(searchable || manageColumns) && (
+        <div className="data-table-toolbar">
+          {searchable && (
+            <TableSearch
+              value={search}
+              onChange={setSearch}
+              placeholder={searchPlaceholder ?? "Search records…"}
+            />
+          )}
+          {manageColumns && (
+            <button
+              type="button"
+              className="btn-sm btn-secondary data-table-manage-cols"
+              onClick={() => setManageOpen(true)}
+            >
+              <Columns3 size={14} />
+              Manage columns
+            </button>
+          )}
+        </div>
       )}
 
       {pageData.length === 0 ? (
@@ -264,11 +508,11 @@ export default function DataTable<T extends Record<string, unknown>>({
         <div className={`table-wrap${isResizing ? " table-wrap--resizing" : ""}`}>
           <table
             ref={tableRef}
-            className={`data-table${layoutLocked ? " data-table--locked" : ""}`}
+            className={`data-table${layoutLocked ? " data-table--locked" : ""}${leftPinnedKeys.length || rightPinnedKeys.length ? " data-table--pinned" : ""}`}
             style={tableStyle}
           >
             <colgroup>
-              {columns.map((col) => (
+              {visibleColumns.map((col) => (
                 <col
                   key={col.key}
                   style={{
@@ -280,39 +524,93 @@ export default function DataTable<T extends Record<string, unknown>>({
             </colgroup>
             <thead>
               <tr>
-                {columns.map((col, index) => (
-                  <th
-                    key={col.key}
-                    style={
-                      layoutLocked
-                        ? {
-                            width: columnWidths[col.key] ?? DEFAULT_COL_WIDTH,
-                            minWidth: col.minWidth ?? DEFAULT_MIN_WIDTH,
-                          }
-                        : undefined
-                    }
-                    className={resizable ? "data-table-th--resizable" : undefined}
-                  >
-                    <span className="data-table-th-label">{col.header}</span>
-                    {resizable && index < columns.length - 1 && (
-                      <span
-                        className="data-table-col-resize"
-                        role="separator"
-                        aria-orientation="vertical"
-                        aria-label={`Resize ${col.header} column`}
-                        onMouseDown={(event) => startResize(col.key, index, event)}
-                      />
-                    )}
-                  </th>
-                ))}
+                {visibleColumns.map((col, index) => {
+                  const pin = resolvePin(col, columnPrefs.pinned);
+                  const sortKey = col.sortKey ?? col.key;
+                  const isSorted = activeSortBy === sortKey || activeSortBy === col.key;
+                  const pinClass =
+                    pin === "left" && col.key === leftPinnedKeys[leftPinnedKeys.length - 1]
+                      ? "data-table-th--pin-left-edge"
+                      : pin === "right" && col.key === rightPinnedKeys[0]
+                        ? "data-table-th--pin-right-edge"
+                        : pin === "left"
+                          ? "data-table-th--pin-left"
+                          : pin === "right"
+                            ? "data-table-th--pin-right"
+                            : undefined;
+
+                  return (
+                    <th
+                      key={col.key}
+                      style={
+                        layoutLocked
+                          ? {
+                              width: columnWidths[col.key] ?? DEFAULT_COL_WIDTH,
+                              minWidth: col.minWidth ?? DEFAULT_MIN_WIDTH,
+                            }
+                          : undefined
+                      }
+                      className={[
+                        resizable ? "data-table-th--resizable" : undefined,
+                        manageColumns ? "data-table-th--managed" : undefined,
+                        pinClass,
+                      ]
+                        .filter(Boolean)
+                        .join(" ") || undefined}
+                    >
+                      {manageColumns ? (
+                        <ColumnHeaderMenu
+                          label={col.header}
+                          sortable={isColumnSortable(col)}
+                          pinnable={isColumnPinnable(col)}
+                          hideable={isColumnHideable(col)}
+                          pin={pin}
+                          activeSortDir={isSorted ? activeSortDir : null}
+                          onSort={(dir) => handleSort(col, dir)}
+                          onUnsort={() => handleUnsort(col)}
+                          onPin={(nextPin) => handlePin(col, nextPin)}
+                          onHide={() => handleHide(col.key)}
+                          onManageColumns={() => setManageOpen(true)}
+                        />
+                      ) : (
+                        <span className="data-table-th-label">{col.header}</span>
+                      )}
+                      {resizable && index < visibleColumns.length - 1 && (
+                        <span
+                          className="data-table-col-resize"
+                          role="separator"
+                          aria-orientation="vertical"
+                          aria-label={`Resize ${col.header} column`}
+                          onMouseDown={(event) => startResize(col.key, index, event)}
+                        />
+                      )}
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
             <tbody>
               {pageData.map((row) => (
                 <tr key={String(row[keyField])}>
-                  {columns.map((col) => (
-                    <td key={col.key}>{col.render ? col.render(row) : String(row[col.key] ?? "")}</td>
-                  ))}
+                  {visibleColumns.map((col) => {
+                    const pin = resolvePin(col, columnPrefs.pinned);
+                    const tdPinClass =
+                      pin === "left" && col.key === leftPinnedKeys[leftPinnedKeys.length - 1]
+                        ? "data-table-td--pin-left-edge"
+                        : pin === "right" && col.key === rightPinnedKeys[0]
+                          ? "data-table-td--pin-right-edge"
+                          : pin === "left"
+                            ? "data-table-td--pin-left"
+                            : pin === "right"
+                              ? "data-table-td--pin-right"
+                              : undefined;
+
+                    return (
+                      <td key={col.key} className={tdPinClass}>
+                        {col.render ? col.render(row) : String(row[col.key] ?? "")}
+                      </td>
+                    );
+                  })}
                 </tr>
               ))}
             </tbody>
@@ -326,6 +624,27 @@ export default function DataTable<T extends Record<string, unknown>>({
           pageSize={activePageSize}
           total={total}
           onPageChange={usingServerPagination ? serverPagination.onPageChange : setClientPage}
+        />
+      )}
+
+      {manageColumns && (
+        <ManageColumnsPanel
+          open={manageOpen}
+          columns={columns.map((col) => ({
+            key: col.key,
+            header: col.header,
+            hideable: isColumnHideable(col),
+          }))}
+          hiddenKeys={hiddenSet}
+          onToggle={handleToggleColumn}
+          onShowAll={() => persistPrefs({ ...columnPrefs, hidden: [] })}
+          onHideAll={() =>
+            persistPrefs({
+              ...columnPrefs,
+              hidden: columns.filter(isColumnHideable).map((col) => col.key),
+            })
+          }
+          onClose={() => setManageOpen(false)}
         />
       )}
     </div>

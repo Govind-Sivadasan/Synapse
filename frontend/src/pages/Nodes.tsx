@@ -143,6 +143,7 @@ export default function Nodes() {
       ) : (
         <div className="card">
           <DataTable
+            tableId="nodes"
             data={nodes}
             keyField="id"
             paginate
@@ -150,14 +151,16 @@ export default function Nodes() {
             searchable
             searchKeys={["name", "node_type", "protocol", "host", "ae_title"]}
             searchPlaceholder="Search nodes…"
+            defaultClientSort={{ sortBy: "name", sortDir: "asc" }}
             columns={[
               { key: "name", header: "Name" },
-              { key: "node_type", header: "Type" },
+              { key: "node_type", header: "Type", sortValue: (n) => n.node_type },
               { key: "protocol", header: "Protocol" },
               { key: "host", header: "Host" },
               {
                 key: "is_active",
                 header: "Status",
+                sortValue: (n) => (n.is_active ? 1 : 0),
                 render: (n) => (
                   <StatusBadge status={n.is_active ? "active" : "inactive"} label={n.is_active ? "Active" : "Inactive"} />
                 ),
@@ -165,6 +168,9 @@ export default function Nodes() {
               {
                 key: "actions",
                 header: "Actions",
+                sortable: false,
+                hideable: false,
+                defaultPin: "right",
                 render: (n) => {
                   const echoing = echoMutation.isPending && echoMutation.variables === n.id;
                   return (

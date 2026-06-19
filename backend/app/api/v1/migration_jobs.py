@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.sorting import apply_sort
 from app.auth.keycloak import CurrentUser, require_roles
 from app.database import get_db
 from app.models.migration import MigrationJob, MigrationStudyRecord
@@ -77,6 +78,8 @@ async def _load_nodes(db: AsyncSession, jobs: list[MigrationJob]) -> dict[UUID, 
 async def list_migration_jobs(
     search: str | None = None,
     status: str | None = None,
+    sort_by: str | None = None,
+    sort_dir: str | None = None,
     limit: int = 50,
     offset: int = 0,
     db: AsyncSession = Depends(get_db),
@@ -99,9 +102,22 @@ async def list_migration_jobs(
         list_query = list_query.where(name_filter)
 
     total = await db.scalar(count_query) or 0
-    result = await db.execute(
-        list_query.order_by(MigrationJob.created_at.desc()).limit(limit).offset(offset)
+    order = apply_sort(
+        sort_by,
+        sort_dir,
+        allowed={
+            "name": MigrationJob.name,
+            "job_type": MigrationJob.job_type,
+            "status": MigrationJob.status,
+            "created_at": MigrationJob.created_at,
+            "start_time": MigrationJob.start_time,
+            "total_studies": MigrationJob.total_studies,
+            "completed_studies": MigrationJob.completed_studies,
+            "failed_studies": MigrationJob.failed_studies,
+        },
+        default=MigrationJob.created_at,
     )
+    result = await db.execute(list_query.order_by(order).limit(limit).offset(offset))
     jobs = list(result.scalars().all())
     nodes = await _load_nodes(db, jobs)
     return MigrationJobListResponse(
@@ -202,6 +218,8 @@ async def list_job_studies(
     offset: int = 0,
     status_filter: str | None = None,
     search: str | None = None,
+    sort_by: str | None = None,
+    sort_dir: str | None = None,
     db: AsyncSession = Depends(get_db),
     _: CurrentUser = Depends(require_roles("operator", "admin")),
 ) -> MigrationStudyListResponse:
@@ -228,9 +246,21 @@ async def list_job_studies(
         list_q = list_q.where(study_filter)
 
     total = await db.scalar(count_q)
-    result = await db.execute(
-        list_q.order_by(MigrationStudyRecord.created_at.desc()).limit(limit).offset(offset)
+    order = apply_sort(
+        sort_by,
+        sort_dir,
+        allowed={
+            "study_uid": MigrationStudyRecord.study_uid,
+            "patient_id": MigrationStudyRecord.patient_id,
+            "modality": MigrationStudyRecord.modality,
+            "study_date": MigrationStudyRecord.study_date,
+            "status": MigrationStudyRecord.status,
+            "created_at": MigrationStudyRecord.created_at,
+            "completed_at": MigrationStudyRecord.completed_at,
+        },
+        default=MigrationStudyRecord.created_at,
     )
+    result = await db.execute(list_q.order_by(order).limit(limit).offset(offset))
     items = list(result.scalars().all())
     return MigrationStudyListResponse(
         total=total or 0,

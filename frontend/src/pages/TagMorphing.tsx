@@ -134,6 +134,7 @@ export default function TagMorphing() {
       ) : (
         <div className="card">
           <DataTable
+            tableId="tag-morphing-rules"
             data={rules}
             keyField="id"
             paginate
@@ -141,6 +142,7 @@ export default function TagMorphing() {
             searchable
             searchKeys={["name", "target_tag", "new_value", "condition_tag"]}
             searchPlaceholder="Search morphing rules…"
+            defaultClientSort={{ sortBy: "name", sortDir: "asc" }}
             columns={[
               { key: "name", header: "Name" },
               { key: "target_tag", header: "Target Tag" },
@@ -148,6 +150,7 @@ export default function TagMorphing() {
               {
                 key: "condition",
                 header: "Condition",
+                sortable: false,
                 render: (r) =>
                   r.condition_tag
                     ? `${r.condition_tag} ${r.condition_operator} "${r.condition_value}"`
@@ -156,6 +159,7 @@ export default function TagMorphing() {
               {
                 key: "is_active",
                 header: "Status",
+                sortValue: (r) => (r.is_active ? 1 : 0),
                 render: (r) => (
                   <StatusBadge status={r.is_active ? "active" : "inactive"} label={r.is_active ? "Active" : "Disabled"} />
                 ),
@@ -163,6 +167,9 @@ export default function TagMorphing() {
               {
                 key: "actions",
                 header: "Actions",
+                sortable: false,
+                hideable: false,
+                defaultPin: "right",
                 render: (r) => (
                   <>
                     <button className="btn-sm" onClick={() => openEdit(r)} style={{ marginRight: "0.5rem" }}>

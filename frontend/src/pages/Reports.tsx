@@ -207,7 +207,7 @@ export default function Reports() {
             </div>
           </div>
 
-          <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))" }}>
+          <div className="grid reports-charts-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))" }}>
             <div className="card reports-chart-card">
               <div className="reports-chart-head">
                 <h3 className="card-title">Routing by Status</h3>

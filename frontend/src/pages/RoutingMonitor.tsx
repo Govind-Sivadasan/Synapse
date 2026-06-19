@@ -355,6 +355,7 @@ export default function RoutingMonitor() {
             <div className="card">
               <h3 className="card-title">Recent DIMSE Events</h3>
               <DataTable
+                tableId="routing-monitor-dimse"
                 data={dimse.recent_events.map((e, i) => ({ ...e, _key: `${e.at}-${i}` }))}
                 keyField="_key"
                 paginate
@@ -363,8 +364,9 @@ export default function RoutingMonitor() {
                 searchKeys={["type", "calling_ae", "study_uid"]}
                 searchPlaceholder="Search DIMSE events…"
                 resizable={false}
+                defaultClientSort={{ sortBy: "at", sortDir: "desc" }}
                 columns={[
-                  { key: "at", header: "Time", render: (e) => new Date(e.at).toLocaleString() },
+                  { key: "at", header: "Time", sortValue: (e) => e.at, render: (e) => new Date(e.at).toLocaleString() },
                   { key: "type", header: "Event" },
                   { key: "calling_ae", header: "Calling AE" },
                   {

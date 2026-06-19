@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.sorting import apply_sort
 from app.auth.keycloak import CurrentUser, require_roles
 from app.database import get_db
 from app.models.node import Node
@@ -35,6 +36,8 @@ async def list_routing_transactions(
     status: str | None = None,
     date_from: datetime | None = None,
     date_to: datetime | None = None,
+    sort_by: str | None = None,
+    sort_dir: str | None = None,
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     db: AsyncSession = Depends(get_db),
@@ -67,9 +70,21 @@ async def list_routing_transactions(
         count_query = count_query.where(RoutingTransaction.received_at <= date_to)
 
     total = await db.scalar(count_query) or 0
-    result = await db.execute(
-        query.order_by(RoutingTransaction.received_at.desc()).limit(limit).offset(offset)
+    order = apply_sort(
+        sort_by,
+        sort_dir,
+        allowed={
+            "study_uid": RoutingTransaction.study_uid,
+            "patient_id": RoutingTransaction.patient_id,
+            "modality": RoutingTransaction.modality,
+            "accession_number": RoutingTransaction.accession_number,
+            "overall_status": RoutingTransaction.overall_status,
+            "received_at": RoutingTransaction.received_at,
+            "instances_count": RoutingTransaction.instances_count,
+        },
+        default=RoutingTransaction.received_at,
     )
+    result = await db.execute(query.order_by(order).limit(limit).offset(offset))
     transactions = list(result.scalars().all())
 
     items = []

@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import String, cast, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.sorting import apply_sort
 from app.auth.keycloak import CurrentUser, require_roles
 from app.database import get_db
 from app.models.audit_log import AuditLog
@@ -44,6 +45,8 @@ async def list_audit_logs(
     date_from: datetime | None = None,
     date_to: datetime | None = None,
     search: str | None = None,
+    sort_by: str | None = None,
+    sort_dir: str | None = None,
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     db: AsyncSession = Depends(get_db),
@@ -76,7 +79,20 @@ async def list_audit_logs(
         count_query = count_query.where(search_filter)
 
     total = await db.scalar(count_query) or 0
-    result = await db.execute(query.order_by(AuditLog.created_at.desc()).limit(limit).offset(offset))
+    order = apply_sort(
+        sort_by,
+        sort_dir,
+        allowed={
+            "created_at": AuditLog.created_at,
+            "event_type": AuditLog.event_type,
+            "user_id": AuditLog.user_id,
+            "user_role": AuditLog.user_role,
+            "entity_type": AuditLog.entity_type,
+            "entity_id": AuditLog.entity_id,
+        },
+        default=AuditLog.created_at,
+    )
+    result = await db.execute(query.order_by(order).limit(limit).offset(offset))
     items = list(result.scalars().all())
 
     return AuditLogListResponse(
