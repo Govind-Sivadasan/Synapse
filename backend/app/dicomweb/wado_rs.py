@@ -8,6 +8,7 @@ import structlog
 
 from app.dicomweb.auth_handler import AuthHandler
 from app.dicomweb.dicom_json import TAG_SERIES_INSTANCE_UID, TAG_SOP_INSTANCE_UID, tag_value
+from app.dicomweb.http_pool import get_dicomweb_client
 
 logger = structlog.get_logger()
 
@@ -100,31 +101,32 @@ async def retrieve_study_instances(
     output_dir.mkdir(parents=True, exist_ok=True)
     saved: list[Path] = []
 
-    async with httpx.AsyncClient(timeout=timeout) as client:
-        series_url = f"{base_url}/studies/{study_uid}/series"
-        series_list = await _get_json(client, series_url, headers)
+    client = get_dicomweb_client(base_url, timeout)
 
-        for series_item in series_list:
-            series_uid = tag_value(series_item, TAG_SERIES_INSTANCE_UID)
-            if not series_uid:
+    series_url = f"{base_url}/studies/{study_uid}/series"
+    series_list = await _get_json(client, series_url, headers)
+
+    for series_item in series_list:
+        series_uid = tag_value(series_item, TAG_SERIES_INSTANCE_UID)
+        if not series_uid:
+            continue
+
+        instances_url = f"{base_url}/studies/{study_uid}/series/{series_uid}/instances"
+        instances = await _get_json(client, instances_url, headers)
+
+        for instance_item in instances:
+            sop_uid = tag_value(instance_item, TAG_SOP_INSTANCE_UID)
+            if not sop_uid:
                 continue
 
-            instances_url = f"{base_url}/studies/{study_uid}/series/{series_uid}/instances"
-            instances = await _get_json(client, instances_url, headers)
+            instance_url = (
+                f"{base_url}/studies/{study_uid}/series/{series_uid}/instances/{sop_uid}"
+            )
+            dicom_bytes = await _retrieve_instance(client, instance_url, headers, sop_uid)
 
-            for instance_item in instances:
-                sop_uid = tag_value(instance_item, TAG_SOP_INSTANCE_UID)
-                if not sop_uid:
-                    continue
-
-                instance_url = (
-                    f"{base_url}/studies/{study_uid}/series/{series_uid}/instances/{sop_uid}"
-                )
-                dicom_bytes = await _retrieve_instance(client, instance_url, headers, sop_uid)
-
-                file_path = output_dir / f"{sop_uid}.dcm"
-                file_path.write_bytes(dicom_bytes)
-                saved.append(file_path)
+            file_path = output_dir / f"{sop_uid}.dcm"
+            file_path.write_bytes(dicom_bytes)
+            saved.append(file_path)
 
     if not saved:
         raise WadoRsError(f"No instances retrieved for study {study_uid}")

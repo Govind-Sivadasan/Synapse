@@ -22,6 +22,7 @@ from app.observability.metrics import inc_counter, timed_phase
 from app.routing.rule_evaluator import DestinationPlan, RoutingRuleEvaluator
 from app.services.audit_logger import AuditLogger
 from app.services.event_publisher import publish_event
+from app.services.metrics_rollup import record_routing_completion
 
 logger = structlog.get_logger()
 
@@ -86,6 +87,7 @@ class RoutingEngine:
                         entity_id=transaction_id,
                         details={"study_uid": study_uid, "matched": False},
                     )
+                    await record_routing_completion(session, "no_match", transaction.received_at)
                     await session.commit()
                     self._publish_status(transaction, [])
                     inc_counter("synapse_routing_studies_total", {"status": "no_match"})
@@ -177,6 +179,7 @@ class RoutingEngine:
 
                 transaction.overall_status = overall_status
                 transaction.completed_at = datetime.now(timezone.utc)
+                await record_routing_completion(session, overall_status, transaction.received_at)
                 await session.commit()
                 self._publish_status(transaction, dest_statuses)
 

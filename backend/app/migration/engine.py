@@ -24,6 +24,7 @@ from app.morphing.tag_morpher import TagMorpher
 from app.observability.metrics import inc_counter, timed_phase
 from app.services.audit_logger import AuditLogger
 from app.services.event_publisher import publish_event
+from app.services.metrics_rollup import record_migration_study_completion
 
 logger = structlog.get_logger()
 
@@ -290,6 +291,8 @@ class MigrationEngine:
         record.failure_reason = failure_reason
         if status in ("success", "failed", "skipped"):
             record.completed_at = datetime.now(timezone.utc)
+        if status in ("success", "failed"):
+            await record_migration_study_completion(session, status, record.completed_at)
         return record
 
     async def _refresh_job_counters(self, session: AsyncSession, job_id: uuid.UUID) -> None:

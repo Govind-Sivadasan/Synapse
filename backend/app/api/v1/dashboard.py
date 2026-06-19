@@ -17,6 +17,7 @@ from app.services.dashboard_metrics import (
     get_status_chart,
     get_volume_chart,
 )
+from app.services.metrics_cache import get_dashboard_metrics_cache, set_dashboard_metrics_cache
 from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
@@ -27,7 +28,12 @@ async def get_metrics(
     db: AsyncSession = Depends(get_db),
     _: CurrentUser = Depends(require_roles("viewer", "service_user", "operator", "admin")),
 ) -> DashboardMetricsResponse:
-    return await get_dashboard_metrics(db)
+    cached = get_dashboard_metrics_cache()
+    if cached is not None:
+        return DashboardMetricsResponse.model_validate(cached)
+    result = await get_dashboard_metrics(db)
+    set_dashboard_metrics_cache(result.model_dump(mode="json"))
+    return result
 
 
 @router.get("/charts/volume", response_model=VolumeChartResponse)

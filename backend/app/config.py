@@ -48,6 +48,14 @@ class Settings(BaseSettings):
     # Performance instrumentation (Phase 0)
     metrics_enabled: bool = True
 
+    # Performance tuning (Phase 1)
+    dicomweb_http_timeout: float = 120.0
+    dicomweb_http_max_connections: int = 20
+    dicomweb_http_max_keepalive: int = 10
+    dashboard_metrics_cache_ttl_seconds: int = 30
+    db_pool_size: int = 10
+    db_max_overflow: int = 20
+
 
 @lru_cache
 def get_settings() -> Settings:

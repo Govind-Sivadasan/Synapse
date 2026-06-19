@@ -21,69 +21,33 @@ from app.schemas.dashboard import (
     RoutingMetrics,
     VolumeChartResponse,
 )
+from app.services.metrics_rollup import (
+    get_daily_volume_series,
+    get_migration_study_totals,
+    get_routing_today,
+    get_routing_totals,
+    migration_study_metric_key,
+)
 
 
 async def get_dashboard_metrics(db: AsyncSession) -> DashboardMetricsResponse:
-    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
-    studies_today = (
-        await db.scalar(
-            select(func.count())
-            .select_from(RoutingTransaction)
-            .where(RoutingTransaction.received_at >= today_start)
-        )
-        or 0
-    )
-    success_today = (
-        await db.scalar(
-            select(func.count())
-            .select_from(RoutingTransaction)
-            .where(RoutingTransaction.received_at >= today_start)
-            .where(RoutingTransaction.overall_status == "success")
-        )
-        or 0
-    )
+    today = datetime.now(timezone.utc).date()
+    routing_totals = await get_routing_totals(db)
+    routing_today = await get_routing_today(db, today)
+    migration_totals = await get_migration_study_totals(db)
 
-    total = await db.scalar(select(func.count()).select_from(RoutingTransaction)) or 0
-    success = await db.scalar(
-        select(func.count())
-        .select_from(RoutingTransaction)
-        .where(RoutingTransaction.overall_status == "success")
-    ) or 0
-    failed = await db.scalar(
-        select(func.count())
-        .select_from(RoutingTransaction)
-        .where(RoutingTransaction.overall_status == "failed")
-    ) or 0
-    partial = await db.scalar(
-        select(func.count())
-        .select_from(RoutingTransaction)
-        .where(RoutingTransaction.overall_status == "partial")
-    ) or 0
-    no_match = await db.scalar(
-        select(func.count())
-        .select_from(RoutingTransaction)
-        .where(RoutingTransaction.overall_status == "no_match")
-    ) or 0
+    job_rows = (
+        await db.execute(select(MigrationJob.status, func.count()).group_by(MigrationJob.status))
+    ).all()
+    job_counts = {row[0]: int(row[1]) for row in job_rows}
+    total_jobs = sum(job_counts.values())
+    active_jobs = job_counts.get("in_progress", 0)
+    completed_jobs = job_counts.get("completed", 0) + job_counts.get("partial", 0)
 
-    total_jobs = await db.scalar(select(func.count()).select_from(MigrationJob)) or 0
-    active_jobs = await db.scalar(
-        select(func.count()).select_from(MigrationJob).where(MigrationJob.status == "in_progress")
-    ) or 0
-    completed_jobs = await db.scalar(
-        select(func.count())
-        .select_from(MigrationJob)
-        .where(MigrationJob.status.in_(("completed", "partial")))
-    ) or 0
-    studies_migrated = await db.scalar(
-        select(func.count())
-        .select_from(MigrationStudyRecord)
-        .where(MigrationStudyRecord.status == "success")
-    ) or 0
-    studies_failed = await db.scalar(
-        select(func.count())
-        .select_from(MigrationStudyRecord)
-        .where(MigrationStudyRecord.status == "failed")
-    ) or 0
+    total = routing_totals["total"]
+    success = routing_totals["success"]
+    studies_today = routing_today["studies_today"]
+    success_today = routing_today["success_today"]
 
     dimse_stats = await get_dimse_statistics(db)
     runtime = get_dimse_runtime()
@@ -92,9 +56,9 @@ async def get_dashboard_metrics(db: AsyncSession) -> DashboardMetricsResponse:
         routing=RoutingMetrics(
             total=total,
             success=success,
-            failed=failed,
-            partial=partial,
-            no_match=no_match,
+            failed=routing_totals["failed"],
+            partial=routing_totals["partial"],
+            no_match=routing_totals["no_match"],
             success_rate=round(success / max(total, 1) * 100, 2),
             studies_today=studies_today,
             success_rate_today=round(success_today / max(studies_today, 1) * 100, 2),
@@ -103,8 +67,8 @@ async def get_dashboard_metrics(db: AsyncSession) -> DashboardMetricsResponse:
             total_jobs=total_jobs,
             active_jobs=active_jobs,
             completed_jobs=completed_jobs,
-            studies_migrated=studies_migrated,
-            studies_failed=studies_failed,
+            studies_migrated=migration_totals["studies_migrated"],
+            studies_failed=migration_totals["studies_failed"],
         ),
         dimse=DimseMetrics(
             listening=runtime.listening,
@@ -121,8 +85,6 @@ def _fill_daily_series(
     days: int,
     end: datetime,
 ) -> list[ChartDataPoint]:
-    from datetime import date as date_cls
-
     counts = {row[0]: row[1] for row in rows if row[0]}
     start = (end - timedelta(days=days - 1)).date()
     series: list[ChartDataPoint] = []
@@ -136,26 +98,10 @@ def _fill_daily_series(
 
 async def get_volume_chart(db: AsyncSession, days: int = 7) -> VolumeChartResponse:
     now = datetime.now(timezone.utc)
-    cutoff = now - timedelta(days=days)
-
-    routing_rows = (
-        await db.execute(
-            select(cast(RoutingTransaction.received_at, Date), func.count())
-            .where(RoutingTransaction.received_at >= cutoff)
-            .group_by(cast(RoutingTransaction.received_at, Date))
-        )
-    ).all()
-
-    migration_rows = (
-        await db.execute(
-            select(cast(MigrationStudyRecord.completed_at, Date), func.count())
-            .where(
-                MigrationStudyRecord.completed_at >= cutoff,
-                MigrationStudyRecord.status == "success",
-            )
-            .group_by(cast(MigrationStudyRecord.completed_at, Date))
-        )
-    ).all()
+    routing_rows = await get_daily_volume_series(db, "routing.total", days, now)
+    migration_rows = await get_daily_volume_series(
+        db, migration_study_metric_key("success"), days, now
+    )
 
     return VolumeChartResponse(
         days=days,
@@ -190,14 +136,13 @@ async def get_modality_chart(db: AsyncSession, days: int = 30) -> list[ChartData
 
 
 async def get_status_chart(db: AsyncSession) -> list[ChartDataPoint]:
-    rows = (
-        await db.execute(
-            select(RoutingTransaction.overall_status, func.count())
-            .group_by(RoutingTransaction.overall_status)
-            .order_by(func.count().desc())
-        )
-    ).all()
-    return [ChartDataPoint(label=row[0], value=row[1]) for row in rows]
+    totals = await get_routing_totals(db)
+    return [
+        ChartDataPoint(label="success", value=totals["success"]),
+        ChartDataPoint(label="failed", value=totals["failed"]),
+        ChartDataPoint(label="partial", value=totals["partial"]),
+        ChartDataPoint(label="no_match", value=totals["no_match"]),
+    ]
 
 
 def _mask_study_uid(study_uid: str) -> str:
@@ -258,41 +203,31 @@ async def get_activity_feed(db: AsyncSession, limit: int = 15, mask_phi: bool = 
 async def get_report_summary(db: AsyncSession, days: int = 7) -> ReportSummaryResponse:
     cutoff = None if days <= 0 else datetime.now(timezone.utc) - timedelta(days=days)
 
-    routing_query = select(func.count()).select_from(RoutingTransaction)
-    if cutoff:
-        routing_query = routing_query.where(RoutingTransaction.received_at >= cutoff)
-    routing_studies = await db.scalar(routing_query) or 0
+    if cutoff is None:
+        routing_totals = await get_routing_totals(db)
+        routing_studies = routing_totals["total"]
+        routing_success = routing_totals["success"]
+        migration_totals = await get_migration_study_totals(db)
+        migration_completed = migration_totals["studies_migrated"]
+        migration_failed = migration_totals["studies_failed"]
+    else:
+        start_date = cutoff.date()
+        end_date = datetime.now(timezone.utc).date()
+        routing_studies = 0
+        routing_success = 0
+        migration_completed = 0
+        migration_failed = 0
+        current = start_date
+        while current <= end_date:
+            from app.services.metrics_rollup import get_daily_metric, routing_status_metric_key
 
-    routing_success_query = (
-        select(func.count())
-        .select_from(RoutingTransaction)
-        .where(RoutingTransaction.overall_status == "success")
-    )
-    if cutoff:
-        routing_success_query = routing_success_query.where(RoutingTransaction.received_at >= cutoff)
-    routing_success = await db.scalar(routing_success_query) or 0
-
-    migration_completed_query = (
-        select(func.count())
-        .select_from(MigrationStudyRecord)
-        .where(MigrationStudyRecord.status == "success")
-    )
-    if cutoff:
-        migration_completed_query = migration_completed_query.where(
-            MigrationStudyRecord.completed_at >= cutoff
-        )
-    migration_completed = await db.scalar(migration_completed_query) or 0
-
-    migration_failed_query = (
-        select(func.count())
-        .select_from(MigrationStudyRecord)
-        .where(MigrationStudyRecord.status == "failed")
-    )
-    if cutoff:
-        migration_failed_query = migration_failed_query.where(
-            MigrationStudyRecord.completed_at >= cutoff
-        )
-    migration_failed = await db.scalar(migration_failed_query) or 0
+            routing_studies += await get_daily_metric(db, current, "routing.total")
+            routing_success += await get_daily_metric(db, current, routing_status_metric_key("success"))
+            migration_completed += await get_daily_metric(
+                db, current, migration_study_metric_key("success")
+            )
+            migration_failed += await get_daily_metric(db, current, migration_study_metric_key("failed"))
+            current += timedelta(days=1)
 
     audit_query = select(func.count()).select_from(AuditLog)
     if cutoff:
@@ -301,14 +236,18 @@ async def get_report_summary(db: AsyncSession, days: int = 7) -> ReportSummaryRe
 
     top_modalities = await get_modality_chart(db, days=days)
 
-    routing_by_status_query = select(RoutingTransaction.overall_status, func.count())
-    if cutoff:
-        routing_by_status_query = routing_by_status_query.where(
+    if cutoff is None:
+        routing_by_status = await get_status_chart(db)
+    else:
+        routing_by_status_query = select(RoutingTransaction.overall_status, func.count()).where(
             RoutingTransaction.received_at >= cutoff
         )
-    routing_by_status = (
-        await db.execute(routing_by_status_query.group_by(RoutingTransaction.overall_status))
-    ).all()
+        routing_by_status_rows = (
+            await db.execute(routing_by_status_query.group_by(RoutingTransaction.overall_status))
+        ).all()
+        routing_by_status = [
+            ChartDataPoint(label=row[0], value=row[1]) for row in routing_by_status_rows
+        ]
 
     return ReportSummaryResponse(
         period_days=days,
@@ -318,7 +257,5 @@ async def get_report_summary(db: AsyncSession, days: int = 7) -> ReportSummaryRe
         migration_studies_failed=migration_failed,
         audit_events=audit_events,
         top_modalities=top_modalities,
-        routing_by_status=[
-            ChartDataPoint(label=row[0], value=row[1]) for row in routing_by_status
-        ],
+        routing_by_status=routing_by_status,
     )

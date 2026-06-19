@@ -9,6 +9,7 @@ import structlog
 
 from app.config import settings
 from app.dicomweb.auth_handler import AuthHandler
+from app.dicomweb.http_pool import get_dicomweb_client
 from app.dicomweb.stow_rs import StowRsResult, build_multipart_body, parse_stow_response
 from app.observability.metrics import observe_histogram
 
@@ -45,8 +46,8 @@ class DICOMwebClient:
         for attempt in range(self.max_retries + 1):
             started = time.perf_counter()
             try:
-                async with httpx.AsyncClient(timeout=self.timeout) as client:
-                    response = await client.post(upload_url, content=body, headers=headers)
+                client = get_dicomweb_client(upload_url, self.timeout)
+                response = await client.post(upload_url, content=body, headers=headers)
 
                 if response.status_code in (401, 403):
                     raise StowRsUploadError(

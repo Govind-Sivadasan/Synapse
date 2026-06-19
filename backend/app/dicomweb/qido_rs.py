@@ -7,6 +7,7 @@ import structlog
 
 from app.dicomweb.auth_handler import AuthHandler
 from app.dicomweb.dicom_json import STUDY_MODALITY_QUERY_KEYS, parse_study_metadata
+from app.dicomweb.http_pool import get_dicomweb_client
 
 logger = structlog.get_logger()
 
@@ -70,8 +71,8 @@ async def _search_studies_page(
         modality_query_key=modality_query_key,
     )
 
-    async with httpx.AsyncClient(timeout=timeout) as client:
-        response = await client.get(url, headers=headers, params=params)
+    client = get_dicomweb_client(url, timeout)
+    response = await client.get(url, headers=headers, params=params)
 
     if response.status_code in (401, 403):
         raise QidoRsError(f"Authentication failed: HTTP {response.status_code}", response.status_code)
