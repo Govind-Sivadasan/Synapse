@@ -101,6 +101,9 @@ export interface MigrationJob {
   retry_count: number;
   job_config: Record<string, unknown> | null;
   celery_task_id: string | null;
+  discovery_offset: number;
+  discovery_complete: boolean;
+  discovered_studies: number;
   created_by: string;
   start_time: string | null;
   end_time: string | null;

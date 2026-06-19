@@ -41,6 +41,9 @@ class MigrationJobResponse(BaseModel):
     retry_count: int
     job_config: dict | None
     celery_task_id: str | None
+    discovery_offset: int = 0
+    discovery_complete: bool = False
+    discovered_studies: int = 0
     created_by: str
     start_time: datetime | None
     end_time: datetime | None

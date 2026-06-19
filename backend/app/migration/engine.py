@@ -90,6 +90,113 @@ class MigrationEngine:
             offset += limit
         return all_studies
 
+    async def discover_studies_page(self, job_id: uuid.UUID) -> tuple[list[QidoStudy], bool]:
+        """Fetch one QIDO page at the job's current discovery_offset."""
+        async with async_session_factory() as session:
+            job = await self._get_job(session, job_id)
+            if job.status == "cancelled":
+                return [], False
+
+            source = await self._get_source_node(session, job.source_node_id)
+            config = job.job_config or {}
+            filters = config.get("filters") or {}
+            limit = int(
+                config.get("coordinator_page_size")
+                or config.get("qido_limit")
+                or settings.migration_coordinator_page_size
+            )
+
+            if job.job_type == "batch" and filters.get("study_uids"):
+                if job.discovery_offset > 0:
+                    return [], False
+                studies = [
+                    QidoStudy(study_uid=uid)
+                    for uid in filters["study_uids"]
+                    if isinstance(uid, str) and uid.strip()
+                ]
+                return studies, False
+
+            auth = AuthHandler.from_node(source)
+            modality_key = await self._ensure_modality_query_key(session, job, source, filters)
+            page = await search_studies(
+                source.dicomweb_url,
+                auth,
+                filters=filters,
+                limit=limit,
+                offset=job.discovery_offset,
+                modality_query_key=modality_key,
+            )
+            has_more = bool(page) and len(page) >= limit
+            return page, has_more
+
+    async def advance_discovery_progress(
+        self,
+        job_id: uuid.UUID,
+        page: list[QidoStudy],
+        has_more: bool,
+        *,
+        first_tick: bool,
+    ) -> None:
+        async with async_session_factory() as session:
+            job = await self._get_job(session, job_id)
+            if job.status == "cancelled":
+                return
+
+            page_count = len(page)
+            job.discovery_offset += page_count
+            job.discovered_studies += page_count
+            if first_tick:
+                job.start_time = job.start_time or datetime.now(timezone.utc)
+            if not has_more:
+                job.discovery_complete = True
+                if job.status == "discovering":
+                    job.status = "in_progress"
+
+            job.total_studies = await session.scalar(
+                select(func.count())
+                .select_from(MigrationStudyRecord)
+                .where(MigrationStudyRecord.job_id == job_id)
+            )
+            await session.commit()
+
+    async def study_uids_needing_migration(
+        self, job_id: uuid.UUID, study_uids: list[str]
+    ) -> list[str]:
+        if not study_uids:
+            return []
+        async with async_session_factory() as session:
+            result = await session.execute(
+                select(MigrationStudyRecord.study_uid).where(
+                    MigrationStudyRecord.job_id == job_id,
+                    MigrationStudyRecord.study_uid.in_(study_uids),
+                    MigrationStudyRecord.status.in_(("pending", "failed")),
+                )
+            )
+            return list(result.scalars().all())
+
+    async def _ensure_modality_query_key(
+        self,
+        session: AsyncSession,
+        job: MigrationJob,
+        source: Node,
+        filters: dict,
+    ) -> str | None:
+        config = dict(job.job_config or {})
+        cached = config.get("_modality_query_key")
+        if cached or not filters.get("modality"):
+            return cached
+
+        auth = AuthHandler.from_node(source)
+        modality_key = await resolve_modality_query_key(
+            source.dicomweb_url,
+            auth,
+            str(filters["modality"]),
+        )
+        config["_modality_query_key"] = modality_key
+        job.job_config = config
+        await session.flush()
+        return modality_key
+
     async def enqueue_study_records(self, job_id: uuid.UUID, studies: list[QidoStudy]) -> int:
         async with async_session_factory() as session:
             job = await self._get_job(session, job_id)
@@ -124,7 +231,10 @@ class MigrationEngine:
                 .select_from(MigrationStudyRecord)
                 .where(MigrationStudyRecord.job_id == job_id)
             )
-            job.status = "in_progress"
+            if job.status in ("not_started", "discovering"):
+                job.status = "discovering" if settings.migration_streaming_discovery else "in_progress"
+            elif job.status not in ("cancelled",):
+                job.status = "in_progress"
             job.start_time = job.start_time or datetime.now(timezone.utc)
             await session.commit()
             return created
@@ -338,7 +448,7 @@ class MigrationEngine:
         job.completed_studies = completed or 0
         job.failed_studies = failed or 0
 
-        if pending == 0 and (completed or failed):
+        if pending == 0 and (completed or failed) and job.discovery_complete:
             if failed and completed:
                 job.status = "partial"
             elif failed and not completed:

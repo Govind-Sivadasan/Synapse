@@ -59,6 +59,11 @@ class Settings(BaseSettings):
     # Performance tuning (Phase 2)
     wado_parallel_instances: int = 8
     migration_queue_backpressure_max: int = 200
+    migration_streaming_discovery: bool = False
+    migration_coordinator_page_size: int = 100
+    migration_coordinator_chain_delay_seconds: float = 0.0
+    migration_preflight_echo: bool = True
+    migration_single_active_job: bool = True
 
     # Performance tuning (Phase 3)
     partition_months_ahead: int = 3
@@ -67,6 +72,12 @@ class Settings(BaseSettings):
     # STOW tuning (post Phase 2)
     stow_batch_size: int = 4
     stow_parallel_batches: int = 2
+
+    # STOW rate limits (Phase 4.5)
+    stow_rate_limit_enabled: bool = False
+    stow_destination_rate_per_second: float = 8.0
+    stow_destination_rate_burst: int = 16
+    stow_rate_limit_poll_seconds: float = 0.05
 
     # OpenTelemetry (optional)
     otel_enabled: bool = False

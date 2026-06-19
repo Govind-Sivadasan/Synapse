@@ -18,7 +18,12 @@ from app.schemas.migration import (
     MigrationStudyListResponse,
     MigrationStudyRecordResponse,
 )
+from app.config import settings
 from app.services.audit_logger import AuditLogger
+from app.services.migration_preflight import (
+    ensure_no_other_active_migration_job,
+    verify_migration_node_connectivity,
+)
 from app.workers.dispatch import enqueue_fetch_and_enqueue_studies, enqueue_migrate_study
 
 router = APIRouter(prefix="/migration-jobs", tags=["Migration Jobs"])
@@ -44,6 +49,9 @@ def _job_response(job: MigrationJob, nodes: dict[UUID, Node]) -> MigrationJobRes
         retry_count=job.retry_count,
         job_config=job.job_config,
         celery_task_id=job.celery_task_id,
+        discovery_offset=job.discovery_offset,
+        discovery_complete=job.discovery_complete,
+        discovered_studies=job.discovered_studies,
         created_by=job.created_by,
         start_time=job.start_time,
         end_time=job.end_time,
@@ -207,7 +215,7 @@ async def delete_migration_job(
     job = await db.get(MigrationJob, job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Migration job not found")
-    if job.status == "in_progress":
+    if job.status in ("in_progress", "discovering"):
         raise HTTPException(
             status_code=400,
             detail="Cannot delete a job while it is in progress. Cancel it first.",
@@ -255,9 +263,17 @@ async def start_migration_job(
     if not restartable:
         raise HTTPException(status_code=400, detail=f"Cannot start job in status '{job.status}'")
 
+    await ensure_no_other_active_migration_job(db, job_id)
+
+    source = await db.get(Node, job.source_node_id)
+    destination = await db.get(Node, job.destination_node_id)
+    if not source or not destination:
+        raise HTTPException(status_code=400, detail="Source or destination node not found")
+    echo_results = await verify_migration_node_connectivity(source, destination)
+
     task_id = enqueue_fetch_and_enqueue_studies(str(job_id))
     job.celery_task_id = task_id
-    job.status = "in_progress"
+    job.status = "discovering" if settings.migration_streaming_discovery else "in_progress"
     job.end_time = None
     await db.flush()
     await AuditLogger.log(
@@ -267,7 +283,11 @@ async def start_migration_job(
         user_role=",".join(user.roles),
         entity_type="MigrationJob",
         entity_id=job.id,
-        details={"action": "start", "celery_task_id": task_id},
+        details={
+            "action": "start",
+            "celery_task_id": task_id,
+            "preflight_echo": echo_results if settings.migration_preflight_echo else None,
+        },
         ip_address=request.client.host if request.client else None,
     )
     await db.refresh(job)

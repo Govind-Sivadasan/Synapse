@@ -36,6 +36,7 @@ const emptyForm = {
 
 const JOB_STATUS_FILTERS = [
   { value: "", label: "All jobs", tone: "neutral" as const },
+  { value: "discovering", label: "Discovering", tone: "info" as const },
   { value: "in_progress", label: "In progress", tone: "info" as const },
   { value: "failed", label: "Failed", tone: "error" as const },
   { value: "partial", label: "Partial", tone: "warning" as const },
@@ -78,7 +79,11 @@ function jobFormFromJob(job: MigrationJob): JobForm {
 }
 
 function canDeleteJob(job: MigrationJob): boolean {
-  return job.status !== "in_progress";
+  return job.status !== "in_progress" && job.status !== "discovering";
+}
+
+function isJobActive(job: MigrationJob): boolean {
+  return job.status === "in_progress" || job.status === "discovering";
 }
 
 function formatTimestamp(value: string | null): string {
@@ -181,7 +186,7 @@ function JobConfigurationPanel({
         </div>
       )}
       <p className="job-config-note">
-        {job.status === "in_progress"
+        {isJobActive(job)
           ? "Configuration is locked while the job is running."
           : "Configuration is immutable after creation. Use Duplicate to create a new job with modified settings."}
       </p>
@@ -201,10 +206,15 @@ function progressPct(job: MigrationJob): number {
 
 function JobProgressCell({ job }: { job: MigrationJob }) {
   const total = job.total_studies ?? 0;
-  const active = job.status === "in_progress";
+  const active = isJobActive(job);
+  const discovering = job.status === "discovering";
   const processed = processedStudies(job);
   let label: string;
-  if (!total && active) {
+  if (discovering && !total) {
+    label = job.discovered_studies > 0
+      ? `Discovering… (${job.discovered_studies} found)`
+      : "Discovering…";
+  } else if (!total && active) {
     label = "Discovering…";
   } else if (!total) {
     label = "—";
@@ -266,7 +276,7 @@ export default function MigrationJobs() {
       return apiFetch<MigrationJobList>(`/api/v1/migration-jobs?${params}`);
     },
     refetchInterval: (query) => {
-      const hasActiveJob = query.state.data?.items.some((j) => j.status === "in_progress");
+      const hasActiveJob = query.state.data?.items.some((j) => isJobActive(j));
       return hasActiveJob ? 3000 : 8000;
     },
   });
@@ -286,7 +296,10 @@ export default function MigrationJobs() {
     queryFn: () => apiFetch<MigrationJob>(`/api/v1/migration-jobs/${selectedJob!.id}`),
     enabled: !!selectedJob,
     refetchInterval: (query) =>
-      (query.state.data?.status ?? selectedJob?.status) === "in_progress" ? 3000 : false,
+      (query.state.data?.status ?? selectedJob?.status) === "in_progress" ||
+      (query.state.data?.status ?? selectedJob?.status) === "discovering"
+        ? 3000
+        : false,
   });
 
   const displayJob = jobDetail ?? selectedJob;
@@ -308,7 +321,7 @@ export default function MigrationJobs() {
       return apiFetch<MigrationStudyList>(`/api/v1/migration-jobs/${selectedJob!.id}/studies?${params}`);
     },
     enabled: !!selectedJob,
-    refetchInterval: displayJob?.status === "in_progress" ? 3000 : false,
+    refetchInterval: displayJob && isJobActive(displayJob) ? 3000 : false,
   });
 
   const lastStudiesError = useRef<string | null>(null);
@@ -419,7 +432,7 @@ export default function MigrationJobs() {
       apiFetch<MigrationJob>(`/api/v1/migration-jobs/${id}/start`, { method: "POST" }),
     onMutate: (id) => {
       success("Starting migration job…");
-      patchJobInCache(id, { status: "in_progress" });
+      patchJobInCache(id, { status: "discovering" });
     },
     onSuccess: (job) => {
       patchJobInCache(job.id, job);
@@ -611,7 +624,7 @@ export default function MigrationJobs() {
                           <Play size={14} />
                           {j.status === "not_started" ? "Start" : "Resume"}
                         </button>
-                      ) : j.status === "in_progress" ? (
+                      ) : isJobActive(j) ? (
                         <button
                           type="button"
                           className="btn-sm btn-secondary"
@@ -738,7 +751,7 @@ export default function MigrationJobs() {
                     : "Resume"}
               </button>
             )}
-            {displayJob.status === "in_progress" && (
+            {isJobActive(displayJob) && (
               <button
                 type="button"
                 className="btn-secondary"
@@ -822,7 +835,7 @@ export default function MigrationJobs() {
                 onPageChange: setStudiesPage,
               }}
               emptyMessage={
-                displayJob.status === "in_progress" || isStarting(displayJob.id)
+                isJobActive(displayJob) || isStarting(displayJob.id)
                   ? "Discovering studies… records will appear shortly."
                   : "No studies discovered yet. Start the job to run QIDO-RS on the source PACS."
               }

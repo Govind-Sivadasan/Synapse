@@ -10,6 +10,17 @@ from celery_app import celery_app
 MIGRATION_QUEUE = "migration_queue"
 
 
+def enqueue_coordinator_next_page(job_id: str, countdown: float = 0) -> str:
+    result = celery_app.send_task(
+        "tasks.migration_tasks.fetch_and_enqueue_studies",
+        args=[job_id],
+        kwargs=trace_kwargs(job_id=job_id),
+        queue=MIGRATION_QUEUE,
+        countdown=max(0, countdown),
+    )
+    return result.id
+
+
 def enqueue_fetch_and_enqueue_studies(job_id: str) -> str:
     result = celery_app.send_task(
         "tasks.migration_tasks.fetch_and_enqueue_studies",

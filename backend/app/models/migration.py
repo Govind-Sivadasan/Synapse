@@ -1,7 +1,7 @@
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import Date, DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -25,6 +25,9 @@ class MigrationJob(Base):
     retry_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     job_config: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     celery_task_id: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    discovery_offset: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    discovery_complete: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    discovered_studies: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     created_by: Mapped[str] = mapped_column(String(200), nullable=False)
     start_time: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     end_time: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

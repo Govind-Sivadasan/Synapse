@@ -21,6 +21,8 @@ async def seed() -> None:
 
         on_prem_id = uuid.uuid4()
         cloud_id = uuid.uuid4()
+        mw_id = uuid.uuid4()
+        local_pacs_id = uuid.uuid4()
         morph_rule_id = uuid.uuid4()
         route_rule_id = uuid.uuid4()
 
@@ -48,6 +50,30 @@ async def seed() -> None:
             auth_type="none",
             is_active=True,
         )
+        mw = Node(
+            id=mw_id,
+            name="MW PACS",
+            node_type="source",
+            protocol="DICOMweb",
+            host="10.30.1.20",
+            port=11112,
+            ae_title='DCM4CHEE',
+            dicomweb_url='http://10.30.1.20:8080/dcm4chee-arc/aets/DCM4CHEE/rs',
+            auth_type="none",
+            is_active=True,
+        )
+        local_pacs = Node(
+            id=local_pacs_id,
+            name="Local PACS",
+            node_type="destination",
+            protocol="DICOMweb",
+            host="10.30.2.74",
+            port=11112,
+            ae_title='DCM4CHEE',
+            dicomweb_url='http://10.30.2.74:8085/dcm4chee-arc/aets/DCM4CHEE/rs',
+            auth_type="none",
+            is_active=True,
+        )
         morph_rule = TagMorphingRule(
             id=morph_rule_id,
             name="CT Institution Rename",
@@ -70,9 +96,9 @@ async def seed() -> None:
             is_active=True,
         )
 
-        session.add_all([on_prem, cloud, morph_rule, route_rule])
+        session.add_all([on_prem, cloud, mw, local_pacs, morph_rule, route_rule])
         await session.commit()
-        print(f"Seeded nodes: {on_prem.name}, {cloud.name}")
+        print(f"Seeded nodes: {on_prem.name}, {cloud.name}, {mw.name}, {local_pacs.name}")
         print(f"Seeded routing rule: {route_rule.name} (CT -> Cloud)")
         print(f"Seeded morphing rule: {morph_rule.name}")
 

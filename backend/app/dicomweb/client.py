@@ -12,6 +12,7 @@ from app.dicomweb.auth_handler import AuthHandler
 from app.dicomweb.http_pool import get_dicomweb_client
 from app.dicomweb.stow_rs import StowRsResult, build_multipart_body, chunk_paths, parse_stow_response
 from app.observability.metrics import observe_histogram
+from app.services.stow_rate_limiter import wait_for_stow_rate_limit
 
 logger = structlog.get_logger()
 
@@ -36,6 +37,7 @@ class DICOMwebClient:
         batch_index: int,
         batch_count: int,
     ) -> StowRsResult:
+        await wait_for_stow_rate_limit(upload_url)
         body, content_type = build_multipart_body(batch)
         request_headers = {**headers, "Content-Type": content_type}
         last_error = ""

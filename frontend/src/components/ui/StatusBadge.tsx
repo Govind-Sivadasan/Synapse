@@ -18,6 +18,7 @@ const STATUS_MAP: Record<string, BadgeVariant> = {
   no_match: "info",
   not_started: "neutral",
   in_progress: "info",
+  discovering: "info",
   completed: "success",
   cancelled: "neutral",
   skipped: "neutral",

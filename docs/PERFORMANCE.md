@@ -2,15 +2,16 @@
 
 Synapse includes a **performance engine** (separate from product phases in the README) for migration throughput, observability, and database scale.
 
-| Perf phase | Goal |
-|------------|------|
-| **0** | Prometheus `/metrics`, baseline API, load-test script |
-| **1** | HTTP pooling, DB indexes, dashboard metric rollups |
-| **2** | Parallel WADO, migration queue backpressure |
-| **3** | Monthly DB partitions, `trace_id` tracing |
-| **Post-3** | Parallel STOW batching, optional OpenTelemetry, partition cron |
+| Phase | Goal (project plan) |
+|-------|---------------------|
+| **0** | Instrumentation — `/metrics`, baseline API, load-test script |
+| **1** | Quick wins — pools, indexes, dashboard rollups |
+| **2** | Pipeline architecture — coordinator, WADO/STOW, backpressure |
+| **3** | Data layer & observability — partitions, archival, tracing |
+| **4** | Horizontal scale — replicas, shared storage, destination rate limits |
+| **5** | Operator UI at scale — throughput charts, pause, queue widget |
 
-> Product **Phase 4** in README = migration UI/API. This doc uses **perf phases** above.
+> Product **Phase 4** in README = migration UI. This doc uses **performance phases 0–5** above. Full checklist: `.cursor/skills/synapse-performance/SKILL.md`.
 
 ## Quick deploy
 
@@ -117,6 +118,36 @@ docker compose exec backend python scripts/manage_partitions.py
 Or via API: `POST /api/v1/performance/partitions/ensure`
 
 Partitions apply to `audit_logs` and `dimse_events` (Alembic migration `006`).
+
+## Performance phases (authoritative roadmap)
+
+Phases **1–5** follow the project performance plan. **Phase 0** is repo instrumentation (metrics/baseline API). See `.cursor/skills/synapse-performance/SKILL.md` for full deliverable checklists and honest completion status.
+
+| Phase | Theme | Repo status |
+|-------|--------|-------------|
+| 0 | Instrumentation | Done |
+| 1 | Quick wins (pools, indexes, rollups) | Done |
+| 2 | Pipeline architecture | Partial |
+| 3 | Data layer & observability | Partial |
+| 4 | Horizontal scale | Not started |
+| 5 | Operator UI at scale | Not started |
+
+## Reference baselines (Govind)
+
+| Phase | Studies | Conc | migrate_study | Notes |
+|-------|---------|------|---------------|-------|
+| Pre-WADO | 158 | 4 | 7.0 s | Before parallel WADO |
+| 2 slice | 158 | 8 | 4.84 s | Single STOW; re-validate |
+| 3 sign-off A | 79 | 8 | 8.76 s | Batch STOW, partitions + tracing |
+| 3 sign-off B | 79 | 8 | 16.09 s | Single STOW, warm PACS |
+
+Full roadmap and gap analysis: `.cursor/skills/synapse-performance/SKILL.md`.
+
+Valid baseline run hygiene:
+
+1. `reset_performance_metrics.py --yes`
+2. One migration job at a time
+3. `docker compose up -d --force-recreate celery-migration` after `.env` changes
 
 ## Related docs
 
