@@ -127,6 +127,48 @@ async def get_routing_today(session: AsyncSession, today: date) -> dict[str, int
     }
 
 
+async def get_routing_summary(session: AsyncSession, days: int = 7) -> dict[str, int | float]:
+    """Aggregate routing counts from rollups (no full-table scan on routing_transactions)."""
+    if days == 0:
+        totals = await get_routing_totals(session)
+    else:
+        from datetime import timedelta
+
+        end = datetime.now(timezone.utc).date()
+        start = end - timedelta(days=days - 1)
+        keys = ["routing.total", *[routing_status_metric_key(s) for s in ROUTING_STATUS_KEYS]]
+        rows = (
+            await session.execute(
+                select(DailyMetricRollup.metric_key, func.sum(DailyMetricRollup.count))
+                .where(
+                    DailyMetricRollup.metric_key.in_(keys),
+                    DailyMetricRollup.bucket_date >= start,
+                    DailyMetricRollup.bucket_date <= end,
+                )
+                .group_by(DailyMetricRollup.metric_key)
+            )
+        ).all()
+        counts = {row[0]: int(row[1] or 0) for row in rows}
+        totals = {
+            "total": counts.get("routing.total", 0),
+            "success": counts.get(routing_status_metric_key("success"), 0),
+            "failed": counts.get(routing_status_metric_key("failed"), 0),
+            "partial": counts.get(routing_status_metric_key("partial"), 0),
+            "no_match": counts.get(routing_status_metric_key("no_match"), 0),
+        }
+
+    total = totals["total"]
+    return {
+        "period_days": days,
+        "total": total,
+        "success": totals["success"],
+        "failed": totals["failed"],
+        "partial": totals["partial"],
+        "no_match": totals["no_match"],
+        "success_rate": round(totals["success"] / max(total, 1) * 100, 2),
+    }
+
+
 async def get_migration_study_totals(session: AsyncSession) -> dict[str, int]:
     keys = [migration_study_metric_key("success"), migration_study_metric_key("failed")]
     rows = (

@@ -26,6 +26,13 @@ from app.observability.tracing import get_trace_id
 from app.services.audit_logger import AuditLogger
 from app.services.event_publisher import publish_event
 from app.services.metrics_rollup import record_migration_study_completion
+from app.services.migration_job_counters import (
+    ensure_job_counters_initialized,
+    flush_job_counters,
+    record_study_in_progress,
+    record_study_terminal,
+    should_flush_job_counters,
+)
 
 logger = structlog.get_logger()
 
@@ -261,13 +268,18 @@ class MigrationEngine:
 
             record.status = "in_progress"
             record.trace_id = get_trace_id()
+            await ensure_job_counters_initialized(session, job_id)
             await session.commit()
+            record_study_in_progress(job_id)
 
         try:
             async with async_session_factory() as session:
                 job = await self._get_job(session, job_id)
                 if job.status == "cancelled":
                     await self._mark_study(session, job_id, study_uid, "skipped", "Job cancelled")
+                    terminals = record_study_terminal(job_id, "skipped")
+                    await self._refresh_job_counters(session, job_id, terminals=terminals)
+                    await session.commit()
                     return {"status": "skipped", "reason": "job_cancelled"}
 
                 source = await self._get_source_node(session, job.source_node_id)
@@ -336,7 +348,8 @@ class MigrationEngine:
             async with async_session_factory() as session:
                 with timed_phase("migration", "db_finalize", study_uid=study_uid):
                     await self._mark_study(session, job_id, study_uid, "success")
-                    await self._refresh_job_counters(session, job_id)
+                    terminals = record_study_terminal(job_id, "success")
+                    await self._refresh_job_counters(session, job_id, terminals=terminals)
                     await AuditLogger.log(
                         session,
                         "JOB_STATUS_CHANGE",
@@ -367,7 +380,8 @@ class MigrationEngine:
                 record = await self._mark_study(session, job_id, study_uid, "failed", error)
                 if record:
                     record.retry_count += 1
-                await self._refresh_job_counters(session, job_id)
+                terminals = record_study_terminal(job_id, "failed")
+                await self._refresh_job_counters(session, job_id, terminals=terminals)
                 await session.commit()
             publish_event(
                 "migration_study_completed",
@@ -379,7 +393,8 @@ class MigrationEngine:
             logger.error("migrate_study_error", job_id=str(job_id), study_uid=study_uid, error=error)
             async with async_session_factory() as session:
                 await self._mark_study(session, job_id, study_uid, "failed", error)
-                await self._refresh_job_counters(session, job_id)
+                terminals = record_study_terminal(job_id, "failed")
+                await self._refresh_job_counters(session, job_id, terminals=terminals)
                 await session.commit()
             raise
         finally:
@@ -412,7 +427,26 @@ class MigrationEngine:
             await record_migration_study_completion(session, status, record.completed_at)
         return record
 
-    async def _refresh_job_counters(self, session: AsyncSession, job_id: uuid.UUID) -> None:
+    async def _refresh_job_counters(
+        self,
+        session: AsyncSession,
+        job_id: uuid.UUID,
+        *,
+        terminals: int | None = None,
+    ) -> None:
+        if settings.migration_redis_counters_enabled:
+            force = terminals is None or should_flush_job_counters(terminals)
+            if not force:
+                job = await session.get(MigrationJob, job_id)
+                if job:
+                    from app.services.migration_job_counters import get_job_counters, is_job_complete
+
+                    force = is_job_complete(job, get_job_counters(job_id))
+            await flush_job_counters(session, job_id, force=force)
+            return
+        await self._refresh_job_counters_legacy(session, job_id)
+
+    async def _refresh_job_counters_legacy(self, session: AsyncSession, job_id: uuid.UUID) -> None:
         job = await self._get_job(session, job_id)
         total = await session.scalar(
             select(func.count())

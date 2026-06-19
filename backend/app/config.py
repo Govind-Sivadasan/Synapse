@@ -59,11 +59,15 @@ class Settings(BaseSettings):
     # Performance tuning (Phase 2)
     wado_parallel_instances: int = 8
     migration_queue_backpressure_max: int = 200
+    routing_queue_backpressure_max: int = 200
+    routing_backpressure_dimse_refuse: bool = True
     migration_streaming_discovery: bool = False
     migration_coordinator_page_size: int = 100
     migration_coordinator_chain_delay_seconds: float = 0.0
     migration_preflight_echo: bool = True
     migration_single_active_job: bool = True
+    migration_redis_counters_enabled: bool = True
+    migration_job_counter_flush_interval: int = 5
 
     # Performance tuning (Phase 3)
     partition_months_ahead: int = 3

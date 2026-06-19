@@ -16,6 +16,18 @@ from app.routing.engine import RoutingEngine
 router = APIRouter(prefix="/routing-transactions", tags=["Routing Transactions"])
 
 
+@router.get("/summary")
+async def routing_transactions_summary(
+    days: int = Query(7, ge=0, le=3650, description="Rolling window in days; 0 = all time"),
+    db: AsyncSession = Depends(get_db),
+    _: CurrentUser = Depends(require_roles("service_user", "operator", "admin")),
+) -> dict:
+    """Routing status totals from metric rollups (Phase 1.5 — avoids scanning routing_transactions)."""
+    from app.services.metrics_rollup import get_routing_summary
+
+    return await get_routing_summary(db, days)
+
+
 @router.get("")
 async def list_routing_transactions(
     study_uid: str | None = None,

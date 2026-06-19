@@ -24,6 +24,7 @@ from app.services.migration_preflight import (
     ensure_no_other_active_migration_job,
     verify_migration_node_connectivity,
 )
+from app.services.migration_job_counters import init_job_counters
 from app.workers.dispatch import enqueue_fetch_and_enqueue_studies, enqueue_migrate_study
 
 router = APIRouter(prefix="/migration-jobs", tags=["Migration Jobs"])
@@ -275,6 +276,7 @@ async def start_migration_job(
     job.celery_task_id = task_id
     job.status = "discovering" if settings.migration_streaming_discovery else "in_progress"
     job.end_time = None
+    init_job_counters(job.id, completed=job.completed_studies or 0, failed=job.failed_studies or 0)
     await db.flush()
     await AuditLogger.log(
         db,

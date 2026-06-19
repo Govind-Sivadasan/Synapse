@@ -20,6 +20,12 @@ from app.dimse.stats import (
 )
 from app.dimse.study_assembler import StudyAssembler
 from app.services.allowed_aets import get_allowed_calling_aets
+from app.services.routing_backpressure import (
+    OUT_OF_RESOURCES,
+    is_routing_queue_overloaded,
+    routing_queue_depth,
+    wait_for_routing_queue_slot,
+)
 from app.services.runtime_config import get_runtime_config
 
 logger = structlog.get_logger()
@@ -84,6 +90,19 @@ class DIMSEListener:
 
     def _handle_store(self, event):
         try:
+            if settings.routing_backpressure_dimse_refuse and is_routing_queue_overloaded():
+                calling_ae = self._calling_ae(event.assoc)
+                from app.observability.metrics import inc_counter
+
+                inc_counter("synapse_routing_backpressure_dimse_refusals_total")
+                logger.warning(
+                    "c_store_refused_backpressure",
+                    calling_ae=calling_ae,
+                    queue_depth=routing_queue_depth(),
+                    limit=settings.routing_queue_backpressure_max,
+                )
+                return OUT_OF_RESOURCES
+
             dataset = event.dataset
             dataset.file_meta = event.file_meta
             calling_ae = self._calling_ae(event.assoc)
@@ -106,6 +125,7 @@ class DIMSEListener:
                 from app.observability.metrics import inc_counter
                 from app.observability.tracing import trace_kwargs
 
+                wait_for_routing_queue_slot()
                 inc_counter("synapse_dimse_studies_enqueued_total")
                 route_study.delay(
                     study_uid=study.study_uid,
