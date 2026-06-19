@@ -22,6 +22,7 @@ from app.models.node import Node
 from app.models.tag_morphing import TagMorphingRule
 from app.morphing.tag_morpher import TagMorpher
 from app.observability.metrics import inc_counter, timed_phase
+from app.observability.tracing import get_trace_id
 from app.services.audit_logger import AuditLogger
 from app.services.event_publisher import publish_event
 from app.services.metrics_rollup import record_migration_study_completion
@@ -149,6 +150,7 @@ class MigrationEngine:
                 return {"status": "skipped", "reason": "already_success"}
 
             record.status = "in_progress"
+            record.trace_id = get_trace_id()
             await session.commit()
 
         try:
@@ -238,9 +240,14 @@ class MigrationEngine:
 
             publish_event(
                 "migration_study_completed",
-                {"job_id": str(job_id), "study_uid": study_uid, "status": "success"},
+                {
+                    "job_id": str(job_id),
+                    "study_uid": study_uid,
+                    "status": "success",
+                    "trace_id": get_trace_id(),
+                },
             )
-            return {"status": "success", "instances": len(upload_paths)}
+            return {"status": "success", "instances": len(upload_paths), "trace_id": get_trace_id()}
 
         except (QidoRsError, WadoRsError, StowRsUploadError) as exc:
             error = str(exc)

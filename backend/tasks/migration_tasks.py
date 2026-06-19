@@ -7,6 +7,7 @@ import structlog
 
 from app.database import run_async_task
 from app.observability.metrics import track_task_outcome
+from app.observability.tracing import trace_kwargs
 from app.services.migration_backpressure import wait_for_migration_queue_slot
 from celery_app import celery_app
 
@@ -44,7 +45,11 @@ async def _fetch_and_enqueue(job_id: str) -> dict:
 
             for record in to_enqueue:
                 wait_for_migration_queue_slot()
-                migrate_study.delay(job_id, record.study_uid)
+                migrate_study.delay(
+                    job_id,
+                    record.study_uid,
+                    **trace_kwargs(study_uid=record.study_uid),
+                )
 
             return {
                 "job_id": job_id,
@@ -73,7 +78,11 @@ async def _fetch_and_enqueue(job_id: str) -> dict:
         enqueued = 0
         for study in studies:
             wait_for_migration_queue_slot()
-            migrate_study.delay(job_id, study.study_uid)
+            migrate_study.delay(
+                job_id,
+                study.study_uid,
+                **trace_kwargs(study_uid=study.study_uid),
+            )
             enqueued += 1
 
         logger.info(
@@ -112,7 +121,7 @@ async def _migrate_study(job_id: str, study_uid: str) -> dict:
 
 
 @celery_app.task(name="tasks.migration_tasks.fetch_and_enqueue_studies", bind=True, max_retries=2)
-def fetch_and_enqueue_studies(self, job_id: str) -> dict:
+def fetch_and_enqueue_studies(self, job_id: str, **_: object) -> dict:
     """Paginate QIDO-RS on source PACS and enqueue per-study migration tasks."""
     logger.info("fetch_and_enqueue_studies", job_id=job_id)
     started = time.perf_counter()
@@ -138,7 +147,7 @@ def fetch_and_enqueue_studies(self, job_id: str) -> dict:
 
 
 @celery_app.task(name="tasks.migration_tasks.migrate_study", bind=True, max_retries=3)
-def migrate_study(self, job_id: str, study_uid: str) -> dict:
+def migrate_study(self, job_id: str, study_uid: str, **_: object) -> dict:
     """Migrate a single study: WADO-RS download → morph → STOW-RS upload."""
     logger.info("migrate_study", job_id=job_id, study_uid=study_uid)
     started = time.perf_counter()

@@ -19,6 +19,7 @@ from app.models.routing import RoutingDestination, RoutingRule, RoutingTransacti
 from app.models.tag_morphing import TagMorphingRule
 from app.morphing.tag_morpher import TagMorpher, TagMorphingAuditRecord
 from app.observability.metrics import inc_counter, timed_phase
+from app.observability.tracing import get_trace_id
 from app.routing.rule_evaluator import DestinationPlan, RoutingRuleEvaluator
 from app.services.audit_logger import AuditLogger
 from app.services.event_publisher import publish_event
@@ -291,6 +292,7 @@ class RoutingEngine:
             accession_number=metadata.get("AccessionNumber"),
             instances_count=len(file_paths),
             overall_status="pending",
+            trace_id=get_trace_id(),
         )
         session.add(txn)
         await session.flush()

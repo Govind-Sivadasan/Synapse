@@ -13,6 +13,7 @@ import redis
 import structlog
 from prometheus_client import CONTENT_TYPE_LATEST, Gauge, generate_latest
 
+from app.observability.tracing import get_trace_id
 from app.config import settings
 
 logger = structlog.get_logger()
@@ -105,6 +106,7 @@ def timed_phase(component: str, phase: str, **context: str) -> Iterator[None]:
             phase=phase,
             status=status,
             duration_ms=round(duration * 1000, 2),
+            trace_id=get_trace_id(),
             **context,
         )
 

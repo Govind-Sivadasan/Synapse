@@ -7,6 +7,7 @@ import structlog
 
 from app.database import run_async_task
 from app.observability.metrics import track_task_outcome
+from app.observability.tracing import trace_kwargs
 from celery_app import celery_app
 
 logger = structlog.get_logger()
@@ -64,6 +65,7 @@ def route_study(
     dicom_files: list[str],
     metadata: dict[str, str],
     calling_ae_title: str = "",
+    **_: object,
 ) -> dict:
     """Evaluate routing rules, apply tag morphing, and upload via STOW-RS."""
     logger.info(
@@ -101,6 +103,7 @@ def route_study(
 def upload_to_destination(
     self,
     destination_record_id: str,
+    **_: object,
 ) -> dict:
     """Retry STOW-RS upload for a single failed destination."""
     logger.info("upload_to_destination_retry", destination_id=destination_record_id)

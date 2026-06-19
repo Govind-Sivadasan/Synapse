@@ -60,6 +60,9 @@ class Settings(BaseSettings):
     wado_parallel_instances: int = 8
     migration_queue_backpressure_max: int = 200
 
+    # Performance tuning (Phase 3)
+    partition_months_ahead: int = 3
+
 
 @lru_cache
 def get_settings() -> Settings:

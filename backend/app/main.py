@@ -12,6 +12,8 @@ from app.api.v1.router import api_router
 from app.config import settings
 from app.database import async_session_factory
 from app.dimse.listener import DIMSEListener
+from app.middleware.trace import TraceMiddleware
+from app.observability.logging_config import configure_logging
 from app.services.allowed_aets import refresh_allowed_calling_aets
 from app.services.runtime_config import set_runtime_overrides
 from app.services.system_config import get_system_config
@@ -19,6 +21,7 @@ from app.websocket.manager import ws_manager
 from app.websocket.redis_bridge import redis_event_subscriber
 from app.observability.metrics import render_prometheus, update_scrape_gauges
 
+configure_logging()
 logger = structlog.get_logger()
 dimse_listener: DIMSEListener | None = None
 
@@ -66,6 +69,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(TraceMiddleware)
 
 app.include_router(api_router)
 

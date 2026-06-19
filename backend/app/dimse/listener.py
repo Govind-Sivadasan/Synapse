@@ -104,6 +104,7 @@ class DIMSEListener:
                 record_studies_assembled(calling_ae, study.study_uid, len(study.instance_paths))
                 from tasks.routing_tasks import route_study
                 from app.observability.metrics import inc_counter
+                from app.observability.tracing import trace_kwargs
 
                 inc_counter("synapse_dimse_studies_enqueued_total")
                 route_study.delay(
@@ -111,6 +112,7 @@ class DIMSEListener:
                     dicom_files=[str(p) for p in study.instance_paths],
                     metadata=study.metadata,
                     calling_ae_title=calling_ae,
+                    **trace_kwargs(study_uid=study.study_uid),
                 )
                 logger.info(
                     "routing_task_enqueued",

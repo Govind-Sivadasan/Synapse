@@ -5,12 +5,15 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.auth.keycloak import CurrentUser, require_roles
+from app.config import settings
+from app.database import engine
 from app.observability.metrics import (
     get_baseline_snapshot,
     reset_cumulative_metrics,
     save_baseline_marker,
 )
 from app.schemas.performance import (
+    PartitionEnsureResponse,
     PerformanceBaselineMarkerResponse,
     PerformanceBaselineResetResponse,
     PerformanceBaselineResponse,
@@ -69,3 +72,20 @@ async def performance_baseline_reset(
 ) -> PerformanceBaselineResetResponse:
     """Clear cumulative Redis performance counters and histograms."""
     return PerformanceBaselineResetResponse(keys_deleted=reset_cumulative_metrics())
+
+
+@router.post("/performance/partitions/ensure", response_model=PartitionEnsureResponse)
+async def performance_partitions_ensure(
+    _: CurrentUser = Depends(require_roles("operator", "admin")),
+) -> PartitionEnsureResponse:
+    """Create upcoming monthly PostgreSQL partitions for high-volume tables."""
+    from app.services.partition_maintenance import ensure_all_partitions
+
+    async with engine.begin() as connection:
+        results = await connection.run_sync(
+            lambda sync_conn: ensure_all_partitions(
+                sync_conn,
+                months_ahead=settings.partition_months_ahead,
+            )
+        )
+    return PartitionEnsureResponse(tables=results)

@@ -33,3 +33,7 @@ class PerformanceBaselineMarkerResponse(BaseModel):
 
 class PerformanceBaselineResetResponse(BaseModel):
     keys_deleted: int
+
+
+class PartitionEnsureResponse(BaseModel):
+    tables: dict[str, list[str]] = Field(default_factory=dict)

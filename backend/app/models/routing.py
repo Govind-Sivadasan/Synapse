@@ -38,6 +38,7 @@ class RoutingTransaction(Base):
     instances_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     routing_rule_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("routing_rules.id"))
     overall_status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
+    trace_id: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
     received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 

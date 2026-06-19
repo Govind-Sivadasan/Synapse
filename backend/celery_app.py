@@ -3,6 +3,10 @@
 from celery import Celery
 
 from app.config import settings
+from app.observability.logging_config import configure_logging
+
+configure_logging()
+import app.observability.celery_tracing  # noqa: E402, F401 — register task signals
 
 celery_app = Celery(
     "synapse",

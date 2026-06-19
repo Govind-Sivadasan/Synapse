@@ -6,6 +6,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.audit_log import AuditLog
+from app.observability.tracing import get_trace_id
 from app.services.runtime_config import get_runtime_config
 
 ALWAYS_LOG_EVENT_TYPES = frozenset(
@@ -75,6 +76,10 @@ class AuditLogger:
             details=_sanitize_details(details),
             ip_address=ip_address,
         )
+        if get_trace_id():
+            sanitized = dict(entry.details or {})
+            sanitized["trace_id"] = get_trace_id()
+            entry.details = sanitized
         db.add(entry)
         await db.flush()
         return entry
