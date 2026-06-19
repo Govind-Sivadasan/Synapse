@@ -30,6 +30,23 @@
   --color-info: #0284c7;
   --color-info-bg: #e0f2fe;
 
+  /* Foreground on tinted status surfaces (dark mode overrides in themes.css) */
+  --status-fg-success: var(--color-success);
+  --status-fg-error: var(--color-error);
+  --status-fg-warning: var(--color-warning);
+  --status-fg-info: var(--color-info);
+
+  --status-surface-success: var(--color-success-bg);
+  --status-surface-error: var(--color-error-bg);
+  --status-surface-warning: var(--color-warning-bg);
+  --status-surface-info: var(--color-info-bg);
+  --status-surface-neutral: color-mix(in srgb, var(--color-text-muted) 14%, var(--color-bg));
+
+  /* Primary-tinted surfaces (icons, footer pills — accent-aware) */
+  --primary-surface: var(--color-primary-light);
+  --primary-fg: var(--color-primary);
+  --primary-border: color-mix(in srgb, var(--color-primary) 30%, var(--color-border));
+
   --z-notification: 99999;
 
   /* Shell chrome (fixed toasts are portaled to body) */

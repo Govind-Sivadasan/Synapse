@@ -101,17 +101,19 @@
   --sidebar-scrollbar-hover: rgba(255, 255, 255, 0.2);
   --sidebar-collapse-border: rgba(255, 255, 255, 0.08);
   --sidebar-collapse-color: #64748b;
-  --sidebar-active: linear-gradient(
-    90deg,
-    color-mix(in srgb, var(--color-primary) 34%, transparent) 0%,
-    transparent 100%
-  );
+  --sidebar-active: color-mix(in srgb, var(--color-primary-muted) 12%, var(--sidebar-bg-hover));
   --sidebar-border-accent: color-mix(in srgb, var(--color-primary) 18%, rgba(255, 255, 255, 0.06));
 
-  --color-success-bg: rgba(5, 150, 105, 0.18);
-  --color-warning-bg: rgba(217, 119, 6, 0.18);
-  --color-error-bg: rgba(220, 38, 38, 0.18);
-  --color-info-bg: rgba(2, 132, 199, 0.18);
+  --color-success-bg: rgba(52, 211, 153, 0.14);
+  --color-warning-bg: rgba(251, 191, 36, 0.16);
+  --color-error-bg: rgb(255 0 0 / 28%);
+  --color-info-bg: rgba(56, 189, 248, 0.16);
+
+  --status-surface-success: var(--color-success-bg);
+  --status-surface-error: var(--color-error-bg);
+  --status-surface-warning: var(--color-warning-bg);
+  --status-surface-info: var(--color-info-bg);
+  --status-surface-neutral: color-mix(in srgb, var(--color-text-muted) 14%, var(--color-bg-elevated));
 
   --alert-success-text: #6ee7b7;
   --alert-success-border: rgba(52, 211, 153, 0.45);
@@ -121,6 +123,23 @@
   --alert-warning-border: rgba(251, 191, 36, 0.45);
   --alert-info-text: #7dd3fc;
   --alert-info-border: rgba(56, 189, 248, 0.45);
+
+  --status-fg-success: var(--alert-success-text);
+  --status-fg-error: var(--alert-error-text);
+  --status-fg-warning: var(--alert-warning-text);
+  --status-fg-info: var(--alert-info-text);
+
+  --primary-surface: color-mix(in srgb, var(--color-primary) 18%, var(--color-bg-elevated));
+  --primary-fg: var(--color-primary-muted);
+  --primary-border: color-mix(in srgb, var(--color-primary-muted) 38%, transparent);
+
+  /* Solid status pills in dark mode (white label / glyph) */
+  --pill-solid-success: #059669;
+  --pill-solid-error: #dc2626;
+  --pill-solid-warning: #d97706;
+  --pill-solid-info: #0284c7;
+  --pill-solid-neutral: #52657a;
+  --pill-solid-text: #ffffff;
 
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3);
@@ -209,17 +228,104 @@
 [data-mode="dark"] .overall-health-banner--healthy {
   background: linear-gradient(
     135deg,
-    color-mix(in srgb, var(--color-success) 14%, var(--color-surface)) 0%,
+    color-mix(in srgb, var(--alert-success-text) 14%, var(--color-surface)) 0%,
     color-mix(in srgb, var(--color-primary) 10%, var(--color-surface)) 100%
   );
-  border-color: color-mix(in srgb, var(--color-success) 35%, var(--color-border));
+  border-color: var(--alert-success-border);
 }
 
 [data-mode="dark"] .overall-health-banner--degraded {
   background: linear-gradient(
     135deg,
-    color-mix(in srgb, var(--color-warning) 14%, var(--color-surface)) 0%,
-    color-mix(in srgb, var(--color-warning) 8%, var(--color-surface)) 100%
+    color-mix(in srgb, var(--alert-warning-text) 14%, var(--color-surface)) 0%,
+    color-mix(in srgb, var(--alert-warning-text) 8%, var(--color-surface)) 100%
   );
-  border-color: color-mix(in srgb, var(--color-warning) 35%, var(--color-border));
+  border-color: var(--alert-warning-border);
+}
+
+/* Dark mode: filter chips — inactive use status tokens in base; active = solid fill */
+[data-mode="dark"] .filter-chip--neutral.filter-chip--active,
+[data-mode="dark"] button.filter-chip.filter-chip--neutral.filter-chip--active,
+[data-mode="dark"] .filter-chip--neutral.filter-chip--active:hover:not(:disabled),
+[data-mode="dark"] button.filter-chip.filter-chip--neutral.filter-chip--active:hover:not(:disabled) {
+  background: var(--pill-solid-neutral);
+  border-color: #64748b;
+  color: var(--pill-solid-text);
+}
+
+[data-mode="dark"] .filter-chip--success.filter-chip--active,
+[data-mode="dark"] button.filter-chip.filter-chip--success.filter-chip--active,
+[data-mode="dark"] .filter-chip--success.filter-chip--active:hover:not(:disabled),
+[data-mode="dark"] button.filter-chip.filter-chip--success.filter-chip--active:hover:not(:disabled) {
+  background: var(--pill-solid-success);
+  border-color: var(--pill-solid-success);
+  color: var(--pill-solid-text);
+}
+
+[data-mode="dark"] .filter-chip--error.filter-chip--active,
+[data-mode="dark"] button.filter-chip.filter-chip--error.filter-chip--active,
+[data-mode="dark"] .filter-chip--error.filter-chip--active:hover:not(:disabled),
+[data-mode="dark"] button.filter-chip.filter-chip--error.filter-chip--active:hover:not(:disabled) {
+  background: var(--pill-solid-error);
+  border-color: var(--pill-solid-error);
+  color: var(--pill-solid-text);
+}
+
+[data-mode="dark"] .filter-chip--warning.filter-chip--active,
+[data-mode="dark"] button.filter-chip.filter-chip--warning.filter-chip--active,
+[data-mode="dark"] .filter-chip--warning.filter-chip--active:hover:not(:disabled),
+[data-mode="dark"] button.filter-chip.filter-chip--warning.filter-chip--active:hover:not(:disabled) {
+  background: var(--pill-solid-warning);
+  border-color: var(--pill-solid-warning);
+  color: var(--pill-solid-text);
+}
+
+[data-mode="dark"] .filter-chip--info.filter-chip--active,
+[data-mode="dark"] button.filter-chip.filter-chip--info.filter-chip--active,
+[data-mode="dark"] .filter-chip--info.filter-chip--active:hover:not(:disabled),
+[data-mode="dark"] button.filter-chip.filter-chip--info.filter-chip--active:hover:not(:disabled) {
+  background: var(--pill-solid-info);
+  border-color: var(--pill-solid-info);
+  color: var(--pill-solid-text);
+}
+
+[data-mode="dark"] .filter-chip--active {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+[data-mode="dark"] .status-badge--neutral {
+  border: none;
+}
+
+/* Dark mode: feed icons — migration uses accent; routing follows primary tokens */
+[data-mode="dark"] .activity-feed-icon--migration {
+  background: color-mix(in srgb, var(--color-accent) 16%, var(--color-bg));
+  color: var(--status-fg-info);
+}
+
+/* Dark mode: nav selection — light text on tinted row (not teal-on-teal) */
+[data-mode="dark"] .settings-hub-tab--active,
+[data-mode="dark"] button.settings-hub-item.settings-hub-tab--active,
+[data-mode="dark"] button.settings-hub-item.settings-hub-tab--active:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-primary-muted) 14%, var(--color-bg-elevated));
+  color: var(--color-text);
+}
+
+[data-mode="dark"] .settings-hub-tab--active .settings-hub-item-icon,
+[data-mode="dark"] button.settings-hub-item.settings-hub-tab--active .settings-hub-item-icon,
+[data-mode="dark"] .settings-hub-tab--active .settings-hub-item-icon svg,
+[data-mode="dark"] button.settings-hub-item.settings-hub-tab--active .settings-hub-item-icon svg {
+  color: var(--color-primary-muted);
+  opacity: 1;
+}
+
+[data-mode="dark"] button.account-tab--active,
+[data-mode="dark"] button.account-tab--active:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-primary-muted) 14%, var(--color-bg-elevated));
+  color: var(--color-text);
+  box-shadow: none;
+}
+
+[data-mode="dark"] .sidebar-nav a.active svg {
+  color: var(--color-primary-muted);
 }

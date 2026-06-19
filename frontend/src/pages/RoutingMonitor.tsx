@@ -164,13 +164,6 @@ export default function RoutingMonitor() {
       />
 
       <div className="monitor-layout">
-        <RoutingMonitorLeftSidecar
-          wsEvents={events}
-          dimseEvents={dimse?.recent_events ?? []}
-          selectedStudyUid={selectedStudyUid}
-          onSelectStudyUid={handleSelectStudyUid}
-        />
-
         <div className="monitor-main">
           {dimse && (
             <div className="grid" style={{ marginBottom: "1.25rem" }}>
@@ -359,7 +352,14 @@ export default function RoutingMonitor() {
                   {
                     key: "study_uid",
                     header: "Study UID",
-                    render: (e) => (e.study_uid ? <code>{e.study_uid}</code> : "—"),
+                    render: (e) =>
+                      e.study_uid ? (
+                        <code className="table-cell-uid" title={e.study_uid}>
+                          {e.study_uid}
+                        </code>
+                      ) : (
+                        "—"
+                      ),
                   },
                 ]}
               />
@@ -367,10 +367,18 @@ export default function RoutingMonitor() {
           )}
         </div>
 
-        <RoutingMonitorRightSidecar
-          selectedStudyUid={selectedStudyUid}
-          selectedTransaction={selectedTransaction}
-        />
+        <div className="monitor-sidecar-column">
+          <RoutingMonitorLeftSidecar
+            wsEvents={events}
+            dimseEvents={dimse?.recent_events ?? []}
+            selectedStudyUid={selectedStudyUid}
+            onSelectStudyUid={handleSelectStudyUid}
+          />
+          <RoutingMonitorRightSidecar
+            selectedStudyUid={selectedStudyUid}
+            selectedTransaction={selectedTransaction}
+          />
+        </div>
       </div>
     </div>
   );

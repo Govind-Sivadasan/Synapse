@@ -832,7 +832,11 @@ export default function MigrationJobs() {
                   header: "Study UID",
                   width: 340,
                   minWidth: 260,
-                  render: (s) => <code>{s.study_uid}</code>,
+                  render: (s) => (
+                    <code className="table-cell-uid" title={s.study_uid}>
+                      {s.study_uid}
+                    </code>
+                  ),
                 },
                 { key: "modality", header: "Modality", width: 90, minWidth: 72 },
                 { key: "patient_id", header: "Patient ID", width: 140, minWidth: 100 },

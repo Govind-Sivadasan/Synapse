@@ -511,15 +511,15 @@ a:hover {
 }
 
 .global-stats-live-pill.is-live strong {
-  color: var(--color-success);
+  color: var(--status-fg-success);
 }
 
 .global-stats-live-dot {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--color-success);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-success) 25%, transparent);
+  background: var(--status-fg-success);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--status-fg-success) 25%, transparent);
   animation: pulse-live 2s ease-in-out infinite;
 }
 
@@ -570,15 +570,15 @@ a:hover {
 }
 
 .status-footer-chip--success .status-footer-dot {
-  background: var(--color-success);
+  background: var(--status-fg-success);
 }
 
 .status-footer-chip--warning .status-footer-dot {
-  background: var(--color-warning);
+  background: var(--status-fg-warning);
 }
 
 .status-footer-chip--error .status-footer-dot {
-  background: var(--color-error);
+  background: var(--status-fg-error);
 }
 
 .status-footer-latency {
@@ -669,58 +669,58 @@ button.filter-chip.filter-chip--neutral:hover:not(:disabled) {
 
 .filter-chip--success,
 button.filter-chip.filter-chip--success {
-  background: var(--color-success-bg);
-  border-color: color-mix(in srgb, var(--color-success) 35%, var(--color-border));
-  color: var(--color-success);
+  background: var(--status-surface-success);
+  border-color: color-mix(in srgb, var(--status-fg-success) 35%, var(--color-border));
+  color: var(--status-fg-success);
 }
 
 .filter-chip--success:hover:not(:disabled),
 button.filter-chip.filter-chip--success:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--color-success) 14%, var(--color-success-bg));
-  border-color: color-mix(in srgb, var(--color-success) 50%, var(--color-border));
-  color: var(--color-success);
+  background: color-mix(in srgb, var(--status-fg-success) 14%, var(--status-surface-success));
+  border-color: color-mix(in srgb, var(--status-fg-success) 50%, var(--color-border));
+  color: var(--status-fg-success);
 }
 
 .filter-chip--error,
 button.filter-chip.filter-chip--error {
-  background: var(--color-error-bg);
-  border-color: color-mix(in srgb, var(--color-error) 35%, var(--color-border));
-  color: var(--color-error);
+  background: var(--status-surface-error);
+  border-color: color-mix(in srgb, var(--status-fg-error) 35%, var(--color-border));
+  color: var(--status-fg-error);
 }
 
 .filter-chip--error:hover:not(:disabled),
 button.filter-chip.filter-chip--error:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--color-error) 14%, var(--color-error-bg));
-  border-color: color-mix(in srgb, var(--color-error) 50%, var(--color-border));
-  color: var(--color-error);
+  background: color-mix(in srgb, var(--status-fg-error) 14%, var(--status-surface-error));
+  border-color: color-mix(in srgb, var(--status-fg-error) 50%, var(--color-border));
+  color: var(--status-fg-error);
 }
 
 .filter-chip--warning,
 button.filter-chip.filter-chip--warning {
-  background: var(--color-warning-bg);
-  border-color: color-mix(in srgb, var(--color-warning) 35%, var(--color-border));
-  color: var(--color-warning);
+  background: var(--status-surface-warning);
+  border-color: color-mix(in srgb, var(--status-fg-warning) 35%, var(--color-border));
+  color: var(--status-fg-warning);
 }
 
 .filter-chip--warning:hover:not(:disabled),
 button.filter-chip.filter-chip--warning:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--color-warning) 14%, var(--color-warning-bg));
-  border-color: color-mix(in srgb, var(--color-warning) 50%, var(--color-border));
-  color: var(--color-warning);
+  background: color-mix(in srgb, var(--status-fg-warning) 14%, var(--status-surface-warning));
+  border-color: color-mix(in srgb, var(--status-fg-warning) 50%, var(--color-border));
+  color: var(--status-fg-warning);
 }
 
 .filter-chip--info,
 button.filter-chip.filter-chip--info {
-  background: var(--color-info-bg);
-  border-color: color-mix(in srgb, var(--color-info) 35%, var(--color-border));
-  color: var(--color-info);
+  background: var(--status-surface-info);
+  border-color: color-mix(in srgb, var(--status-fg-info) 35%, var(--color-border));
+  color: var(--status-fg-info);
 }
 
 .filter-chip--info:hover:not(:disabled),
 button.filter-chip.filter-chip--info:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--color-info) 14%, var(--color-info-bg));
-  border-color: color-mix(in srgb, var(--color-info) 50%, var(--color-border));
-  color: var(--color-info);
+  background: color-mix(in srgb, var(--status-fg-info) 14%, var(--status-surface-info));
+  border-color: color-mix(in srgb, var(--status-fg-info) 50%, var(--color-border));
+  color: var(--status-fg-info);
 }
 
 .filter-chip--active {
@@ -1228,15 +1228,15 @@ button.filter-chip.filter-chip--info.filter-chip--active:hover:not(:disabled) {
   padding: 0.75rem 0.9rem;
   margin-bottom: 1rem;
   border-radius: var(--radius-md);
-  border: 1px solid color-mix(in srgb, var(--color-error) 35%, transparent);
-  background: color-mix(in srgb, var(--color-error) 10%, transparent);
+  border: 1px solid var(--alert-error-border);
+  background: var(--status-surface-error);
   color: var(--color-text);
   font-size: 0.875rem;
   line-height: 1.45;
 }
 
 .job-failure-banner strong {
-  color: var(--color-error);
+  color: var(--status-fg-error);
 }
 
 @media (max-width: 900px) {
@@ -1647,22 +1647,37 @@ button.user-menu-swatch:hover:not(:disabled) {
 
 .metric-card--primary {
   border-left: 3px solid var(--color-primary);
+  --footer-action-fg: var(--primary-fg);
+  --footer-action-bg: var(--primary-surface);
+  --footer-action-border: var(--primary-border);
 }
 
 .metric-card--success {
   border-left: 3px solid var(--color-success);
+  --footer-action-fg: var(--status-fg-success);
+  --footer-action-bg: var(--status-surface-success);
+  --footer-action-border: color-mix(in srgb, var(--status-fg-success) 35%, transparent);
 }
 
 .metric-card--warning {
   border-left: 3px solid var(--color-warning);
+  --footer-action-fg: var(--status-fg-warning);
+  --footer-action-bg: var(--status-surface-warning);
+  --footer-action-border: color-mix(in srgb, var(--status-fg-warning) 35%, transparent);
 }
 
 .metric-card--error {
   border-left: 3px solid var(--color-error);
+  --footer-action-fg: var(--status-fg-error);
+  --footer-action-bg: var(--status-surface-error);
+  --footer-action-border: color-mix(in srgb, var(--status-fg-error) 35%, transparent);
 }
 
 .metric-card--info {
   border-left: 3px solid var(--color-info);
+  --footer-action-fg: var(--status-fg-info);
+  --footer-action-bg: var(--status-surface-info);
+  --footer-action-border: color-mix(in srgb, var(--status-fg-info) 35%, transparent);
 }
 
 .metric-card-header {
@@ -1682,28 +1697,28 @@ button.user-menu-swatch:hover:not(:disabled) {
 }
 
 .metric-icon--primary {
-  background: var(--color-primary-light);
-  color: var(--color-primary);
+  background: var(--primary-surface);
+  color: var(--primary-fg);
 }
 
 .metric-icon--success {
-  background: var(--color-success-bg);
-  color: var(--color-success);
+  background: var(--status-surface-success);
+  color: var(--status-fg-success);
 }
 
 .metric-icon--warning {
-  background: var(--color-warning-bg);
-  color: var(--color-warning);
+  background: var(--status-surface-warning);
+  color: var(--status-fg-warning);
 }
 
 .metric-icon--error {
-  background: var(--color-error-bg);
-  color: var(--color-error);
+  background: var(--status-surface-error);
+  color: var(--status-fg-error);
 }
 
 .metric-icon--info {
-  background: var(--color-info-bg);
-  color: var(--color-info);
+  background: var(--status-surface-info);
+  color: var(--status-fg-info);
 }
 
 .metric-value {
@@ -1716,7 +1731,7 @@ button.user-menu-swatch:hover:not(:disabled) {
 }
 
 .metric-value--primary {
-  color: var(--color-primary);
+  color: var(--primary-fg);
 }
 
 .metric-label {
@@ -1891,28 +1906,28 @@ button.btn-text:active:not(:disabled) {
 
 .badge-active,
 .status-badge--success {
-  background: var(--color-success-bg);
-  color: var(--color-success);
+  background: var(--status-surface-success);
+  color: var(--status-fg-success);
 }
 
 .badge-inactive,
 .status-badge--error {
-  background: var(--color-error-bg);
-  color: var(--color-error);
+  background: var(--status-surface-error);
+  color: var(--status-fg-error);
 }
 
 .status-badge--warning {
-  background: var(--color-warning-bg);
-  color: var(--color-warning);
+  background: var(--status-surface-warning);
+  color: var(--status-fg-warning);
 }
 
 .status-badge--info {
-  background: var(--color-info-bg);
-  color: var(--color-info);
+  background: var(--status-surface-info);
+  color: var(--status-fg-info);
 }
 
 .status-badge--neutral {
-  background: var(--color-bg);
+  background: var(--status-surface-neutral);
   color: var(--color-text-secondary);
   border: 1px solid var(--color-border);
 }
@@ -1930,9 +1945,9 @@ button.btn-text:active:not(:disabled) {
 }
 
 .connection-pill--live {
-  color: var(--color-success);
-  border-color: #a7f3d0;
-  background: var(--color-success-bg);
+  color: var(--status-fg-success);
+  border-color: color-mix(in srgb, var(--status-fg-success) 45%, var(--color-border));
+  background: var(--status-surface-success);
 }
 
 .connection-pill--offline {
@@ -1991,9 +2006,9 @@ button.btn-text:active:not(:disabled) {
 }
 
 .data-table {
-  width: max-content;
+  width: 100%;
   min-width: 100%;
-  table-layout: auto;
+  table-layout: fixed;
   border-collapse: collapse;
   font-size: 0.875rem;
 }
@@ -2091,6 +2106,23 @@ button.btn-text:active:not(:disabled) {
 .data-table th {
   white-space: nowrap;
   vertical-align: middle;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.data-table td code,
+.table-cell-uid {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.data-table td:has(.study-status-cell),
+.data-table td:has(.table-actions) {
+  overflow: visible;
+  text-overflow: clip;
 }
 
 .study-progress-ring-outer {
@@ -2483,15 +2515,15 @@ button.modality-combobox-option:hover:not(:disabled) {
   width: 3.5rem;
   height: 3.5rem;
   border-radius: 999px;
-  background: var(--color-error-bg);
-  color: var(--color-error);
-  box-shadow: 0 0 0 8px rgba(254, 226, 226, 0.55);
+  background: var(--status-surface-error);
+  color: var(--status-fg-error);
+  box-shadow: 0 0 0 8px color-mix(in srgb, var(--status-fg-error) 22%, transparent);
 }
 
 .confirm-modal--default .confirm-modal-icon {
-  background: var(--color-warning-bg);
-  color: var(--color-warning);
-  box-shadow: 0 0 0 8px rgba(254, 243, 199, 0.55);
+  background: var(--status-surface-warning);
+  color: var(--status-fg-warning);
+  box-shadow: 0 0 0 8px color-mix(in srgb, var(--status-fg-warning) 22%, transparent);
 }
 
 .confirm-modal-title {
@@ -2814,31 +2846,31 @@ button.modal-close:hover:not(:disabled) {
 }
 
 .alert-error {
-  background: var(--color-error-bg);
+  background: var(--status-surface-error);
   color: var(--alert-error-text);
   border-color: var(--alert-error-border);
-  --alert-progress-color: var(--color-error);
+  --alert-progress-color: var(--status-fg-error);
 }
 
 .alert-success {
-  background: var(--color-success-bg);
+  background: var(--status-surface-success);
   color: var(--alert-success-text);
   border-color: var(--alert-success-border);
-  --alert-progress-color: var(--color-success);
+  --alert-progress-color: var(--status-fg-success);
 }
 
 .alert-warning {
-  background: var(--color-warning-bg);
+  background: var(--status-surface-warning);
   color: var(--alert-warning-text);
   border-color: var(--alert-warning-border);
-  --alert-progress-color: var(--color-warning);
+  --alert-progress-color: var(--status-fg-warning);
 }
 
 .alert-info {
-  background: var(--color-info-bg);
+  background: var(--status-surface-info);
   color: var(--alert-info-text);
   border-color: var(--alert-info-border);
-  --alert-progress-color: var(--color-info);
+  --alert-progress-color: var(--status-fg-info);
 }
 
 .alert-muted {
@@ -3168,9 +3200,24 @@ button.modal-close:hover:not(:disabled) {
 .monitor-layout,
 .dashboard-layout {
   display: grid;
-  grid-template-columns: minmax(240px, 280px) minmax(0, 1fr) minmax(240px, 280px);
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 300px);
   gap: 1rem;
   align-items: start;
+}
+
+.monitor-sidecar-column {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 0;
+  position: sticky;
+  top: 1rem;
+  align-self: start;
+}
+
+.monitor-sidecar-column .monitor-sidecar {
+  position: static;
+  top: auto;
 }
 
 .monitor-main,
@@ -3284,8 +3331,8 @@ button.monitor-sidecar-show-more:active:not(:disabled) {
   text-transform: uppercase;
   padding: 0.15rem 0.45rem;
   border-radius: var(--radius-full);
-  background: color-mix(in srgb, var(--color-success) 15%, transparent);
-  color: var(--color-success);
+  background: var(--status-surface-success);
+  color: var(--status-fg-success);
 }
 
 .monitor-sidecar-empty {
@@ -3427,22 +3474,19 @@ button.monitor-sidecar-show-more:active:not(:disabled) {
     grid-template-columns: 1fr;
   }
 
-  .monitor-sidecar {
-    position: static;
-    overflow: visible;
-  }
-
-  .monitor-sidecar--left {
-    order: 2;
-  }
-
   .monitor-main,
   .dashboard-main {
     order: 1;
   }
 
-  .monitor-sidecar--right {
-    order: 3;
+  .monitor-sidecar-column {
+    order: 2;
+    position: static;
+  }
+
+  .monitor-sidecar {
+    position: static;
+    overflow: visible;
   }
 }
 
@@ -3546,18 +3590,18 @@ button.monitor-sidecar-show-more:active:not(:disabled) {
 }
 
 .health-card-icon--healthy {
-  background: var(--color-success-bg);
-  color: var(--color-success);
+  background: var(--status-surface-success);
+  color: var(--status-fg-success);
 }
 
 .health-card-icon--degraded {
-  background: var(--color-warning-bg);
-  color: var(--color-warning);
+  background: var(--status-surface-warning);
+  color: var(--status-fg-warning);
 }
 
 .health-card-icon--unhealthy {
-  background: var(--color-error-bg);
-  color: var(--color-error);
+  background: var(--status-surface-error);
+  color: var(--status-fg-error);
 }
 
 .health-card-body strong {
@@ -3775,8 +3819,8 @@ input[type="checkbox"]:not(.settings-switch input) {
 }
 
 .activity-feed-icon--routing {
-  background: var(--color-primary-light);
-  color: var(--color-primary);
+  background: var(--primary-surface);
+  color: var(--primary-fg);
 }
 
 .activity-feed-icon--migration {
@@ -4767,9 +4811,9 @@ button.notification-position-option.notification-position-option--active:hover:n
   font-weight: 500;
   font-family: inherit;
   line-height: 1.2;
-  color: var(--color-primary);
-  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
-  border: 1px solid color-mix(in srgb, var(--color-primary) 22%, transparent);
+  color: var(--footer-action-fg, var(--primary-fg));
+  background: var(--footer-action-bg, var(--primary-surface));
+  border: 1px solid var(--footer-action-border, var(--primary-border));
   text-decoration: none;
   cursor: pointer;
   width: auto;
@@ -4778,9 +4822,17 @@ button.notification-position-option.notification-position-option--active:hover:n
 }
 
 .metric-footer-action:hover {
-  color: var(--color-primary-hover);
-  background: color-mix(in srgb, var(--color-primary) 16%, transparent);
-  border-color: color-mix(in srgb, var(--color-primary) 35%, transparent);
+  color: var(--footer-action-fg, var(--primary-fg));
+  background: color-mix(
+    in srgb,
+    var(--footer-action-fg, var(--primary-fg)) 14%,
+    var(--footer-action-bg, var(--primary-surface))
+  );
+  border-color: color-mix(
+    in srgb,
+    var(--footer-action-fg, var(--primary-fg)) 45%,
+    var(--footer-action-border, var(--primary-border))
+  );
   text-decoration: none;
 }
 
@@ -4790,25 +4842,7 @@ button.notification-position-option.notification-position-option--active:hover:n
 
 .metric-footer-action svg {
   flex-shrink: 0;
-  opacity: 0.85;
-}
-
-.metric-card--success .metric-footer-action {
-  color: var(--color-success);
-  background: color-mix(in srgb, var(--color-success) 10%, transparent);
-  border-color: color-mix(in srgb, var(--color-success) 22%, transparent);
-}
-
-.metric-card--error .metric-footer-action {
-  color: var(--color-error);
-  background: color-mix(in srgb, var(--color-error) 10%, transparent);
-  border-color: color-mix(in srgb, var(--color-error) 22%, transparent);
-}
-
-.metric-card--info .metric-footer-action {
-  color: var(--color-info);
-  background: color-mix(in srgb, var(--color-info) 10%, transparent);
-  border-color: color-mix(in srgb, var(--color-info) 22%, transparent);
+  opacity: 0.92;
 }
 
 .reports-kpi-grid {
@@ -5362,23 +5396,23 @@ button.notification-position-option.notification-position-option--active:hover:n
 }
 
 .notification-toast--success {
-  background: var(--color-success-bg);
-  --alert-progress-color: var(--color-success);
+  background: var(--status-surface-success);
+  --alert-progress-color: var(--status-fg-success);
 }
 
 .notification-toast--error {
-  background: var(--color-error-bg);
-  --alert-progress-color: var(--color-error);
+  background: var(--status-surface-error);
+  --alert-progress-color: var(--status-fg-error);
 }
 
 .notification-toast--warning {
-  background: var(--color-warning-bg);
-  --alert-progress-color: var(--color-warning);
+  background: var(--status-surface-warning);
+  --alert-progress-color: var(--status-fg-warning);
 }
 
 .notification-toast--info {
-  background: var(--color-info-bg);
-  --alert-progress-color: var(--color-info);
+  background: var(--status-surface-info);
+  --alert-progress-color: var(--status-fg-info);
 }
 
 .notification-toast__progress-track {

@@ -126,13 +126,6 @@ export default function Dashboard() {
       />
 
       <div className="dashboard-layout">
-        <DashboardLeftSidecar
-          wsEvents={events}
-          dimseEvents={dimse?.recent_events ?? []}
-          selectedStudyUid={selectedStudyUid}
-          onSelectStudyUid={setSelectedStudyUid}
-        />
-
         <div className="dashboard-main">
           <div className="grid" style={{ marginBottom: "1.25rem" }}>
             <MetricCard
@@ -255,10 +248,18 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <DashboardRightSidecar
-          selectedStudyUid={selectedStudyUid}
-          selectedTransaction={selectedTransaction}
-        />
+        <div className="monitor-sidecar-column">
+          <DashboardLeftSidecar
+            wsEvents={events}
+            dimseEvents={dimse?.recent_events ?? []}
+            selectedStudyUid={selectedStudyUid}
+            onSelectStudyUid={setSelectedStudyUid}
+          />
+          <DashboardRightSidecar
+            selectedStudyUid={selectedStudyUid}
+            selectedTransaction={selectedTransaction}
+          />
+        </div>
       </div>
     </div>
   );
