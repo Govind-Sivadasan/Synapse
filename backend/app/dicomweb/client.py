@@ -1,6 +1,7 @@
 """Async DICOMweb client for STOW-RS uploads."""
 
 import asyncio
+import time
 from pathlib import Path
 
 import httpx
@@ -9,6 +10,7 @@ import structlog
 from app.config import settings
 from app.dicomweb.auth_handler import AuthHandler
 from app.dicomweb.stow_rs import StowRsResult, build_multipart_body, parse_stow_response
+from app.observability.metrics import observe_histogram
 
 logger = structlog.get_logger()
 
@@ -41,6 +43,7 @@ class DICOMwebClient:
 
         last_error = ""
         for attempt in range(self.max_retries + 1):
+            started = time.perf_counter()
             try:
                 async with httpx.AsyncClient(timeout=self.timeout) as client:
                     response = await client.post(upload_url, content=body, headers=headers)
@@ -53,6 +56,11 @@ class DICOMwebClient:
 
                 result = parse_stow_response(response.status_code, response.text)
                 if 200 <= response.status_code < 300:
+                    observe_histogram(
+                        "synapse_dicomweb_request_duration_seconds",
+                        time.perf_counter() - started,
+                        {"operation": "stow_rs", "status": "success"},
+                    )
                     logger.info(
                         "stow_rs_success",
                         url=upload_url,
@@ -62,10 +70,20 @@ class DICOMwebClient:
                     return result
 
                 last_error = f"HTTP {response.status_code}: {response.text[:500]}"
+                observe_histogram(
+                    "synapse_dicomweb_request_duration_seconds",
+                    time.perf_counter() - started,
+                    {"operation": "stow_rs", "status": "error"},
+                )
                 if attempt < self.max_retries:
                     await asyncio.sleep(2**attempt)
             except httpx.RequestError as exc:
                 last_error = str(exc)
+                observe_histogram(
+                    "synapse_dicomweb_request_duration_seconds",
+                    time.perf_counter() - started,
+                    {"operation": "stow_rs", "status": "error"},
+                )
                 if attempt < self.max_retries:
                     await asyncio.sleep(2**attempt)
 

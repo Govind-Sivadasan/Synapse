@@ -13,6 +13,7 @@ from app.api.v1 import (
     metadata,
     migration_jobs,
     nodes,
+    performance,
     reports,
     routing_rules,
     routing_transactions,
@@ -35,3 +36,4 @@ api_router.include_router(reports.router)
 api_router.include_router(auth_events.router)
 api_router.include_router(chatbot.router)
 api_router.include_router(migration_jobs.router)
+api_router.include_router(performance.router)

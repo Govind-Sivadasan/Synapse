@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 import structlog
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 
 from app.api.v1.router import api_router
 from app.config import settings
@@ -16,6 +17,7 @@ from app.services.runtime_config import set_runtime_overrides
 from app.services.system_config import get_system_config
 from app.websocket.manager import ws_manager
 from app.websocket.redis_bridge import redis_event_subscriber
+from app.observability.metrics import render_prometheus, update_scrape_gauges
 
 logger = structlog.get_logger()
 dimse_listener: DIMSEListener | None = None
@@ -71,6 +73,14 @@ app.include_router(api_router)
 @app.get("/")
 async def root() -> dict:
     return {"service": settings.app_name, "version": "0.1.0", "docs": "/docs"}
+
+
+@app.get("/metrics")
+async def prometheus_metrics() -> Response:
+    """Prometheus scrape endpoint (queue depth + pipeline/task metrics)."""
+    await update_scrape_gauges()
+    body, content_type = render_prometheus()
+    return Response(content=body, media_type=content_type)
 
 
 @app.websocket("/ws/events")

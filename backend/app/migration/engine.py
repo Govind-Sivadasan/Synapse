@@ -21,6 +21,7 @@ from app.models.migration import MigrationJob, MigrationStudyRecord
 from app.models.node import Node
 from app.models.tag_morphing import TagMorphingRule
 from app.morphing.tag_morpher import TagMorpher
+from app.observability.metrics import inc_counter, timed_phase
 from app.services.audit_logger import AuditLogger
 from app.services.event_publisher import publish_event
 
@@ -167,12 +168,13 @@ class MigrationEngine:
 
             download_dir = Path(settings.temp_storage_path) / "migration" / str(job_id) / study_uid
             source_auth = AuthHandler.from_node(source)
-            file_paths = await retrieve_study_instances(
-                source.dicomweb_url,
-                study_uid,
-                source_auth,
-                download_dir,
-            )
+            with timed_phase("migration", "wado", study_uid=study_uid):
+                file_paths = await retrieve_study_instances(
+                    source.dicomweb_url,
+                    study_uid,
+                    source_auth,
+                    download_dir,
+                )
 
             metadata = self._extract_metadata(file_paths[0], record)
             upload_paths = file_paths
@@ -192,9 +194,10 @@ class MigrationEngine:
                     )
                 if rules:
                     morph_dir = download_dir / f"morphed_{uuid.uuid4().hex[:8]}"
-                    upload_paths, audit = self.tag_morpher.apply_to_files(
-                        file_paths, rules, metadata, output_dir=morph_dir
-                    )
+                    with timed_phase("migration", "morph", study_uid=study_uid):
+                        upload_paths, audit = self.tag_morpher.apply_to_files(
+                            file_paths, rules, metadata, output_dir=morph_dir
+                        )
                     async with async_session_factory() as session:
                         await AuditLogger.log(
                             session,
@@ -214,19 +217,23 @@ class MigrationEngine:
                         await session.commit()
 
             dest_auth = AuthHandler.from_node(destination)
-            await self.dicomweb_client.stow_rs(upload_paths, destination.dicomweb_url, dest_auth)
+            with timed_phase("migration", "stow", study_uid=study_uid):
+                await self.dicomweb_client.stow_rs(upload_paths, destination.dicomweb_url, dest_auth)
 
             async with async_session_factory() as session:
-                await self._mark_study(session, job_id, study_uid, "success")
-                await self._refresh_job_counters(session, job_id)
-                await AuditLogger.log(
-                    session,
-                    "JOB_STATUS_CHANGE",
-                    entity_type="MigrationStudyRecord",
-                    entity_id=record.id,
-                    details={"study_uid": study_uid, "status": "success", "instances": len(upload_paths)},
-                )
-                await session.commit()
+                with timed_phase("migration", "db_finalize", study_uid=study_uid):
+                    await self._mark_study(session, job_id, study_uid, "success")
+                    await self._refresh_job_counters(session, job_id)
+                    await AuditLogger.log(
+                        session,
+                        "JOB_STATUS_CHANGE",
+                        entity_type="MigrationStudyRecord",
+                        entity_id=record.id,
+                        details={"study_uid": study_uid, "status": "success", "instances": len(upload_paths)},
+                    )
+                    await session.commit()
+
+            inc_counter("synapse_migration_studies_total", {"status": "success"})
 
             publish_event(
                 "migration_study_completed",
@@ -236,6 +243,7 @@ class MigrationEngine:
 
         except (QidoRsError, WadoRsError, StowRsUploadError) as exc:
             error = str(exc)
+            inc_counter("synapse_migration_studies_total", {"status": "failed"})
             logger.error("migrate_study_failed", job_id=str(job_id), study_uid=study_uid, error=error)
             async with async_session_factory() as session:
                 record = await self._mark_study(session, job_id, study_uid, "failed", error)

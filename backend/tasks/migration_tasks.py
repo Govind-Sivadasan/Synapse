@@ -1,10 +1,12 @@
 """Celery tasks for bulk DICOM migration."""
 
+import time
 import uuid
 
 import structlog
 
 from app.database import run_async_task
+from app.observability.metrics import track_task_outcome
 from celery_app import celery_app
 
 logger = structlog.get_logger()
@@ -110,9 +112,25 @@ async def _migrate_study(job_id: str, study_uid: str) -> dict:
 def fetch_and_enqueue_studies(self, job_id: str) -> dict:
     """Paginate QIDO-RS on source PACS and enqueue per-study migration tasks."""
     logger.info("fetch_and_enqueue_studies", job_id=job_id)
+    started = time.perf_counter()
     try:
-        return run_async_task(_fetch_and_enqueue(job_id))
+        result = run_async_task(_fetch_and_enqueue(job_id))
+        track_task_outcome(
+            "migration_queue",
+            "fetch_and_enqueue_studies",
+            time.perf_counter() - started,
+            success=True,
+            retries=self.request.retries,
+        )
+        return result
     except Exception as exc:
+        track_task_outcome(
+            "migration_queue",
+            "fetch_and_enqueue_studies",
+            time.perf_counter() - started,
+            success=False,
+            retries=self.request.retries,
+        )
         raise self.retry(exc=exc, countdown=2**self.request.retries)
 
 
@@ -120,8 +138,24 @@ def fetch_and_enqueue_studies(self, job_id: str) -> dict:
 def migrate_study(self, job_id: str, study_uid: str) -> dict:
     """Migrate a single study: WADO-RS download → morph → STOW-RS upload."""
     logger.info("migrate_study", job_id=job_id, study_uid=study_uid)
+    started = time.perf_counter()
     try:
-        return run_async_task(_migrate_study(job_id, study_uid))
+        result = run_async_task(_migrate_study(job_id, study_uid))
+        track_task_outcome(
+            "migration_queue",
+            "migrate_study",
+            time.perf_counter() - started,
+            success=True,
+            retries=self.request.retries,
+        )
+        return result
     except Exception as exc:
+        track_task_outcome(
+            "migration_queue",
+            "migrate_study",
+            time.perf_counter() - started,
+            success=False,
+            retries=self.request.retries,
+        )
         logger.error("migrate_study_task_failed", job_id=job_id, study_uid=study_uid, error=str(exc))
         raise self.retry(exc=exc, countdown=2**self.request.retries)

@@ -45,6 +45,9 @@ class Settings(BaseSettings):
     # CORS
     cors_origins: list[str] = ["http://localhost:3000", "http://localhost:5173"]
 
+    # Performance instrumentation (Phase 0)
+    metrics_enabled: bool = True
+
 
 @lru_cache
 def get_settings() -> Settings:

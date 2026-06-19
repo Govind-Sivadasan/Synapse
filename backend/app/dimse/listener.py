@@ -103,7 +103,9 @@ class DIMSEListener:
             for study in completed_studies:
                 record_studies_assembled(calling_ae, study.study_uid, len(study.instance_paths))
                 from tasks.routing_tasks import route_study
+                from app.observability.metrics import inc_counter
 
+                inc_counter("synapse_dimse_studies_enqueued_total")
                 route_study.delay(
                     study_uid=study.study_uid,
                     dicom_files=[str(p) for p in study.instance_paths],

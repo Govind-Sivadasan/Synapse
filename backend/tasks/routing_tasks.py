@@ -1,10 +1,12 @@
 """Celery tasks for real-time DICOM routing."""
 
+import time
 import uuid
 
 import structlog
 
 from app.database import run_async_task
+from app.observability.metrics import track_task_outcome
 from celery_app import celery_app
 
 logger = structlog.get_logger()
@@ -70,11 +72,27 @@ def route_study(
         instances=len(dicom_files),
         calling_ae=calling_ae_title,
     )
+    started = time.perf_counter()
     try:
-        return run_async_task(
+        result = run_async_task(
             _route_study(study_uid, dicom_files, metadata, calling_ae_title)
         )
+        track_task_outcome(
+            "routing_queue",
+            "route_study",
+            time.perf_counter() - started,
+            success=True,
+            retries=self.request.retries,
+        )
+        return result
     except Exception as exc:
+        track_task_outcome(
+            "routing_queue",
+            "route_study",
+            time.perf_counter() - started,
+            success=False,
+            retries=self.request.retries,
+        )
         logger.error("route_study_failed", study_uid=study_uid, error=str(exc))
         raise self.retry(exc=exc, countdown=2**self.request.retries)
 
@@ -86,8 +104,24 @@ def upload_to_destination(
 ) -> dict:
     """Retry STOW-RS upload for a single failed destination."""
     logger.info("upload_to_destination_retry", destination_id=destination_record_id)
+    started = time.perf_counter()
     try:
-        return run_async_task(_retry_destination(destination_record_id))
+        result = run_async_task(_retry_destination(destination_record_id))
+        track_task_outcome(
+            "routing_queue",
+            "upload_to_destination",
+            time.perf_counter() - started,
+            success=True,
+            retries=self.request.retries,
+        )
+        return result
     except Exception as exc:
+        track_task_outcome(
+            "routing_queue",
+            "upload_to_destination",
+            time.perf_counter() - started,
+            success=False,
+            retries=self.request.retries,
+        )
         logger.error("upload_to_destination_failed", error=str(exc))
         raise self.retry(exc=exc, countdown=2**self.request.retries)

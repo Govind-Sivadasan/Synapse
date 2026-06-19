@@ -18,6 +18,7 @@ from app.models.node import Node
 from app.models.routing import RoutingDestination, RoutingRule, RoutingTransaction
 from app.models.tag_morphing import TagMorphingRule
 from app.morphing.tag_morpher import TagMorpher, TagMorphingAuditRecord
+from app.observability.metrics import inc_counter, timed_phase
 from app.routing.rule_evaluator import DestinationPlan, RoutingRuleEvaluator
 from app.services.audit_logger import AuditLogger
 from app.services.event_publisher import publish_event
@@ -66,114 +67,120 @@ class RoutingEngine:
         dest_statuses: list[DestinationStatus] = []
         overall_status = "failed"
 
-        async with async_session_factory() as session:
-            transaction = await self._create_transaction(
-                session, study_uid, metadata, file_paths, calling_ae_title
-            )
-            transaction_id = transaction.id
+        with timed_phase("routing", "evaluate", study_uid=study_uid):
+            async with async_session_factory() as session:
+                transaction = await self._create_transaction(
+                    session, study_uid, metadata, file_paths, calling_ae_title
+                )
+                transaction_id = transaction.id
 
-            matches = await self.rule_evaluator.evaluate(metadata, session)
+                matches = await self.rule_evaluator.evaluate(metadata, session)
 
-            if not matches:
-                transaction.overall_status = "no_match"
-                transaction.completed_at = datetime.now(timezone.utc)
+                if not matches:
+                    transaction.overall_status = "no_match"
+                    transaction.completed_at = datetime.now(timezone.utc)
+                    await AuditLogger.log(
+                        session,
+                        "ROUTING_RULE_MATCH",
+                        entity_type="RoutingTransaction",
+                        entity_id=transaction_id,
+                        details={"study_uid": study_uid, "matched": False},
+                    )
+                    await session.commit()
+                    self._publish_status(transaction, [])
+                    inc_counter("synapse_routing_studies_total", {"status": "no_match"})
+                    return RoutingTransactionResult(
+                        transaction_id=transaction_id,
+                        study_uid=study_uid,
+                        overall_status="no_match",
+                    )
+
+                primary_rule = matches[0]
+                primary_rule_id = primary_rule.routing_rule_id
+                transaction.routing_rule_id = primary_rule_id
+                destination_plans = self.rule_evaluator.resolve_destinations(matches)
+
                 await AuditLogger.log(
                     session,
                     "ROUTING_RULE_MATCH",
                     entity_type="RoutingTransaction",
                     entity_id=transaction_id,
-                    details={"study_uid": study_uid, "matched": False},
+                    details={
+                        "study_uid": study_uid,
+                        "matched": True,
+                        "rules": [m.rule_name for m in matches],
+                        "destinations": [str(p.destination_node_id) for p in destination_plans],
+                    },
                 )
+
+                upload_jobs: list[tuple[RoutingDestination, Node, list[Path], str]] = []
+
+                for plan in destination_plans:
+                    dest_record, node = await self._create_destination_record(session, transaction_id, plan)
+                    morphed_paths, morph_audit, morph_dir = await self._prepare_morphed_files(
+                        session, file_paths, plan, metadata
+                    )
+                    if morph_dir:
+                        morph_cleanup_dirs.append(morph_dir)
+
+                    if morph_audit.changes:
+                        await AuditLogger.log(
+                            session,
+                            "TAG_MORPHING_APPLIED",
+                            entity_type="RoutingDestination",
+                            entity_id=dest_record.id,
+                            details={
+                                "study_uid": study_uid,
+                                "destination": node.name,
+                                "changes": [
+                                    {"tag": c.tag, "original": c.original_value, "new": c.new_value}
+                                    for c in morph_audit.changes
+                                ],
+                            },
+                        )
+
+                    upload_jobs.append((dest_record, node, morphed_paths, study_uid))
+
                 await session.commit()
-                self._publish_status(transaction, [])
-                return RoutingTransactionResult(
-                    transaction_id=transaction_id,
-                    study_uid=study_uid,
-                    overall_status="no_match",
-                )
 
-            primary_rule = matches[0]
-            primary_rule_id = primary_rule.routing_rule_id
-            transaction.routing_rule_id = primary_rule_id
-            destination_plans = self.rule_evaluator.resolve_destinations(matches)
+        with timed_phase("routing", "stow", study_uid=study_uid):
+            upload_results = await self._run_uploads(upload_jobs)
 
-            await AuditLogger.log(
-                session,
-                "ROUTING_RULE_MATCH",
-                entity_type="RoutingTransaction",
-                entity_id=transaction_id,
-                details={
-                    "study_uid": study_uid,
-                    "matched": True,
-                    "rules": [m.rule_name for m in matches],
-                    "destinations": [str(p.destination_node_id) for p in destination_plans],
-                },
-            )
+        with timed_phase("routing", "db_finalize", study_uid=study_uid):
+            async with async_session_factory() as session:
+                transaction = await session.get(RoutingTransaction, transaction_id)
+                success_count = 0
 
-            upload_jobs: list[tuple[RoutingDestination, Node, list[Path], str]] = []
-
-            for plan in destination_plans:
-                dest_record, node = await self._create_destination_record(session, transaction_id, plan)
-                morphed_paths, morph_audit, morph_dir = await self._prepare_morphed_files(
-                    session, file_paths, plan, metadata
-                )
-                if morph_dir:
-                    morph_cleanup_dirs.append(morph_dir)
-
-                if morph_audit.changes:
-                    await AuditLogger.log(
-                        session,
-                        "TAG_MORPHING_APPLIED",
-                        entity_type="RoutingDestination",
-                        entity_id=dest_record.id,
-                        details={
-                            "study_uid": study_uid,
-                            "destination": node.name,
-                            "changes": [
-                                {"tag": c.tag, "original": c.original_value, "new": c.new_value}
-                                for c in morph_audit.changes
-                            ],
-                        },
+                for dest_record, node, status, error in upload_results:
+                    db_dest = await session.get(RoutingDestination, dest_record.id)
+                    db_dest.status = status
+                    db_dest.failure_reason = error
+                    db_dest.completed_at = datetime.now(timezone.utc)
+                    if status == "success":
+                        success_count += 1
+                    dest_statuses.append(
+                        DestinationStatus(
+                            destination_id=db_dest.id,
+                            destination_node_id=db_dest.destination_node_id,
+                            node_name=node.name,
+                            status=status,
+                            failure_reason=error,
+                        )
                     )
 
-                upload_jobs.append((dest_record, node, morphed_paths, study_uid))
+                if success_count == len(upload_results):
+                    overall_status = "success"
+                elif success_count > 0:
+                    overall_status = "partial"
+                else:
+                    overall_status = "failed"
 
-            await session.commit()
+                transaction.overall_status = overall_status
+                transaction.completed_at = datetime.now(timezone.utc)
+                await session.commit()
+                self._publish_status(transaction, dest_statuses)
 
-        upload_results = await self._run_uploads(upload_jobs)
-
-        async with async_session_factory() as session:
-            transaction = await session.get(RoutingTransaction, transaction_id)
-            success_count = 0
-
-            for dest_record, node, status, error in upload_results:
-                db_dest = await session.get(RoutingDestination, dest_record.id)
-                db_dest.status = status
-                db_dest.failure_reason = error
-                db_dest.completed_at = datetime.now(timezone.utc)
-                if status == "success":
-                    success_count += 1
-                dest_statuses.append(
-                    DestinationStatus(
-                        destination_id=db_dest.id,
-                        destination_node_id=db_dest.destination_node_id,
-                        node_name=node.name,
-                        status=status,
-                        failure_reason=error,
-                    )
-                )
-
-            if success_count == len(upload_results):
-                overall_status = "success"
-            elif success_count > 0:
-                overall_status = "partial"
-            else:
-                overall_status = "failed"
-
-            transaction.overall_status = overall_status
-            transaction.completed_at = datetime.now(timezone.utc)
-            await session.commit()
-            self._publish_status(transaction, dest_statuses)
+        inc_counter("synapse_routing_studies_total", {"status": overall_status})
 
         for morph_dir in morph_cleanup_dirs:
             TagMorpher.cleanup_dir(morph_dir)
