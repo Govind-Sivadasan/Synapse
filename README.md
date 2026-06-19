@@ -84,4 +84,4 @@ synapse/
 | Phase 5 | ✅ Done | Dashboard analytics, reports, audit export, activity feed |
 | Phase 6 | ✅ Done | Ollama chatbot, context queries, PHI redaction, fallback mode |
 
-See [docs/SETUP.md](docs/SETUP.md) for detailed setup instructions and [docs/TEST_PLAN.md](docs/TEST_PLAN.md) for the complete real-time test plan.
+See [docs/SETUP.md](docs/SETUP.md) for detailed setup instructions, [docs/TEST_PLAN.md](docs/TEST_PLAN.md) for the complete real-time test plan, and [docs/PERFORMANCE.md](docs/PERFORMANCE.md) for migration throughput tuning and observability.

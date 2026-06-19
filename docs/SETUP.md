@@ -12,6 +12,7 @@
 | [MIGRATION_TESTING.md](MIGRATION_TESTING.md) | Phase 4 bulk migration |
 | [REPORTING.md](REPORTING.md) | Phase 5 dashboard & reports |
 | [CHATBOT.md](CHATBOT.md) | Phase 6 Ollama chatbot |
+| [PERFORMANCE.md](PERFORMANCE.md) | **Performance engine** — metrics, tuning, partitions, tracing |
 
 ## Prerequisites
 
@@ -74,6 +75,7 @@ Expected: JSON with `postgresql`, `redis`, `orthanc_onprem`, `orthanc_cloud`, `k
 | synapse-backend | FastAPI + DIMSE listener | backend:8000/11112 |
 | synapse-celery-routing | Real-time routing workers | — |
 | synapse-celery-migration | Bulk migration workers | — |
+| synapse-partition-maintenance | Monthly DB partition cron | — |
 | synapse-frontend | React SPA | frontend:80 |
 | synapse-ollama | LLM inference for chatbot | ollama:11434 |
 
@@ -91,12 +93,15 @@ storescu localhost 11112 -aec SYNAPSE -aet STORESCU test.dcm
 
 ## Database Migrations
 
-Migrations run automatically on backend startup. To run manually:
+Migrations run automatically on backend startup, followed by a one-shot partition ensure (`manage_partitions.py`). To run manually:
 
 ```bash
 docker exec synapse-backend alembic upgrade head
+docker exec synapse-backend python scripts/manage_partitions.py
 docker exec synapse-backend python scripts/seed_data.py
 ```
+
+The `partition-maintenance` container re-runs partition creation on an interval (default 86400s). See [PERFORMANCE.md](PERFORMANCE.md).
 
 ## Local Development (without Docker)
 
@@ -189,3 +194,7 @@ docker exec synapse-backend python scripts/test_dimse_e2e.py --host localhost --
 ```
 
 Then verify **Routing Monitor** (`success`) and cloud Orthanc at http://localhost:8043.
+
+## Performance tuning
+
+Migration throughput, Prometheus metrics, STOW/WADO tuning, partitions, and optional OpenTelemetry are documented in [PERFORMANCE.md](PERFORMANCE.md). Key `.env` variables: `CELERY_MIGRATION_CONCURRENCY`, `WADO_PARALLEL_INSTANCES`, `STOW_BATCH_SIZE`, `STOW_PARALLEL_BATCHES`, `OTEL_*`.

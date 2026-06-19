@@ -30,6 +30,15 @@ def build_multipart_body(dicom_files: list[Path], boundary: str | None = None) -
     return body, content_type
 
 
+def chunk_paths(dicom_files: list[Path], batch_size: int) -> list[list[Path]]:
+    """Split instance files into STOW batches (single batch when batch_size <= 0)."""
+    if not dicom_files:
+        return []
+    if batch_size <= 0 or batch_size >= len(dicom_files):
+        return [dicom_files]
+    return [dicom_files[index : index + batch_size] for index in range(0, len(dicom_files), batch_size)]
+
+
 def parse_stow_response(http_status: int, response_text: str) -> StowRsResult:
     accepted: list[str] = []
     failed: list[str] = []

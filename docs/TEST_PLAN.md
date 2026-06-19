@@ -16,6 +16,9 @@ End-to-end validation for the DU2 Hackathon demo stack. Focus: **live DIMSE inta
 | 5 | Dashboard, reports, audit | 8 |
 | 6 | Chatbot + PHI | 9 |
 | — | RBAC, security | 4 |
+| — | Performance & observability (optional) | 15 |
+
+> **Performance phases** (WADO/STOW tuning, metrics, partitions) are documented in [PERFORMANCE.md](PERFORMANCE.md) — separate from product phases above.
 
 ---
 
@@ -365,6 +368,7 @@ Reference: [CHATBOT.md](CHATBOT.md)
 | H3 | Restart postgres | Recovers to healthy |
 | H4 | `docker logs synapse-backend --tail 20` | No repeated tracebacks |
 | H5 | `docker logs synapse-celery-routing --tail 20` | `route_study` tasks complete |
+| H6 | `docker compose ps partition-maintenance` | Container running (partition cron) |
 
 ---
 
@@ -421,7 +425,38 @@ Events that should appear **without manual page refresh** (Routing Monitor open)
 
 ---
 
-## 15. Pass / Fail Summary
+## 15. Performance & Observability (optional, 10 min)
+
+Reference: [PERFORMANCE.md](PERFORMANCE.md). Run after a bulk migration job (Section 7) for meaningful phase metrics.
+
+| # | Step | Pass Criteria |
+|---|------|---------------|
+| P1 | `docker compose ps partition-maintenance` | Container up; logs show periodic `manage_partitions.py` |
+| P2 | `curl -s http://localhost:8000/metrics \| grep synapse_migration_studies` | Prometheus counters present |
+| P3 | Baseline API (operator token) | `GET /api/v1/performance/baseline` returns queues + histogram avgs |
+| P4 | Reset metrics | `docker exec synapse-backend python scripts/reset_performance_metrics.py --yes` exits 0 |
+| P5 | Mark + delta | `POST /performance/baseline/mark` → run one study migration → `?since=<marker_id>` shows delta only |
+| P6 | Phase breakdown | After migration job, baseline shows `wado`, `stow`, `db_finalize` phase avgs |
+| P7 | Partition ensure | `POST /api/v1/performance/partitions/ensure` returns success (operator/admin) |
+| P8 | Trace correlation | Celery logs or migration row include `trace_id`; optional `X-Trace-Id` on API call |
+| P9 | OTEL export (optional) | With `OTEL_ENABLED=true` + collector, spans appear in backend/worker traces |
+
+```bash
+# Metrics scrape
+curl -s http://localhost:8000/metrics | grep -E 'synapse_pipeline_phase|synapse_celery_queue'
+
+# Baseline snapshot
+curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/v1/performance/baseline | jq
+
+# Manual partition ensure
+docker exec synapse-backend python scripts/manage_partitions.py
+```
+
+**Smoke pass:** P1, P2, P3, P6 (after at least one completed migration study).
+
+---
+
+## 16. Pass / Fail Summary
 
 | Category | Minimum to pass demo |
 |----------|----------------------|
@@ -432,10 +467,11 @@ Events that should appear **without manual page refresh** (Routing Monitor open)
 | Security | RBAC + viewer PHI redaction |
 | Chatbot | C2–C4 pass (C9 fallback acceptable) |
 | Audit | All major actions logged |
+| Performance (optional) | P1–P3, P6 pass after migration smoke |
 
 ---
 
-## 16. Troubleshooting Quick Reference
+## 17. Troubleshooting Quick Reference
 
 | Symptom | Likely cause | Fix |
 |---------|--------------|-----|
@@ -446,10 +482,13 @@ Events that should appear **without manual page refresh** (Routing Monitor open)
 | Chatbot fallback only | Ollama model not pulled | `docker exec synapse-ollama ollama pull qwen2.5:7b-instruct` |
 | STOW-RS failed | Cloud Orthanc down | `docker compose restart orthanc-cloud` |
 | Keycloak theme old | Cached realm / container | `run.bat restart keycloak`; confirm login theme is `synapse` in admin console |
+| `/metrics` empty or 404 | `METRICS_ENABLED=false` | Set `METRICS_ENABLED=true` in `.env`; restart backend |
+| Baseline API 403 | Wrong role | Use operator or admin token |
+| Partition maintenance errors | Migration 006 not applied | `docker exec synapse-backend alembic upgrade head` |
 
 ---
 
-## 17. Related Docs
+## 18. Related Docs
 
 - [SETUP.md](SETUP.md) — installation
 - [DIMSE_TESTING.md](DIMSE_TESTING.md) — DIMSE scripts
@@ -457,17 +496,18 @@ Events that should appear **without manual page refresh** (Routing Monitor open)
 - [MIGRATION_TESTING.md](MIGRATION_TESTING.md) — bulk migration
 - [REPORTING.md](REPORTING.md) — dashboard & audit export
 - [CHATBOT.md](CHATBOT.md) — Ollama chatbot
+- [PERFORMANCE.md](PERFORMANCE.md) — metrics, tuning, partitions, tracing
 - [DEMO_SCRIPT.md](DEMO_SCRIPT.md) — presentation flow
 
 ---
 
-## 18. Printable Master Checklist
+## 19. Printable Master Checklist
 
 Copy this section for hackathon sign-off. Check each box during a live run.
 
 ### Platform
 
-- [ ] `docker compose up -d` — all core containers running
+- [ ] `docker compose up -d` — all core containers running (incl. `partition-maintenance`)
 - [ ] `curl http://localhost:8000/api/v1/health` — dimse, postgres, redis, orthanc ×2, keycloak healthy
 - [ ] Ollama model pulled (`qwen2.5:7b-instruct`) or chatbot fallback acceptable
 - [ ] Keycloak login + Synapse theme works
@@ -500,6 +540,14 @@ Copy this section for hackathon sign-off. Check each box during a live run.
 - [ ] **Cancel** mid-run works
 - [ ] **Resume** on failed/partial job works
 - [ ] Per-study **Retry** works
+
+### Performance (optional)
+
+- [ ] `curl http://localhost:8000/metrics` — `synapse_*` counters/histograms present
+- [ ] `GET /api/v1/performance/baseline` — returns queue depth + phase avgs (operator token)
+- [ ] After migration job — baseline shows `wado` / `stow` / `db_finalize` breakdown
+- [ ] `partition-maintenance` container running; `manage_partitions.py` succeeds manually
+- [ ] `reset_performance_metrics.py --yes` + baseline mark/delta (optional benchmark prep)
 
 ### Reporting (Phase 5)
 

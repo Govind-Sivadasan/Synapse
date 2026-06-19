@@ -6,7 +6,7 @@ import pydicom
 from pydicom.dataset import Dataset, FileMetaDataset
 from pydicom.uid import ExplicitVRLittleEndian, generate_uid
 
-from app.dicomweb.stow_rs import build_multipart_body, parse_stow_response
+from app.dicomweb.stow_rs import build_multipart_body, chunk_paths, parse_stow_response
 
 
 def _minimal_dicom(path: Path) -> None:
@@ -47,3 +47,8 @@ def test_parse_stow_response_failure():
     result = parse_stow_response(500, "error")
     assert result.http_status == 500
     assert len(result.failed_instances) == 1
+
+
+def test_chunk_paths_respects_batch_size():
+    paths = [Path(f"/tmp/{index}.dcm") for index in range(3)]
+    assert chunk_paths(paths, 2) == [paths[:2], paths[2:]]

@@ -7,6 +7,9 @@ from app.observability.logging_config import configure_logging
 
 configure_logging()
 import app.observability.celery_tracing  # noqa: E402, F401 — register task signals
+from app.observability.otel import setup_opentelemetry
+
+setup_opentelemetry(instrument_celery=True)
 
 celery_app = Celery(
     "synapse",

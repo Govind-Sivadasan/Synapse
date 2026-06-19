@@ -14,6 +14,7 @@ from app.database import async_session_factory
 from app.dimse.listener import DIMSEListener
 from app.middleware.trace import TraceMiddleware
 from app.observability.logging_config import configure_logging
+from app.observability.otel import instrument_fastapi
 from app.services.allowed_aets import refresh_allowed_calling_aets
 from app.services.runtime_config import set_runtime_overrides
 from app.services.system_config import get_system_config
@@ -72,6 +73,7 @@ app.add_middleware(
 app.add_middleware(TraceMiddleware)
 
 app.include_router(api_router)
+instrument_fastapi(app)
 
 
 @app.get("/")

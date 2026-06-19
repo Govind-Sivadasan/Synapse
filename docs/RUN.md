@@ -89,7 +89,7 @@ The script maps friendly flags to `docker-compose.yml` service names:
 | Group | Services |
 |-------|----------|
 | **Infrastructure** (`-Infra`) | `postgres`, `redis`, `keycloak`, `orthanc-onprem`, `orthanc-cloud`, `ollama` |
-| **Application** | `backend`, `celery-routing`, `celery-migration`, `frontend` |
+| **Application** | `backend`, `celery-routing`, `celery-migration`, `partition-maintenance`, `frontend` |
 | **Full stack** (default) | All of the above |
 
 With `-NoOllama`, the full stack runs without the `ollama` service.
@@ -267,3 +267,4 @@ Default UI login: `admin` / `admin123`
 
 - [SETUP.md](SETUP.md) — Full installation and service reference
 - [TEST_PLAN.md](TEST_PLAN.md) — End-to-end verification checklist
+- [PERFORMANCE.md](PERFORMANCE.md) — Metrics, tuning, partitions, tracing

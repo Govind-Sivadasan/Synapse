@@ -68,6 +68,35 @@ Migration tasks run on `celery-migration` worker (`migration_queue`):
 docker logs -f synapse-celery-migration
 ```
 
+Tune worker concurrency and DICOMweb parallelism via `.env` — see [PERFORMANCE.md](PERFORMANCE.md):
+
+| Variable | Default | Effect |
+|----------|---------|--------|
+| `CELERY_MIGRATION_CONCURRENCY` | 8 | Studies processed in parallel |
+| `WADO_PARALLEL_INSTANCES` | 8 | Parallel WADO-RS per study |
+| `STOW_BATCH_SIZE` | 4 | Instances per STOW request |
+| `STOW_PARALLEL_BATCHES` | 2 | Concurrent STOW batches per study |
+
+## Performance validation
+
+After a migration job:
+
+```bash
+# Prometheus text
+curl -s http://localhost:8000/metrics | grep synapse_pipeline_phase
+
+# JSON baseline (requires operator token)
+curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/v1/performance/baseline | jq
+```
+
+Reset metrics before a clean benchmark:
+
+```bash
+docker compose exec backend python scripts/reset_performance_metrics.py --yes
+```
+
+Full tuning guide: [PERFORMANCE.md](PERFORMANCE.md).
+
 ## Unit Tests
 
 ```bash

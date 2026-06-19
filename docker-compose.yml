@@ -113,6 +113,7 @@ services:
     container_name: synapse-backend
     command: >
       sh -c "alembic upgrade head &&
+             python scripts/manage_partitions.py &&
              python scripts/seed_data.py &&
              uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
     env_file:
@@ -200,6 +201,28 @@ services:
         condition: service_started
     networks:
       - synapse_net
+
+  partition-maintenance:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: synapse-partition-maintenance
+    command: sh /app/scripts/partition_maintenance_loop.sh
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-synapse}:${POSTGRES_PASSWORD:-synapse_secret}@postgres:5432/${POSTGRES_DB:-synapse}
+      PARTITION_MAINTENANCE_INTERVAL_SECONDS: ${PARTITION_MAINTENANCE_INTERVAL_SECONDS:-86400}
+    volumes:
+      - ./backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      backend:
+        condition: service_started
+    networks:
+      - synapse_net
+    restart: unless-stopped
 
   frontend:
     build:

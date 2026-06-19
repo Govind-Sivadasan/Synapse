@@ -62,6 +62,16 @@ class Settings(BaseSettings):
 
     # Performance tuning (Phase 3)
     partition_months_ahead: int = 3
+    partition_maintenance_interval_seconds: int = 86400
+
+    # STOW tuning (post Phase 2)
+    stow_batch_size: int = 4
+    stow_parallel_batches: int = 2
+
+    # OpenTelemetry (optional)
+    otel_enabled: bool = False
+    otel_service_name: str = "synapse-backend"
+    otel_exporter_endpoint: str = ""
 
 
 @lru_cache
