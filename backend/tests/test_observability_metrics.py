@@ -9,7 +9,7 @@ from app.observability import metrics as metrics_module
 
 class FakeRedis:
     def __init__(self) -> None:
-        self.values: dict[str, int | float] = {}
+        self.values: dict[str, int | float | str] = {}
 
     def incrby(self, key: str, amount: int = 1) -> int:
         self.values[key] = int(self.values.get(key, 0)) + amount
@@ -24,6 +24,12 @@ class FakeRedis:
 
     def get(self, key: str):
         return self.values.get(key)
+
+    def set(self, key: str, value: str) -> None:
+        self.values[key] = value
+
+    def delete(self, key: str) -> None:
+        self.values.pop(key, None)
 
     def pipeline(self):
         return FakePipeline(self)
@@ -68,9 +74,18 @@ def test_inc_counter(fake_redis):
     metrics_module.inc_counter("synapse_test_total", {"status": "ok"})
     metrics_module.inc_counter("synapse_test_total", {"status": "ok"}, amount=2)
     rendered = metrics_module._render_redis_metrics_fixed()
+    assert "# TYPE synapse_test_total counter" in rendered
     assert "synapse_test_total" in rendered
     assert 'status="ok"' in rendered
+    assert "counter{status=" not in rendered
     assert rendered.strip().endswith("3")
+
+
+def test_track_task_outcome_renders_correct_counter_name(fake_redis):
+    metrics_module.track_task_outcome("migration_queue", "migrate_study", 1.0, success=True)
+    rendered = metrics_module._render_redis_metrics_fixed()
+    assert "# TYPE synapse_celery_tasks_total counter" in rendered
+    assert 'task="migrate_study"' in rendered
 
 
 def test_observe_histogram(fake_redis):
@@ -103,3 +118,32 @@ def test_track_task_outcome(fake_redis, monkeypatch):
     snapshot = metrics_module.get_baseline_snapshot()
     assert any("synapse_celery_tasks_total" in key for key in snapshot["counters"])
     assert any("synapse_celery_task_duration_seconds" in key for key in snapshot["histograms"])
+
+
+def test_baseline_marker_delta(fake_redis, monkeypatch):
+    from app.observability import queues as queues_module
+
+    monkeypatch.setattr(
+        queues_module,
+        "get_queue_depths_sync",
+        lambda: {"routing_queue": 0, "migration_queue": 0},
+    )
+    metrics_module.inc_counter("synapse_test_total", {"status": "ok"}, amount=2)
+    marker = metrics_module.save_baseline_marker(label="before-run")
+    metrics_module.inc_counter("synapse_test_total", {"status": "ok"}, amount=3)
+
+    delta = metrics_module.get_baseline_snapshot(since_marker=marker["marker_id"])
+    assert delta["since_marker_id"] == marker["marker_id"]
+    assert delta["counters"]["synapse_test_total{status=ok}"] == 3
+
+
+def test_reset_cumulative_metrics(fake_redis):
+    metrics_module.inc_counter("synapse_test_total", {"status": "ok"})
+    metrics_module.observe_histogram("synapse_test_duration_seconds", 0.5, {"task": "demo"})
+    metrics_module.save_baseline_marker(label="checkpoint")
+
+    deleted = metrics_module.reset_cumulative_metrics()
+    assert deleted >= 3
+    snapshot = metrics_module.get_baseline_snapshot()
+    assert snapshot["counters"] == {}
+    assert snapshot["histograms"] == {}

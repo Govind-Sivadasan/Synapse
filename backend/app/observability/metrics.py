@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import json
 import time
+import uuid
 from contextlib import contextmanager
+from datetime import datetime, timezone
 from typing import Iterator
 
 import redis
@@ -15,6 +18,7 @@ from app.config import settings
 logger = structlog.get_logger()
 
 METRICS_PREFIX = "synapse:metrics"
+MARKER_PREFIX = f"{METRICS_PREFIX}:marker"
 HISTOGRAM_BUCKETS = (0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0, 60.0, 120.0, 300.0)
 
 # Gauges updated on each /metrics scrape (API process only).
@@ -149,6 +153,108 @@ def _format_labels(labels: dict[str, str]) -> str:
     return f"{{{inner}}}"
 
 
+def _parse_counter_redis_key(key: str) -> tuple[str, str] | None:
+    prefix = f"{METRICS_PREFIX}:counter:"
+    if not key.startswith(prefix):
+        return None
+    rest = key[len(prefix) :]
+    name, _, label_blob = rest.partition(":")
+    if not name:
+        return None
+    return name, label_blob
+
+
+def _collect_counter_values(client: redis.Redis) -> dict[str, int]:
+    counters: dict[str, int] = {}
+    for key in client.scan_iter(f"{METRICS_PREFIX}:counter:*"):
+        parsed = _parse_counter_redis_key(key)
+        if parsed is None:
+            continue
+        name, label_blob = parsed
+        metric_id = f"{name}{{{label_blob}}}" if label_blob else name
+        counters[metric_id] = int(client.get(key) or 0)
+    return counters
+
+
+def _collect_histogram_values(client: redis.Redis) -> dict[str, dict[str, float | int]]:
+    histograms: dict[str, dict[str, float | int]] = {}
+    for key in client.scan_iter(f"{METRICS_PREFIX}:hist:*:count"):
+        body = key.rsplit(":count", 1)[0]
+        name, label_blob = _parse_metric_body("hist", body)
+        if not name:
+            continue
+        sum_key = f"{body}:sum"
+        count = int(client.get(key) or 0)
+        total = float(client.get(sum_key) or 0)
+        metric_id = f"{name}{{{label_blob}}}" if label_blob else name
+        histograms[metric_id] = {
+            "count": count,
+            "sum_seconds": round(total, 4),
+            "avg_seconds": round(total / count, 4) if count else 0,
+        }
+    return histograms
+
+
+def _subtract_baseline_values(
+    current: dict[str, int | dict[str, float | int]],
+    marker: dict[str, int | dict[str, float | int]],
+    *,
+    is_histogram: bool,
+) -> dict:
+    delta: dict = {}
+    for metric_id, value in current.items():
+        marker_value = marker.get(metric_id)
+        if is_histogram:
+            current_hist = value  # type: ignore[assignment]
+            marker_hist = marker_value if isinstance(marker_value, dict) else {}
+            count = max(0, int(current_hist.get("count", 0)) - int(marker_hist.get("count", 0)))
+            total = max(0.0, float(current_hist.get("sum_seconds", 0)) - float(marker_hist.get("sum_seconds", 0)))
+            delta[metric_id] = {
+                "count": count,
+                "sum_seconds": round(total, 4),
+                "avg_seconds": round(total / count, 4) if count else 0,
+            }
+        else:
+            count = max(0, int(value) - int(marker_value or 0))
+            if count:
+                delta[metric_id] = count
+    return delta
+
+
+def save_baseline_marker(label: str | None = None) -> dict:
+    """Persist a cumulative-metrics checkpoint for later delta baselines."""
+    client = _redis()
+    marker_id = uuid.uuid4().hex
+    payload = {
+        "marker_id": marker_id,
+        "label": label,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "counters": _collect_counter_values(client),
+        "histograms": _collect_histogram_values(client),
+    }
+    client.set(f"{MARKER_PREFIX}:{marker_id}", json.dumps(payload))
+    return payload
+
+
+def load_baseline_marker(marker_id: str) -> dict | None:
+    raw = _redis().get(f"{MARKER_PREFIX}:{marker_id}")
+    if not raw:
+        return None
+    return json.loads(raw)
+
+
+def reset_cumulative_metrics() -> int:
+    """Delete cumulative counter and histogram keys from Redis."""
+    client = _redis()
+    deleted = 0
+    for pattern in (f"{METRICS_PREFIX}:counter:*", f"{METRICS_PREFIX}:hist:*", f"{MARKER_PREFIX}:*"):
+        for key in client.scan_iter(pattern):
+            client.delete(key)
+            deleted += 1
+    logger.info("performance_metrics_reset", keys_deleted=deleted)
+    return deleted
+
+
 def _parse_metric_body(kind: str, body: str) -> tuple[str, str]:
     """Return metric name and label blob from a Redis metric body key."""
     head = f"{METRICS_PREFIX}:{kind}:"
@@ -165,11 +271,10 @@ def _render_redis_metrics_fixed() -> str:
     # Counters
     counter_groups: dict[str, list[tuple[dict[str, str], str]]] = {}
     for key in client.scan_iter(f"{METRICS_PREFIX}:counter:*"):
-        parts = key.split(":", 3)
-        if len(parts) < 3:
+        parsed = _parse_counter_redis_key(key)
+        if parsed is None:
             continue
-        name = parts[2]
-        label_blob = parts[3] if len(parts) > 3 else ""
+        name, label_blob = parsed
         counter_groups.setdefault(name, []).append((_parse_labels(label_blob), client.get(key) or "0"))
 
     for name in sorted(counter_groups):
@@ -239,7 +344,7 @@ def render_prometheus() -> tuple[bytes, str]:
     return body.encode("utf-8"), CONTENT_TYPE_LATEST
 
 
-def get_baseline_snapshot() -> dict:
+def get_baseline_snapshot(*, since_marker: str | None = None) -> dict:
     """Human-readable performance snapshot for load tests and ops."""
     client = _redis()
     snapshot: dict = {
@@ -255,28 +360,24 @@ def get_baseline_snapshot() -> dict:
     except Exception as exc:
         snapshot["queues_error"] = str(exc)
 
-    for key in client.scan_iter(f"{METRICS_PREFIX}:counter:*"):
-        parts = key.split(":", 3)
-        if len(parts) < 3:
-            continue
-        name = parts[2]
-        label_blob = parts[3] if len(parts) > 3 else ""
-        metric_id = f"{name}{{{label_blob}}}" if label_blob else name
-        snapshot["counters"][metric_id] = int(client.get(key) or 0)
+    counters = _collect_counter_values(client)
+    histograms = _collect_histogram_values(client)
 
-    for key in client.scan_iter(f"{METRICS_PREFIX}:hist:*:count"):
-        body = key.rsplit(":count", 1)[0]
-        name, label_blob = _parse_metric_body("hist", body)
-        if not name:
-            continue
-        sum_key = f"{body}:sum"
-        count = int(client.get(key) or 0)
-        total = float(client.get(sum_key) or 0)
-        metric_id = f"{name}{{{label_blob}}}" if label_blob else name
-        snapshot["histograms"][metric_id] = {
-            "count": count,
-            "sum_seconds": round(total, 4),
-            "avg_seconds": round(total / count, 4) if count else 0,
-        }
+    if since_marker:
+        marker = load_baseline_marker(since_marker)
+        if marker is None:
+            snapshot["marker_error"] = f"Unknown marker: {since_marker}"
+        else:
+            snapshot["since_marker_id"] = since_marker
+            snapshot["since_marker_created_at"] = marker.get("created_at")
+            snapshot["since_marker_label"] = marker.get("label")
+            counters = _subtract_baseline_values(counters, marker.get("counters", {}), is_histogram=False)
+            histograms = _subtract_baseline_values(
+                histograms,
+                marker.get("histograms", {}),
+                is_histogram=True,
+            )
 
+    snapshot["counters"] = counters
+    snapshot["histograms"] = histograms
     return snapshot

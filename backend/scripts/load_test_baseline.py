@@ -7,6 +7,7 @@ import json
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -77,9 +78,27 @@ def send_study(
     return ok
 
 
-def fetch_baseline(api_url: str) -> dict:
+def fetch_baseline(api_url: str, since: str | None = None) -> dict:
     url = f"{api_url.rstrip('/')}/api/v1/performance/baseline"
+    if since:
+        url = f"{url}?since={since}"
     with urllib.request.urlopen(url, timeout=10) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
+def post_baseline_mark(api_url: str, label: str | None = None) -> dict:
+    url = f"{api_url.rstrip('/')}/api/v1/performance/baseline/mark"
+    if label:
+        url = f"{url}?label={urllib.parse.quote(label)}"
+    request = urllib.request.Request(url, method="POST")
+    with urllib.request.urlopen(request, timeout=10) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
+def post_baseline_reset(api_url: str) -> dict:
+    url = f"{api_url.rstrip('/')}/api/v1/performance/baseline/reset"
+    request = urllib.request.Request(url, method="POST")
+    with urllib.request.urlopen(request, timeout=10) as response:
         return json.loads(response.read().decode("utf-8"))
 
 
@@ -134,17 +153,35 @@ def main() -> int:
     parser.add_argument("--modality", default="CT")
     parser.add_argument("--wait", type=int, default=120, help="Seconds to wait for queues to drain")
     parser.add_argument("--tmpdir", default="./load_test_dicom")
+    parser.add_argument("--mark", action="store_true", help="Save a baseline marker before sending traffic")
+    parser.add_argument("--mark-label", default=None, help="Label for --mark checkpoint")
+    parser.add_argument("--since", default=None, help="Report delta since marker id")
+    parser.add_argument("--reset", action="store_true", help="Reset cumulative metrics before run (requires auth)")
     args = parser.parse_args()
 
     if args.studies <= 0:
-        baseline = fetch_baseline(args.api_url)
+        baseline = fetch_baseline(args.api_url, since=args.since)
         print_summary("Current baseline", baseline, 0, 0)
+        if args.since:
+            print(f"Since marker: {args.since}")
         return 0
+
+    if args.reset:
+        result = post_baseline_reset(args.api_url)
+        print(f"Reset cumulative metrics ({result.get('keys_deleted', 0)} keys deleted)")
+
+    marker_id = args.since
+    if args.mark:
+        marker = post_baseline_mark(args.api_url, label=args.mark_label)
+        marker_id = marker["marker_id"]
+        print(f"Saved baseline marker: {marker_id}")
+        if marker.get("label"):
+            print(f"  label: {marker['label']}")
 
     tmp_dir = Path(args.tmpdir)
     print(f"Sending {args.studies} studies ({args.instances} instances each) to {args.host}:{args.port}")
 
-    before = fetch_baseline(args.api_url)
+    before = fetch_baseline(args.api_url, since=marker_id)
     started = time.perf_counter()
     sent = 0
 
@@ -160,10 +197,14 @@ def main() -> int:
     send_elapsed = time.perf_counter() - started
     print(f"Send complete in {send_elapsed:.1f}s — waiting up to {args.wait}s for workers...")
     after = wait_for_queues(args.api_url, args.wait)
+    if marker_id:
+        after = fetch_baseline(args.api_url, since=marker_id)
     total_elapsed = time.perf_counter() - started
 
     print_summary("Before", before, 0, 0)
     print_summary("After", after, total_elapsed, sent)
+    if marker_id:
+        print(f"\nDelta since marker: {marker_id}")
     return 0
 
 
