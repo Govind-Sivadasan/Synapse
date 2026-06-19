@@ -1,0 +1,13 @@
+---
+description: Synapse performance phases and metrics interpretation after migration/routing baselines
+alwaysApply: false
+globs: backend/app/migration/**,backend/app/routing/**,backend/app/observability/**,backend/app/dicomweb/**,backend/scripts/load_test_baseline.py
+---
+
+# Synapse performance
+
+When working on migration/routing throughput, observability, or the user shares `/metrics` or `/api/v1/performance/baseline` output:
+
+Read `.cursor/skills/synapse-performance/SKILL.md` for phase roadmap, bottleneck decision tree, and reference baselines.
+
+**Execution rule:** Finish gaps in phase **N** (ascending order) before starting **N+1**. Skip items only when harmful or explicitly out of scope — document the skip. Do not jump ahead (e.g. Phase 4.5 before Phase 2/3 complete).

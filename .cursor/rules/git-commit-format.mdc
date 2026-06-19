@@ -1,0 +1,20 @@
+---
+description: Synapse git commit message format — feat/fix prefix, bullet body, no Co-authored-by
+alwaysApply: true
+---
+
+# Git commits in Synapse
+
+When committing or drafting commit messages for this repo:
+
+1. Subject: `feat:` / `fix:` / `bugfix:` + one-line imperative summary
+2. Body: **bullet list only** (`- ` per line). Never use prose paragraphs in the body.
+<!-- 3. Do not add `Co-authored-by: Cursor` or other trailers -->
+4. Read `.cursor/skills/synapse-git-commits/SKILL.md` before any commit the user requests
+
+Example body:
+
+```
+- Add X for Y
+- Fix Z when W happens
+```
