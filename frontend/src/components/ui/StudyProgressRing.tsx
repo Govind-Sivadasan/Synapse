@@ -2,11 +2,19 @@ import { routingStatusLabel } from "../../lib/statusLabels";
 import { statusVariant } from "./StatusBadge";
 
 const STATUS_COLORS: Record<string, string> = {
-  success: "var(--color-success)",
-  error: "var(--color-error)",
-  warning: "var(--color-warning)",
-  info: "var(--color-info)",
+  success: "var(--status-fg-success)",
+  error: "var(--status-fg-error)",
+  warning: "var(--status-fg-warning)",
+  info: "var(--status-fg-info)",
   neutral: "var(--color-text-muted)",
+};
+
+const INNER_DISC_SURFACE: Record<string, string> = {
+  success: "var(--status-surface-success)",
+  failed: "var(--status-surface-error)",
+  pending: "var(--status-surface-warning)",
+  in_progress: "var(--status-surface-info)",
+  skipped: "var(--status-surface-neutral)",
 };
 
 const STATUS_HINTS: Record<string, string> = {
@@ -31,6 +39,8 @@ export default function StudyProgressRing({ status, size = 28 }: Props) {
   const normalized = status.toLowerCase();
   const variant = statusVariant(status);
   const color = STATUS_COLORS[variant];
+  const innerDiscFill = INNER_DISC_SURFACE[normalized] ?? color;
+  const glyphStroke = color;
   const label = routingStatusLabel(status);
   const hint = STATUS_HINTS[normalized] ?? label;
   const center = size / 2;
@@ -109,13 +119,13 @@ export default function StudyProgressRing({ status, size = 28 }: Props) {
           </g>
         )}
 
-        <circle cx={center} cy={center} r={innerRadius} fill={color} />
+        <circle cx={center} cy={center} r={innerRadius} fill={innerDiscFill} />
 
         {normalized === "success" && (
           <path
             d={`M ${center - innerRadius * 0.45} ${center + innerRadius * 0.05} L ${center - innerRadius * 0.05} ${center + innerRadius * 0.45} L ${center + innerRadius * 0.55} ${center - innerRadius * 0.35}`}
             fill="none"
-            stroke="#fff"
+            stroke={glyphStroke}
             strokeWidth={size * 0.07}
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -127,14 +137,14 @@ export default function StudyProgressRing({ status, size = 28 }: Props) {
             <path
               d={`M ${center - innerRadius * 0.35} ${center - innerRadius * 0.35} L ${center + innerRadius * 0.35} ${center + innerRadius * 0.35}`}
               fill="none"
-              stroke="#fff"
+              stroke={glyphStroke}
               strokeWidth={size * 0.07}
               strokeLinecap="round"
             />
             <path
               d={`M ${center + innerRadius * 0.35} ${center - innerRadius * 0.35} L ${center - innerRadius * 0.35} ${center + innerRadius * 0.35}`}
               fill="none"
-              stroke="#fff"
+              stroke={glyphStroke}
               strokeWidth={size * 0.07}
               strokeLinecap="round"
             />
@@ -142,18 +152,18 @@ export default function StudyProgressRing({ status, size = 28 }: Props) {
         )}
 
         {normalized === "in_progress" && (
-          <circle cx={center} cy={center} r={innerRadius * 0.2} fill="#fff" opacity={0.95} />
+          <circle cx={center} cy={center} r={innerRadius * 0.2} fill={glyphStroke} opacity={0.95} />
         )}
 
         {normalized === "pending" && (
-          <circle cx={center} cy={center} r={innerRadius * 0.16} fill="#fff" opacity={0.85} />
+          <circle cx={center} cy={center} r={innerRadius * 0.16} fill={glyphStroke} opacity={0.85} />
         )}
 
         {normalized === "skipped" && (
           <path
             d={`M ${center - innerRadius * 0.4} ${center} L ${center + innerRadius * 0.4} ${center}`}
             fill="none"
-            stroke="#fff"
+            stroke={glyphStroke}
             strokeWidth={size * 0.07}
             strokeLinecap="round"
           />
