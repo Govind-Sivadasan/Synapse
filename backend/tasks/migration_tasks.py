@@ -7,6 +7,7 @@ import structlog
 
 from app.database import run_async_task
 from app.observability.metrics import track_task_outcome
+from app.services.migration_backpressure import wait_for_migration_queue_slot
 from celery_app import celery_app
 
 logger = structlog.get_logger()
@@ -42,6 +43,7 @@ async def _fetch_and_enqueue(job_id: str) -> dict:
                 await session.commit()
 
             for record in to_enqueue:
+                wait_for_migration_queue_slot()
                 migrate_study.delay(job_id, record.study_uid)
 
             return {
@@ -70,6 +72,7 @@ async def _fetch_and_enqueue(job_id: str) -> dict:
 
         enqueued = 0
         for study in studies:
+            wait_for_migration_queue_slot()
             migrate_study.delay(job_id, study.study_uid)
             enqueued += 1
 

@@ -32,6 +32,9 @@ def run_async_task(coro: Coroutine[object, object, T]) -> T:
         try:
             return await coro
         finally:
+            from app.dicomweb.http_pool import close_dicomweb_clients
+
+            await close_dicomweb_clients()
             await engine.dispose()
 
     return asyncio.run(_runner())

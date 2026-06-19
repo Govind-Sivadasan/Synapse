@@ -56,6 +56,10 @@ class Settings(BaseSettings):
     db_pool_size: int = 10
     db_max_overflow: int = 20
 
+    # Performance tuning (Phase 2)
+    wado_parallel_instances: int = 8
+    migration_queue_backpressure_max: int = 200
+
 
 @lru_cache
 def get_settings() -> Settings:

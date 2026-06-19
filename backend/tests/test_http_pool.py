@@ -1,5 +1,7 @@
 """Tests for DICOMweb HTTP connection pooling."""
 
+import asyncio
+
 import pytest
 
 from app.dicomweb import http_pool
@@ -29,5 +31,31 @@ async def test_close_dicomweb_clients():
     client = http_pool.get_dicomweb_client("http://example:8042/dicom-web")
     assert not client.is_closed
     await http_pool.close_dicomweb_clients()
+    assert client.is_closed
+    assert http_pool._clients == {}
+
+
+def test_pool_isolates_event_loops():
+    """Simulates Celery asyncio.run() per task — clients must not cross closed loops."""
+
+    async def create_client():
+        return http_pool.get_dicomweb_client("http://orthanc:8042/dicom-web")
+
+    first = asyncio.run(create_client())
+    second = asyncio.run(create_client())
+    assert first is not second
+
+
+def test_celery_run_pattern_closes_dicomweb_clients():
+    """Mirrors run_async_task cleanup — pooled clients must close with the loop."""
+
+    async def run_task():
+        client = http_pool.get_dicomweb_client("http://orthanc:8042/dicom-web")
+        try:
+            return client
+        finally:
+            await http_pool.close_dicomweb_clients()
+
+    client = asyncio.run(run_task())
     assert client.is_closed
     assert http_pool._clients == {}
