@@ -128,6 +128,7 @@ services:
       TEMP_STORAGE_PATH: /data/temp_dicom
     volumes:
       - ./backend:/app
+      # Phase 4.3: shared temp storage for backend + all Celery replicas (use NFS/EBS in prod)
       - temp_dicom:/data/temp_dicom
     ports:
       - "8000:8000"
@@ -156,8 +157,8 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: synapse-celery-routing
-    command: celery -A celery_app worker -Q routing_queue -c ${CELERY_ROUTING_CONCURRENCY:-4} --loglevel=info
+    # No container_name — supports `docker compose up --scale celery-routing=N` (Phase 4.1)
+    command: celery -A celery_app worker -Q routing_queue -c ${CELERY_ROUTING_CONCURRENCY:-4} --loglevel=info -n routing@%h
     env_file:
       - .env
     environment:
@@ -176,13 +177,14 @@ services:
         condition: service_started
     networks:
       - synapse_net
+    restart: unless-stopped
 
   celery-migration:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: synapse-celery-migration
-    command: celery -A celery_app worker -Q migration_queue -c ${CELERY_MIGRATION_CONCURRENCY:-2} --loglevel=info
+    # No container_name — supports `docker compose up --scale celery-migration=N` (Phase 4.1)
+    command: celery -A celery_app worker -Q migration_queue -c ${CELERY_MIGRATION_CONCURRENCY:-2} --loglevel=info -n migration@%h
     env_file:
       - .env
     environment:
@@ -201,6 +203,7 @@ services:
         condition: service_started
     networks:
       - synapse_net
+    restart: unless-stopped
 
   partition-maintenance:
     build:

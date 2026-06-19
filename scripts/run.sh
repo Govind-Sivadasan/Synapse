@@ -117,6 +117,41 @@ ensure_env() {
   warn "Created .env from .env.example."
 }
 
+dotenv_value() {
+  local key="$1"
+  local default="${2:-1}"
+  if [[ ! -f .env ]]; then
+    printf '%s' "$default"
+    return
+  fi
+  local line
+  line="$(grep -E "^[[:space:]]*${key}[[:space:]]*=" .env | tail -n 1 || true)"
+  if [[ -z "$line" ]]; then
+    printf '%s' "$default"
+    return
+  fi
+  printf '%s' "${line#*=}" | sed 's/[[:space:]]*#.*$//' | xargs
+}
+
+worker_scale_args() {
+  local -n _targets=$1
+  local scale_all=0
+  [[ ${#_targets[@]} -eq 0 ]] && scale_all=1
+  local routing replicas migration
+  routing="$(dotenv_value CELERY_ROUTING_REPLICAS 1)"
+  migration="$(dotenv_value CELERY_MIGRATION_REPLICAS 1)"
+  if [[ $scale_all -eq 1 ]] || printf '%s\n' "${_targets[@]}" | grep -qx celery-routing; then
+    if [[ "$routing" =~ ^[0-9]+$ ]] && [[ "$routing" -gt 1 ]]; then
+      printf '%s\n' --scale "celery-routing=${routing}"
+    fi
+  fi
+  if [[ $scale_all -eq 1 ]] || printf '%s\n' "${_targets[@]}" | grep -qx celery-migration; then
+    if [[ "$migration" =~ ^[0-9]+$ ]] && [[ "$migration" -gt 1 ]]; then
+      printf '%s\n' --scale "celery-migration=${migration}"
+    fi
+  fi
+}
+
 target_services() {
   if [[ ${#SERVICES[@]} -gt 0 ]]; then
     printf '%s\n' "${SERVICES[@]}"
@@ -238,7 +273,10 @@ case "$COMMAND" in
     fi
     args=(compose up)
     [[ $BUILD -eq 1 ]] && args+=(--build)
-    args+=(-d "${targets[@]}")
+    args+=(-d)
+    mapfile -t scale_args < <(worker_scale_args targets)
+    args+=("${scale_args[@]}")
+    args+=("${targets[@]}")
     info "Starting backend stack in Docker (no frontend container)..."
     docker "${args[@]}"
     show_urls dev
@@ -250,6 +288,8 @@ case "$COMMAND" in
     args=(compose up)
     [[ $BUILD -eq 1 ]] && args+=(--build)
     [[ $DETACH -eq 1 ]] && args+=(-d)
+    mapfile -t scale_args < <(worker_scale_args targets)
+    args+=("${scale_args[@]}")
     args+=("${targets[@]}")
     mode=full
     [[ $INFRA -eq 1 ]] && mode=infra

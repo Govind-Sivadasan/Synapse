@@ -78,6 +78,11 @@ class Settings(BaseSettings):
     ws_ops_snapshot_interval_seconds: float = 5.0
     ws_ops_events_enabled: bool = True
 
+    # Horizontal scale (Phase 4)
+    celery_routing_replicas: int = 1
+    celery_migration_replicas: int = 1
+    celery_inspect_timeout_seconds: float = 3.0
+
     # STOW tuning (post Phase 2)
     stow_batch_size: int = 4
     stow_parallel_batches: int = 2

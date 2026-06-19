@@ -1,5 +1,6 @@
 """Health check endpoint for service and dependency monitoring."""
 
+import asyncio
 import time
 from datetime import datetime, timezone
 
@@ -75,10 +76,33 @@ def _check_dimse_listener() -> HealthComponent:
     return HealthComponent(name="dimse_listener", status="unhealthy", message="Not listening", latency_ms=latency)
 
 
+async def _check_celery_workers() -> HealthComponent:
+    start = time.perf_counter()
+    from app.config import settings
+    from app.observability.workers import get_celery_health_summary
+
+    summary = await asyncio.to_thread(get_celery_health_summary)
+    latency = _latency_ms(start)
+    routing_expected = max(settings.celery_routing_replicas, 1)
+    migration_expected = max(settings.celery_migration_replicas, 1)
+    routing_ok = summary["routing_workers"] >= routing_expected
+    migration_ok = summary["migration_workers"] >= migration_expected
+    message = (
+        f"routing {summary['routing_workers']}/{routing_expected} workers, "
+        f"{summary['routing_active_tasks']} active; "
+        f"migration {summary['migration_workers']}/{migration_expected} workers, "
+        f"{summary['migration_active_tasks']} active"
+    )
+    if routing_ok and migration_ok:
+        return HealthComponent(name="celery_workers", status="healthy", message=message, latency_ms=latency)
+    return HealthComponent(name="celery_workers", status="degraded", message=message, latency_ms=latency)
+
+
 @router.get("/health", response_model=HealthResponse)
 async def health_check() -> HealthResponse:
     components = [
         _check_dimse_listener(),
+        await _check_celery_workers(),
         await _check_postgres(),
         await _check_redis(),
         await _check_http(

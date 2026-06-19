@@ -23,6 +23,7 @@ const COMPONENT_LABELS: Record<string, string> = {
   keycloak: "Keycloak",
   ollama: "Ollama",
   dimse_listener: "DIMSE",
+  celery_workers: "Celery workers",
 };
 
 function labelFor(name: string): string {
@@ -30,9 +31,7 @@ function labelFor(name: string): string {
 }
 
 function chipVariant(component: HealthComponent): string {
-  if (component.status !== "healthy") return statusVariant(component.status);
-  if (component.latency_ms != null && component.latency_ms > 100) return "warning";
-  return "success";
+  return statusVariant(component.status);
 }
 
 export default function StatusFooter() {

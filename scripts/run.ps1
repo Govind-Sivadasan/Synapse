@@ -98,6 +98,40 @@ function Ensure-EnvFile {
     Write-Warn "Created .env from .env.example - review secrets before production use."
 }
 
+function Get-DotEnvValue {
+    param(
+        [string]$Key,
+        [string]$Default = "1"
+    )
+    $envFile = Join-Path $Root ".env"
+    if (-not (Test-Path $envFile)) { return $Default }
+    foreach ($line in Get-Content $envFile) {
+        if ($line -match "^\s*$([regex]::Escape($Key))\s*=\s*(.+?)\s*(#.*)?$") {
+            return $Matches[1].Trim()
+        }
+    }
+    return $Default
+}
+
+function Get-WorkerScaleArgs {
+    param([string[]]$Targets)
+    $scaleArgs = @()
+    $scaleAll = ($Targets.Count -eq 0)
+    if ($scaleAll -or ($Targets -contains "celery-routing")) {
+        $routingReplicas = [int](Get-DotEnvValue "CELERY_ROUTING_REPLICAS" "1")
+        if ($routingReplicas -gt 1) {
+            $scaleArgs += @("--scale", "celery-routing=$routingReplicas")
+        }
+    }
+    if ($scaleAll -or ($Targets -contains "celery-migration")) {
+        $migrationReplicas = [int](Get-DotEnvValue "CELERY_MIGRATION_REPLICAS" "1")
+        if ($migrationReplicas -gt 1) {
+            $scaleArgs += @("--scale", "celery-migration=$migrationReplicas")
+        }
+    }
+    return $scaleArgs
+}
+
 function Get-TargetServices {
     if ($Service -and $Service.Count -gt 0) {
         return @($Service)
@@ -185,6 +219,10 @@ Options:
   -KeepOllama  With 'down': remove data volumes but keep ollama_data (model cache).
   -Follow      With 'logs': follow output (-f).
   -Service     One or more compose service names (repeatable).
+
+Worker scale (Phase 4.1):
+  Set CELERY_ROUTING_REPLICAS / CELERY_MIGRATION_REPLICAS in .env (default 1).
+  run.ps1 passes --scale to docker compose when replicas > 1.
 
 Examples:
   .\scripts\run.ps1
@@ -366,6 +404,7 @@ switch ($Command) {
         $composeArgs = @("compose", "up")
         if ($Build) { $composeArgs += "--build" }
         $composeArgs += "-d"
+        $composeArgs += Get-WorkerScaleArgs -Targets $targets
         $composeArgs += @($targets)
 
         Write-Info "Starting backend stack in Docker (no frontend container)..."
@@ -383,6 +422,7 @@ switch ($Command) {
         $composeArgs = @("compose", "up")
         if ($Build) { $composeArgs += "--build" }
         if ($Detach) { $composeArgs += "-d" }
+        $composeArgs += Get-WorkerScaleArgs -Targets $targets
         $composeArgs += @($targets)
 
         $mode = if ($Infra) { "infra" } elseif ($NoOllama) { "no-ollama" } else { "full" }
