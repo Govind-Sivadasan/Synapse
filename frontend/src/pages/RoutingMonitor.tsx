@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Activity, AlertTriangle, RefreshCw, Radio, Server, Wifi, WifiOff } from "lucide-react";
+import { Activity, AlertTriangle, ArrowLeftRight, RefreshCw, Radio, Server, Wifi, WifiOff } from "lucide-react";
 import { apiFetch } from "../api/client";
 import DataTable from "../components/DataTable";
 import {
@@ -49,7 +49,7 @@ interface DimseStatus {
 
 export default function RoutingMonitor() {
   const queryClient = useQueryClient();
-  const { events, connected, reconnecting, reconnect } = useWebSocket();
+  const { events, opsSnapshot, connected, reconnecting, reconnect } = useWebSocket();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [dateFrom, setDateFrom] = useState("");
@@ -199,6 +199,24 @@ export default function RoutingMonitor() {
                 tone={dimse.listening ? "success" : "error"}
                 sub={`Promiscuous mode: ${dimse.promiscuous_mode ? "ON" : "OFF"}`}
               />
+              {opsSnapshot && (
+                <>
+                  <MetricCard
+                    label="Routing Queue"
+                    value={opsSnapshot.routing_queue.queued}
+                    icon={<Activity size={20} />}
+                    tone={opsSnapshot.routing_queue.queued > 50 ? "warning" : "info"}
+                    sub={`${opsSnapshot.routing_queue.active_tasks} active`}
+                  />
+                  <MetricCard
+                    label="Migration Queue"
+                    value={opsSnapshot.migration_queue.queued}
+                    icon={<ArrowLeftRight size={20} />}
+                    tone={opsSnapshot.migration_queue.queued > 100 ? "warning" : "info"}
+                    sub={`${opsSnapshot.migration_queue.active_tasks} active · ${opsSnapshot.workers_online} workers`}
+                  />
+                </>
+              )}
             </div>
           )}
 

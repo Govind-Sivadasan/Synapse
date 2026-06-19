@@ -72,6 +72,11 @@ class Settings(BaseSettings):
     # Performance tuning (Phase 3)
     partition_months_ahead: int = 3
     partition_maintenance_interval_seconds: int = 86400
+    partition_retention_enabled: bool = True
+    ws_event_batch_interval_ms: int = 250
+    ws_event_batch_max_size: int = 50
+    ws_ops_snapshot_interval_seconds: float = 5.0
+    ws_ops_events_enabled: bool = True
 
     # STOW tuning (post Phase 2)
     stow_batch_size: int = 4

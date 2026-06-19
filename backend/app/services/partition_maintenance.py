@@ -10,7 +10,13 @@ from sqlalchemy.engine import Connection
 
 logger = structlog.get_logger()
 
-PARTITIONED_TABLES = ("audit_logs", "dimse_events")
+# table -> partition key column
+PARTITIONED_TABLES: dict[str, str] = {
+    "audit_logs": "created_at",
+    "dimse_events": "created_at",
+    "routing_transactions": "received_at",
+    "migration_study_records": "created_at",
+}
 
 
 def add_months(value: date, months: int) -> date:
@@ -63,9 +69,9 @@ def ensure_all_partitions(connection: Connection, *, months_ahead: int = 3) -> d
     through = add_months(date(today.year, today.month, 1), months_ahead)
     results: dict[str, list[str]] = {}
 
-    for table in PARTITIONED_TABLES:
+    for table, partition_column in PARTITIONED_TABLES.items():
         row = connection.execute(
-            text(f"SELECT MIN(created_at) AS min_created FROM {table}")
+            text(f"SELECT MIN({partition_column}) AS min_created FROM {table}")
         ).mappings().first()
         min_created = row["min_created"] if row else None
         if min_created is None:

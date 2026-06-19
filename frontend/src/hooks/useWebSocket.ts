@@ -16,8 +16,62 @@ export interface WsEvent {
   data: Record<string, unknown>;
 }
 
+export interface QueueOpsSnapshot {
+  queued: number;
+  active_tasks: number;
+}
+
+export interface OpsSnapshot {
+  timestamp?: string;
+  queues: Record<string, number>;
+  workers_online: number;
+  routing_queue: QueueOpsSnapshot;
+  migration_queue: QueueOpsSnapshot;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function normalizeIncomingEvents(payload: WsEvent): WsEvent[] {
+  if (payload.event_type === "event_batch") {
+    const raw = payload.data.events;
+    if (!Array.isArray(raw)) return [];
+    return raw
+      .filter((item): item is WsEvent => isRecord(item) && typeof item.event_type === "string")
+      .map((item) => ({
+        event_type: item.event_type,
+        data: isRecord(item.data) ? item.data : {},
+      }));
+  }
+  return [payload];
+}
+
+function parseOpsSnapshot(data: Record<string, unknown>): OpsSnapshot | null {
+  const queues = isRecord(data.queues) ? data.queues : {};
+  const routing = isRecord(data.routing_queue) ? data.routing_queue : {};
+  const migration = isRecord(data.migration_queue) ? data.migration_queue : {};
+  return {
+    timestamp: typeof data.timestamp === "string" ? data.timestamp : undefined,
+    queues: {
+      routing_queue: Number(queues.routing_queue ?? routing.queued ?? 0),
+      migration_queue: Number(queues.migration_queue ?? migration.queued ?? 0),
+    },
+    workers_online: Number(data.workers_online ?? 0),
+    routing_queue: {
+      queued: Number(routing.queued ?? queues.routing_queue ?? 0),
+      active_tasks: Number(routing.active_tasks ?? 0),
+    },
+    migration_queue: {
+      queued: Number(migration.queued ?? queues.migration_queue ?? 0),
+      active_tasks: Number(migration.active_tasks ?? 0),
+    },
+  };
+}
+
 export function useWebSocket(enabled = true) {
   const [events, setEvents] = useState<WsEvent[]>([]);
+  const [opsSnapshot, setOpsSnapshot] = useState<OpsSnapshot | null>(null);
   const [connected, setConnected] = useState(false);
   const [reconnecting, setReconnecting] = useState(false);
   const [connectKey, setConnectKey] = useState(0);
@@ -51,7 +105,14 @@ export function useWebSocket(enabled = true) {
     ws.onmessage = (msg) => {
       try {
         const payload = JSON.parse(msg.data) as WsEvent;
-        setEvents((prev) => [payload, ...prev].slice(0, 50));
+        if (payload.event_type === "ops_snapshot") {
+          const snapshot = parseOpsSnapshot(payload.data);
+          if (snapshot) setOpsSnapshot(snapshot);
+          return;
+        }
+        const normalized = normalizeIncomingEvents(payload);
+        if (normalized.length === 0) return;
+        setEvents((prev) => [...normalized, ...prev].slice(0, 50));
       } catch {
         // ignore malformed messages
       }
@@ -69,5 +130,5 @@ export function useWebSocket(enabled = true) {
     };
   }, [enabled, connectKey]);
 
-  return { events, connected, reconnecting, reconnect };
+  return { events, opsSnapshot, connected, reconnecting, reconnect };
 }

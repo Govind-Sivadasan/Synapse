@@ -37,3 +37,9 @@ class PerformanceBaselineResetResponse(BaseModel):
 
 class PartitionEnsureResponse(BaseModel):
     tables: dict[str, list[str]] = Field(default_factory=dict)
+
+
+class PartitionRetentionResponse(BaseModel):
+    dry_run: bool
+    tables: dict[str, list[str]] = Field(default_factory=dict)
+    summary: dict[str, dict[str, object]] = Field(default_factory=dict)

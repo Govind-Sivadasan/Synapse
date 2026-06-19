@@ -1,7 +1,7 @@
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, PrimaryKeyConstraint, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -39,8 +39,9 @@ class MigrationJob(Base):
 
 class MigrationStudyRecord(Base):
     __tablename__ = "migration_study_records"
+    __table_args__ = (PrimaryKeyConstraint("created_at", "id"),)
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), default=uuid.uuid4)
     job_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("migration_jobs.id"), nullable=False)
     study_uid: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     patient_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
@@ -50,5 +51,7 @@ class MigrationStudyRecord(Base):
     retry_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     failure_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     trace_id: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

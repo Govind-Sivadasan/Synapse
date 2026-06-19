@@ -30,6 +30,14 @@ logger = structlog.get_logger()
 _rule_evaluator = RoutingRuleEvaluator()
 
 
+async def _get_routing_transaction(
+    session: AsyncSession, transaction_id: uuid.UUID
+) -> RoutingTransaction | None:
+    return await session.scalar(
+        select(RoutingTransaction).where(RoutingTransaction.id == transaction_id)
+    )
+
+
 @dataclass
 class DestinationStatus:
     destination_id: uuid.UUID
@@ -151,7 +159,7 @@ class RoutingEngine:
 
         with timed_phase("routing", "db_finalize", study_uid=study_uid):
             async with async_session_factory() as session:
-                transaction = await session.get(RoutingTransaction, transaction_id)
+                transaction = await _get_routing_transaction(session, transaction_id)
                 success_count = 0
 
                 for dest_record, node, status, error in upload_results:
@@ -206,7 +214,7 @@ class RoutingEngine:
             if not dest:
                 raise ValueError("Destination record not found")
 
-            transaction = await session.get(RoutingTransaction, dest.transaction_id)
+            transaction = await _get_routing_transaction(session, dest.transaction_id)
             node = await session.get(Node, dest.destination_node_id)
             if not node or not node.dicomweb_url:
                 raise ValueError("Destination node not configured for DICOMweb")
@@ -257,7 +265,7 @@ class RoutingEngine:
             dest.status = status
             dest.failure_reason = error
             dest.completed_at = datetime.now(timezone.utc)
-            transaction = await session.get(RoutingTransaction, dest.transaction_id)
+            transaction = await _get_routing_transaction(session, dest.transaction_id)
             await self._refresh_transaction_status(session, transaction)
             await AuditLogger.log(
                 session,

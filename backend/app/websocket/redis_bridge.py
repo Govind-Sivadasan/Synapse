@@ -8,7 +8,7 @@ import structlog
 
 from app.config import settings
 from app.services.event_publisher import EVENTS_CHANNEL
-from app.websocket.manager import ws_manager
+from app.websocket.event_batcher import event_batcher
 
 logger = structlog.get_logger()
 
@@ -25,7 +25,10 @@ async def redis_event_subscriber() -> None:
             if message and message["type"] == "message":
                 try:
                     payload = json.loads(message["data"])
-                    await ws_manager.broadcast(payload.get("event_type", "event"), payload.get("data", {}))
+                    await event_batcher.enqueue(
+                        payload.get("event_type", "event"),
+                        payload.get("data", {}),
+                    )
                 except json.JSONDecodeError:
                     logger.warning("invalid_redis_event_payload")
             await asyncio.sleep(0.01)

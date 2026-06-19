@@ -45,7 +45,9 @@ async def _resume_enqueue(job_id: str, job_uuid: uuid.UUID) -> dict:
     async with async_session_factory() as session:
         for record in to_enqueue:
             if record.status == "failed":
-                db_record = await session.get(MigrationStudyRecord, record.id)
+                db_record = await session.scalar(
+                    select(MigrationStudyRecord).where(MigrationStudyRecord.id == record.id)
+                )
                 if db_record:
                     db_record.status = "pending"
                     db_record.failure_reason = None

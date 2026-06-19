@@ -14,6 +14,7 @@ from app.observability.metrics import (
 )
 from app.schemas.performance import (
     PartitionEnsureResponse,
+    PartitionRetentionResponse,
     PerformanceBaselineMarkerResponse,
     PerformanceBaselineResetResponse,
     PerformanceBaselineResponse,
@@ -89,3 +90,25 @@ async def performance_partitions_ensure(
             )
         )
     return PartitionEnsureResponse(tables=results)
+
+
+@router.post("/performance/partitions/retention", response_model=PartitionRetentionResponse)
+async def performance_partitions_retention(
+    dry_run: bool = Query(
+        True,
+        description="When true, report expired partitions without dropping them",
+    ),
+    _: CurrentUser = Depends(require_roles("admin")),
+) -> PartitionRetentionResponse:
+    """Drop monthly partitions older than each table's retention window (Phase 3.2)."""
+    from app.services.partition_retention import apply_partition_retention, retention_summary
+
+    if not settings.partition_retention_enabled:
+        raise HTTPException(status_code=400, detail="Partition retention is disabled")
+
+    async with engine.begin() as connection:
+        summary = await connection.run_sync(retention_summary)
+        results = await connection.run_sync(
+            lambda sync_conn: apply_partition_retention(sync_conn, dry_run=dry_run)
+        )
+    return PartitionRetentionResponse(dry_run=dry_run, tables=results, summary=summary)

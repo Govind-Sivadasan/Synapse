@@ -340,7 +340,9 @@ async def retry_migration_study(
     if not job:
         raise HTTPException(status_code=404, detail="Migration job not found")
 
-    record = await db.get(MigrationStudyRecord, study_record_id)
+    record = await db.scalar(
+        select(MigrationStudyRecord).where(MigrationStudyRecord.id == study_record_id)
+    )
     if not record or record.job_id != job_id:
         raise HTTPException(status_code=404, detail="Study record not found")
     if record.status not in ("failed", "skipped"):

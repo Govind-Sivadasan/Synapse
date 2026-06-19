@@ -19,7 +19,9 @@ from app.services.allowed_aets import refresh_allowed_calling_aets
 from app.services.runtime_config import set_runtime_overrides
 from app.services.system_config import get_system_config
 from app.websocket.manager import ws_manager
+from app.websocket.event_batcher import event_batcher
 from app.websocket.redis_bridge import redis_event_subscriber
+from app.websocket.ops_publisher import ws_ops_publisher
 from app.observability.metrics import render_prometheus, update_scrape_gauges
 
 configure_logging()
@@ -40,15 +42,19 @@ async def lifespan(app: FastAPI):
 
     dimse_listener = DIMSEListener()
     dimse_task = asyncio.create_task(dimse_listener.start())
+    await event_batcher.start()
     redis_task = asyncio.create_task(redis_event_subscriber())
+    ops_task = asyncio.create_task(ws_ops_publisher())
 
     yield
 
+    ops_task.cancel()
     redis_task.cancel()
+    await event_batcher.stop()
     if dimse_listener:
         await dimse_listener.stop()
     dimse_task.cancel()
-    for task in (redis_task, dimse_task):
+    for task in (redis_task, ops_task, dimse_task):
         try:
             await task
         except asyncio.CancelledError:

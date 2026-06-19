@@ -16,3 +16,11 @@ def test_iter_month_starts_inclusive():
 
 def test_partition_table_name():
     assert partition_table_name("audit_logs", date(2026, 6, 1)) == "audit_logs_2026_06"
+    assert partition_table_name("routing_transactions", date(2026, 6, 1)) == "routing_transactions_2026_06"
+
+
+def test_partitioned_tables_include_routing_and_migration():
+    from app.services.partition_maintenance import PARTITIONED_TABLES
+
+    assert PARTITIONED_TABLES["routing_transactions"] == "received_at"
+    assert PARTITIONED_TABLES["migration_study_records"] == "created_at"

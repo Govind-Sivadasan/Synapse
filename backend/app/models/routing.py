@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy import DateTime, ForeignKey, Integer, PrimaryKeyConstraint, String, Text, func
 from sqlalchemy.dialects.postgresql import ARRAY, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -28,8 +28,9 @@ class RoutingRule(Base):
 
 class RoutingTransaction(Base):
     __tablename__ = "routing_transactions"
+    __table_args__ = (PrimaryKeyConstraint("received_at", "id"),)
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), default=uuid.uuid4)
     source_node_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("nodes.id"))
     study_uid: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     patient_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
@@ -39,7 +40,9 @@ class RoutingTransaction(Base):
     routing_rule_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("routing_rules.id"))
     overall_status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
     trace_id: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
-    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    received_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
@@ -47,9 +50,7 @@ class RoutingDestination(Base):
     __tablename__ = "routing_destinations"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    transaction_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("routing_transactions.id"), nullable=False
-    )
+    transaction_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
     destination_node_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("nodes.id"), nullable=False
     )
