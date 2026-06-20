@@ -8,7 +8,20 @@ export default function MigrationQueueWidget() {
   const migrationQueued = opsSnapshot?.migration_queue.queued ?? "—";
   const migrationActive = opsSnapshot?.migration_queue.active_tasks ?? 0;
   const routingQueued = opsSnapshot?.routing_queue.queued ?? "—";
-  const workers = opsSnapshot?.workers_online;
+  const routingActive = opsSnapshot?.routing_queue.active_tasks ?? 0;
+  const workersOnline = opsSnapshot?.workers_online;
+
+  const migrationSub = !connected
+    ? "WebSocket disconnected — counts may be stale"
+    : !opsSnapshot
+      ? "Waiting for queue stats…"
+      : `${migrationActive} active · ${workersOnline} workers`;
+
+  const routingSub = !connected
+    ? "Reconnecting…"
+    : !opsSnapshot
+      ? "Waiting for queue stats…"
+      : `${routingActive} active`;
 
   return (
     <div className="migration-ops-grid">
@@ -21,11 +34,7 @@ export default function MigrationQueueWidget() {
             ? "warning"
             : "info"
         }
-        sub={
-          connected
-            ? `${migrationActive} active · ${workers ?? "?"} workers`
-            : "WebSocket disconnected — counts may be stale"
-        }
+        sub={migrationSub}
       />
       <MetricCard
         label="Routing queue"
@@ -34,7 +43,7 @@ export default function MigrationQueueWidget() {
         tone={
           typeof routingQueued === "number" && routingQueued > 50 ? "warning" : "info"
         }
-        sub={connected ? `${opsSnapshot?.routing_queue.active_tasks ?? 0} active` : "Reconnecting…"}
+        sub={routingSub}
       />
     </div>
   );

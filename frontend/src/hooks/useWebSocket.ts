@@ -102,17 +102,24 @@ export function useWebSocket(enabled = true) {
       setConnected(false);
       setReconnecting(false);
     };
+    const ingestOpsSnapshot = (event: WsEvent) => {
+      if (event.event_type !== "ops_snapshot") return false;
+      const snapshot = parseOpsSnapshot(event.data);
+      if (snapshot) setOpsSnapshot(snapshot);
+      return true;
+    };
+
     ws.onmessage = (msg) => {
       try {
         const payload = JSON.parse(msg.data) as WsEvent;
-        if (payload.event_type === "ops_snapshot") {
-          const snapshot = parseOpsSnapshot(payload.data);
-          if (snapshot) setOpsSnapshot(snapshot);
-          return;
-        }
+        if (ingestOpsSnapshot(payload)) return;
+
         const normalized = normalizeIncomingEvents(payload);
         if (normalized.length === 0) return;
-        setEvents((prev) => [...normalized, ...prev].slice(0, 50));
+
+        const activityEvents = normalized.filter((event) => !ingestOpsSnapshot(event));
+        if (activityEvents.length === 0) return;
+        setEvents((prev) => [...activityEvents, ...prev].slice(0, 50));
       } catch {
         // ignore malformed messages
       }
