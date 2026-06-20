@@ -34,6 +34,11 @@ def mark_listening(ae_title: str, port: int, promiscuous_mode: bool) -> None:
         _runtime.promiscuous_mode = promiscuous_mode
 
 
+def set_promiscuous_mode(promiscuous_mode: bool) -> None:
+    with _lock:
+        _runtime.promiscuous_mode = promiscuous_mode
+
+
 def mark_stopped() -> None:
     with _lock:
         _runtime.listening = False

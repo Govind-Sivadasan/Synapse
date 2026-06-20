@@ -17,7 +17,6 @@ class StudyAssembler:
     """Groups incoming instances by Study Instance UID within a single DICOM association."""
 
     METADATA_TAGS = [
-        "Modality",
         "PatientID",
         "StudyDate",
         "AccessionNumber",
@@ -31,6 +30,7 @@ class StudyAssembler:
         self.temp_path = temp_path
         self._assoc_studies: dict[int, dict[str, list[Path]]] = {}
         self._assoc_metadata: dict[int, dict[str, dict[str, str]]] = {}
+        self._assoc_modalities: dict[int, dict[str, set[str]]] = {}
 
     @staticmethod
     def _association_key(assoc) -> int:
@@ -48,7 +48,13 @@ class StudyAssembler:
 
         studies = self._assoc_studies.setdefault(assoc_key, {})
         metadata_map = self._assoc_metadata.setdefault(assoc_key, {})
+        modality_map = self._assoc_modalities.setdefault(assoc_key, {})
         studies.setdefault(study_uid, []).append(file_path)
+
+        modality = str(getattr(dataset, "Modality", "") or "").strip()
+        if modality:
+            modality_map.setdefault(study_uid, set()).add(modality)
+
         if study_uid not in metadata_map:
             metadata_map[study_uid] = self._extract_metadata(dataset)
         return 0x0000
@@ -57,22 +63,45 @@ class StudyAssembler:
         assoc_key = self._association_key(assoc)
         study_map = self._assoc_studies.pop(assoc_key, {})
         metadata_map = self._assoc_metadata.pop(assoc_key, {})
+        modality_map = self._assoc_modalities.pop(assoc_key, {})
 
         studies: list[AssembledStudy] = []
-        for study_uid, paths in study_map.items():
-            studies.append(
-                AssembledStudy(
-                    study_uid=study_uid,
-                    instance_paths=paths.copy(),
-                    metadata=metadata_map.get(study_uid, {}),
-                )
-            )
+        for study_uid in study_map:
+            studies.append(self.finalize_study(study_uid, metadata_map.get(study_uid, {}), modality_map.get(study_uid)))
         return studies
+
+    def finalize_study(
+        self,
+        study_uid: str,
+        base_metadata: dict[str, str] | None = None,
+        modalities: set[str] | None = None,
+    ) -> AssembledStudy:
+        study_dir = self.temp_path / study_uid
+        if study_dir.is_dir():
+            instance_paths = sorted(study_dir.glob("*.dcm"))
+        else:
+            instance_paths = []
+
+        metadata = dict(base_metadata or {})
+        merged_modalities = set(modalities or [])
+        if instance_paths:
+            path_metadata, path_modalities = self._metadata_from_paths(instance_paths, metadata)
+            metadata = path_metadata
+            merged_modalities.update(path_modalities)
+        if merged_modalities:
+            metadata["Modality"] = ",".join(sorted(merged_modalities))
+
+        return AssembledStudy(
+            study_uid=study_uid,
+            instance_paths=instance_paths,
+            metadata=metadata,
+        )
 
     def discard_association(self, assoc) -> None:
         assoc_key = self._association_key(assoc)
         self._assoc_studies.pop(assoc_key, None)
         self._assoc_metadata.pop(assoc_key, None)
+        self._assoc_modalities.pop(assoc_key, None)
 
     def _extract_metadata(self, dataset: pydicom.Dataset) -> dict[str, str]:
         metadata: dict[str, str] = {}
@@ -82,3 +111,21 @@ class StudyAssembler:
                 if value is not None:
                     metadata[tag_name] = str(value)
         return metadata
+
+    def _metadata_from_paths(self, paths: list[Path], base: dict[str, str]) -> tuple[dict[str, str], set[str]]:
+        metadata = dict(base)
+        modalities: set[str] = set()
+        for path in paths:
+            try:
+                dataset = pydicom.dcmread(path, stop_before_pixels=True, force=True)
+            except Exception:
+                continue
+            for tag_name in self.METADATA_TAGS:
+                if tag_name not in metadata and hasattr(dataset, tag_name):
+                    value = getattr(dataset, tag_name)
+                    if value is not None:
+                        metadata[tag_name] = str(value)
+            modality = str(getattr(dataset, "Modality", "") or "").strip()
+            if modality:
+                modalities.add(modality)
+        return metadata, modalities

@@ -50,6 +50,36 @@ def test_register_instances_groups_by_study_uid():
         assert studies[0].metadata["PatientID"] == "TEST001"
 
 
+def test_register_instances_aggregates_modalities():
+    with tempfile.TemporaryDirectory() as tmp:
+        assembler = StudyAssembler(Path(tmp))
+        assoc = _fake_assoc()
+        study_uid = generate_uid()
+
+        assembler.register_instance(_make_dataset(study_uid, generate_uid(), modality="CT"), assoc)
+        assembler.register_instance(_make_dataset(study_uid, generate_uid(), modality="SR"), assoc)
+
+        studies = assembler.on_association_released(assoc)
+        assert len(studies) == 1
+        assert studies[0].metadata["Modality"] == "CT,SR"
+
+
+def test_finalize_study_collects_all_instances_on_disk():
+    with tempfile.TemporaryDirectory() as tmp:
+        assembler = StudyAssembler(Path(tmp))
+        study_uid = generate_uid()
+        assoc_a = _fake_assoc()
+        assoc_b = _fake_assoc()
+
+        assembler.register_instance(_make_dataset(study_uid, generate_uid(), modality="CT"), assoc_a)
+        assembler.on_association_released(assoc_a)
+        assembler.register_instance(_make_dataset(study_uid, generate_uid(), modality="SR"), assoc_b)
+
+        finalized = assembler.finalize_study(study_uid)
+        assert len(finalized.instance_paths) == 2
+        assert finalized.metadata["Modality"] == "CT,SR"
+
+
 def test_concurrent_associations_are_isolated():
     with tempfile.TemporaryDirectory() as tmp:
         assembler = StudyAssembler(Path(tmp))

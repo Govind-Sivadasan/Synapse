@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Activity, AlertTriangle, ArrowLeftRight, RefreshCw, Radio, Server, Wifi, WifiOff } from "lucide-react";
+import { Activity, AlertTriangle, ArrowLeftRight, RefreshCw, Radio, Server, ShieldCheck, Wifi, WifiOff } from "lucide-react";
 import { apiFetch } from "../api/client";
 import DataTable from "../components/DataTable";
 import {
@@ -57,6 +57,7 @@ export default function RoutingMonitor() {
   const [page, setPage] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedStudyUid, setSelectedStudyUid] = useState<string | null>(null);
+  const [hoveredStudyUid, setHoveredStudyUid] = useState<string | null>(null);
   const pageSize = 10;
 
   useEffect(() => {
@@ -188,8 +189,14 @@ export default function RoutingMonitor() {
               <MetricCard
                 label="Associations Rejected"
                 value={dimse.statistics.associations_rejected}
-                icon={<AlertTriangle size={20} />}
-                tone={dimse.statistics.associations_rejected > 0 ? "warning" : "success"}
+                icon={
+                  dimse.statistics.associations_rejected > 0 ? (
+                    <AlertTriangle size={20} />
+                  ) : (
+                    <ShieldCheck size={20} />
+                  )
+                }
+                tone={dimse.statistics.associations_rejected > 0 ? "warning" : "info"}
                 sub={`${dimse.statistics.associations_accepted} accepted`}
               />
               <MetricCard
@@ -266,10 +273,14 @@ export default function RoutingMonitor() {
               (transactions?.items ?? []).map((txn) => (
                 <div
                   key={txn.id}
-                  className={`txn-block${selectedId === txn.id ? " txn-block--selected" : ""}`}
+                  className={`txn-block${selectedId === txn.id ? " txn-block--selected" : ""}${
+                    txn.study_uid === hoveredStudyUid ? " txn-block--hovered" : ""
+                  }`}
                   role="button"
                   tabIndex={0}
                   onClick={() => handleSelectTransaction(txn)}
+                  onMouseEnter={() => setHoveredStudyUid(txn.study_uid)}
+                  onMouseLeave={() => setHoveredStudyUid(null)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" || e.key === " ") {
                       e.preventDefault();
@@ -393,6 +404,8 @@ export default function RoutingMonitor() {
             dimseEvents={dimse?.recent_events ?? []}
             selectedStudyUid={selectedStudyUid}
             onSelectStudyUid={handleSelectStudyUid}
+            hoveredStudyUid={hoveredStudyUid}
+            onHoverStudyUid={setHoveredStudyUid}
           />
           <RoutingMonitorRightSidecar
             selectedStudyUid={selectedStudyUid}

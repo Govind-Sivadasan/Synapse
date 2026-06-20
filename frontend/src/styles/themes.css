@@ -104,7 +104,7 @@
   --sidebar-active: color-mix(in srgb, var(--color-primary-muted) 12%, var(--sidebar-bg-hover));
   --sidebar-border-accent: color-mix(in srgb, var(--color-primary) 18%, rgba(255, 255, 255, 0.06));
 
-  --color-success-bg: rgba(52, 211, 153, 0.14);
+  --color-success-bg: rgba(74, 222, 128, 0.14);
   --color-warning-bg: rgba(251, 191, 36, 0.16);
   --color-error-bg: rgb(255 0 0 / 28%);
   --color-info-bg: rgba(56, 189, 248, 0.16);
@@ -115,14 +115,14 @@
   --status-surface-info: var(--color-info-bg);
   --status-surface-neutral: color-mix(in srgb, var(--color-text-muted) 14%, var(--color-bg-elevated));
 
-  --alert-success-text: #6ee7b7;
-  --alert-success-border: rgba(52, 211, 153, 0.45);
-  --alert-error-text: #fca5a5;
-  --alert-error-border: rgba(248, 113, 113, 0.45);
-  --alert-warning-text: #fcd34d;
-  --alert-warning-border: rgba(251, 191, 36, 0.45);
-  --alert-info-text: #7dd3fc;
-  --alert-info-border: rgba(56, 189, 248, 0.45);
+  --alert-success-text: #6ee7b7; /* #4ade80 */
+  --alert-success-border: rgba(52, 211, 153, 0.45); /* rgba(74, 222, 128, 0.45) */
+  --alert-error-text: #fca5a5; /* #dc2626 */
+  --alert-error-border: rgba(248, 113, 113, 0.45); /* rgba(220, 38, 38, 0.45) */
+  --alert-warning-text: #fcd34d; /* #d97706 */
+  --alert-warning-border: rgba(251, 191, 36, 0.45); /* rgba(217, 119, 6, 0.45) */
+  --alert-info-text: #7dd3fc; /* #0284c7 */
+  --alert-info-border: rgba(56, 189, 248, 0.45); /* rgba(2, 132, 199, 0.45) */
 
   --status-fg-success: var(--alert-success-text);
   --status-fg-error: var(--alert-error-text);

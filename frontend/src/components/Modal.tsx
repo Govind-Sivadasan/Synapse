@@ -1,5 +1,6 @@
 import { X } from "lucide-react";
 import { ReactNode } from "react";
+import { createPortal } from "react-dom";
 
 interface Props {
   title: string;
@@ -17,7 +18,7 @@ export default function Modal({ title, open, onClose, children, wide, extraWide,
   const sizeClass = extraWide ? "modal-xl" : wide ? "modal-wide" : "";
   const overlayClass = nested ? "modal-overlay modal-overlay--nested" : "modal-overlay";
 
-  return (
+  return createPortal(
     <div className={overlayClass}>
       <div className={`modal ${sizeClass}`} onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
@@ -28,6 +29,7 @@ export default function Modal({ title, open, onClose, children, wide, extraWide,
         </div>
         <div className="modal-body">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

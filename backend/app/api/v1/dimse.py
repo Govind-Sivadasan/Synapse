@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.keycloak import CurrentUser, require_roles
 from app.database import get_db
 from app.dimse.stats import get_dimse_runtime
-from app.services.allowed_aets import get_allowed_calling_aets
+from app.services.allowed_aets import get_allowed_calling_aets, get_registered_source_calling_aets
 from app.services.dimse_event_store import get_dimse_statistics
 from app.services.runtime_config import get_runtime_config
 
@@ -28,6 +28,7 @@ async def dimse_status(
         "port": runtime["dimse_port"],
         "promiscuous_mode": runtime["dimse_promiscuous_mode"],
         "allowed_calling_aets": sorted(get_allowed_calling_aets()),
+        "registered_source_aets": sorted(get_registered_source_calling_aets()),
         "statistics": {
             "associations_total": stats["associations_total"],
             "associations_accepted": stats["associations_accepted"],

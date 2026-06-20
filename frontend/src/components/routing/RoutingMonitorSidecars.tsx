@@ -48,6 +48,8 @@ interface Props {
   selectedStudyUid: string | null;
   selectedTransaction: RoutingTransaction | null;
   onSelectStudyUid: (studyUid: string) => void;
+  hoveredStudyUid?: string | null;
+  onHoverStudyUid?: (studyUid: string | null) => void;
 }
 
 function sectionBadge(label: string, total: number, previewLimit: number): string {
@@ -148,11 +150,15 @@ function SourceList({ items, modalityMax }: { items: ChartDataPoint[]; modalityM
 function AssociationList({
   items,
   selectedStudyUid,
+  hoveredStudyUid,
   onSelect,
+  onHoverStudyUid,
 }: {
   items: AssociationItem[];
   selectedStudyUid: string | null;
+  hoveredStudyUid?: string | null;
   onSelect?: (studyUid: string) => void;
+  onHoverStudyUid?: (studyUid: string | null) => void;
 }) {
   return (
     <ul className="monitor-association-list">
@@ -163,10 +169,12 @@ function AssociationList({
             key={item.id}
             className={`monitor-association-item${selectable ? " monitor-association-item--selectable" : ""}${
               item.studyUid && item.studyUid === selectedStudyUid ? " monitor-association-item--selected" : ""
-            }`}
+            }${item.studyUid && item.studyUid === hoveredStudyUid ? " monitor-association-item--hovered" : ""}`}
             role={selectable ? "button" : undefined}
             tabIndex={selectable ? 0 : undefined}
             onClick={selectable ? () => onSelect!(item.studyUid!) : undefined}
+            onMouseEnter={selectable ? () => onHoverStudyUid?.(item.studyUid!) : undefined}
+            onMouseLeave={selectable ? () => onHoverStudyUid?.(null) : undefined}
             onKeyDown={
               selectable
                 ? (e) => {
@@ -279,7 +287,17 @@ export function RoutingMonitorLeftSidecar({
   dimseEvents,
   selectedStudyUid,
   onSelectStudyUid,
-}: Pick<Props, "wsEvents" | "dimseEvents" | "selectedStudyUid" | "onSelectStudyUid">) {
+  hoveredStudyUid,
+  onHoverStudyUid,
+}: Pick<
+  Props,
+  | "wsEvents"
+  | "dimseEvents"
+  | "selectedStudyUid"
+  | "onSelectStudyUid"
+  | "hoveredStudyUid"
+  | "onHoverStudyUid"
+>) {
   const [detailModal, setDetailModal] = useState<DetailModalKey>(null);
 
   const { data: modalitiesToday = [] } = useQuery({
@@ -372,7 +390,9 @@ export function RoutingMonitorLeftSidecar({
             <AssociationList
               items={associations.slice(0, SIDECAR_PREVIEW_LIMITS.associations)}
               selectedStudyUid={selectedStudyUid}
+              hoveredStudyUid={hoveredStudyUid}
               onSelect={onSelectStudyUid}
+              onHoverStudyUid={onHoverStudyUid}
             />
           )}
         </SidecarSection>
@@ -390,7 +410,9 @@ export function RoutingMonitorLeftSidecar({
             <AssociationList
               items={associations}
               selectedStudyUid={selectedStudyUid}
+              hoveredStudyUid={hoveredStudyUid}
               onSelect={handleAssociationSelect}
+              onHoverStudyUid={onHoverStudyUid}
             />
           )}
         </div>

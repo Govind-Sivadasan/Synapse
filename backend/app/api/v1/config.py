@@ -7,6 +7,7 @@ from app.auth.keycloak import CurrentUser, require_roles
 from app.database import get_db
 from app.schemas.config import SystemConfigResponse, SystemConfigUpdate
 from app.services.audit_logger import AuditLogger
+from app.dimse.listener import refresh_calling_aet_policy
 from app.services.runtime_config import set_runtime_overrides
 from app.services.system_config import get_system_config, save_system_config
 
@@ -31,6 +32,7 @@ async def update_config(
     updates = payload.model_dump(exclude_unset=True)
     config = await save_system_config(db, updates, updated_by=user.username)
     set_runtime_overrides(config)
+    refresh_calling_aet_policy()
 
     await AuditLogger.log(
         db,

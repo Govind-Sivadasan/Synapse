@@ -9,6 +9,13 @@ def test_equals_operator():
     assert not evaluate_condition(metadata, "Modality", "equals", "MR")
 
 
+def test_modality_equals_matches_multi_modality_study():
+    metadata = {"Modality": "CT,SR"}
+    assert evaluate_condition(metadata, "Modality", "equals", "CT")
+    assert evaluate_condition(metadata, "Modality", "equals", "SR")
+    assert not evaluate_condition(metadata, "Modality", "equals", "MR")
+
+
 def test_contains_operator():
     metadata = {"StudyDescription": "Cardiac CT Angiography"}
     assert evaluate_condition(metadata, "StudyDescription", "contains", "Cardiac")

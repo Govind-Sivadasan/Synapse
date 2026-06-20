@@ -79,6 +79,20 @@ class RoutingEngine:
 
         with timed_phase("routing", "evaluate", study_uid=study_uid):
             async with async_session_factory() as session:
+                skip_txn = await self._should_skip_routing(session, study_uid, len(file_paths))
+                if skip_txn:
+                    logger.info(
+                        "routing_skipped_duplicate",
+                        study_uid=study_uid,
+                        instances=len(file_paths),
+                        prior_status=skip_txn.overall_status,
+                    )
+                    return RoutingTransactionResult(
+                        transaction_id=skip_txn.id,
+                        study_uid=study_uid,
+                        overall_status="skipped",
+                    )
+
                 transaction = await self._create_transaction(
                     session, study_uid, metadata, file_paths, calling_ae_title
                 )
@@ -283,6 +297,26 @@ class RoutingEngine:
             status=status,
             failure_reason=error,
         )
+
+    async def _should_skip_routing(
+        self,
+        session: AsyncSession,
+        study_uid: str,
+        instance_count: int,
+    ) -> RoutingTransaction | None:
+        latest = await session.scalar(
+            select(RoutingTransaction)
+            .where(RoutingTransaction.study_uid == study_uid)
+            .order_by(RoutingTransaction.received_at.desc())
+            .limit(1)
+        )
+        if not latest:
+            return None
+        if latest.overall_status in ("success", "partial"):
+            return latest
+        if latest.overall_status == "no_match" and (latest.instances_count or 0) >= instance_count:
+            return latest
+        return None
 
     async def _create_transaction(
         self,

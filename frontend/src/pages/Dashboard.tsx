@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import {
   Activity,
+  HelpCircle,
   ArrowLeftRight,
   CheckCircle2,
   FileStack,
@@ -36,11 +37,20 @@ interface TransactionList {
   items: RoutingTransaction[];
 }
 
+function routingOutcomeSub(routing: DashboardMetrics["routing"]): string {
+  const parts = [`${routing.success} success`];
+  if (routing.no_match > 0) parts.push(`${routing.no_match} no match`);
+  if (routing.failed > 0) parts.push(`${routing.failed} failed`);
+  if (routing.partial > 0) parts.push(`${routing.partial} partial`);
+  return parts.join(" · ");
+}
+
 export default function Dashboard() {
   const { error: notifyError } = useNotifications();
   const lastError = useRef<string | null>(null);
   const { events } = useWebSocket();
   const [selectedStudyUid, setSelectedStudyUid] = useState<string | null>(null);
+  const [hoveredStudyUid, setHoveredStudyUid] = useState<string | null>(null);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["dashboard-metrics"],
@@ -133,20 +143,27 @@ export default function Dashboard() {
               value={routing.total}
               icon={<FileStack size={20} />}
               tone="primary"
-              sub={`${routing.success_rate}% success`}
+              sub={routingOutcomeSub(routing)}
             />
             <MetricCard
               label="Routing Success"
               value={routing.success}
               icon={<CheckCircle2 size={20} />}
               tone="success"
+              sub={`${routing.success_rate}% of total`}
+            />
+            <MetricCard
+              label="No Rule Match"
+              value={routing.no_match}
+              icon={<HelpCircle size={20} />}
+              tone="info"
+              sub="Received but no routing rule applied"
             />
             <MetricCard
               label="Routing Failed"
               value={routing.failed}
               icon={<XCircle size={20} />}
               tone="error"
-              sub={routing.partial ? `${routing.partial} partial` : undefined}
             />
             <MetricCard
               label="Studies Migrated"
@@ -196,6 +213,8 @@ export default function Dashboard() {
                 items={activity?.items ?? []}
                 onSelectStudyUid={setSelectedStudyUid}
                 selectedStudyUid={selectedStudyUid}
+                hoveredStudyUid={hoveredStudyUid}
+                onHoverStudyUid={setHoveredStudyUid}
               />
             </div>
           </div>
@@ -251,6 +270,8 @@ export default function Dashboard() {
             dimseEvents={dimse?.recent_events ?? []}
             selectedStudyUid={selectedStudyUid}
             onSelectStudyUid={setSelectedStudyUid}
+            hoveredStudyUid={hoveredStudyUid}
+            onHoverStudyUid={setHoveredStudyUid}
           />
           <DashboardRightSidecar
             selectedStudyUid={selectedStudyUid}

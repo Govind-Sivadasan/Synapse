@@ -1766,6 +1766,22 @@ button.user-menu-swatch:hover:not(:disabled) {
   color: var(--primary-fg);
 }
 
+.metric-value--success {
+  color: var(--status-fg-success);
+}
+
+.metric-value--info {
+  color: var(--status-fg-info);
+}
+
+.metric-value--warning {
+  color: var(--status-fg-warning);
+}
+
+.metric-value--error {
+  color: var(--status-fg-error);
+}
+
 .metric-label {
   color: var(--color-text-secondary);
   font-size: 0.8125rem;
@@ -2670,12 +2686,13 @@ button.modality-combobox-option:hover:not(:disabled) {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  z-index: 1200;
   padding: 1rem;
+  isolation: isolate;
 }
 
 .modal-overlay--nested {
-  z-index: 1100;
+  z-index: 1300;
 }
 
 .modal {
@@ -2688,6 +2705,8 @@ button.modality-combobox-option:hover:not(:disabled) {
   overflow: hidden;
   box-shadow: var(--shadow-lg);
   border: 1px solid var(--color-border);
+  position: relative;
+  z-index: 1;
 }
 
 .modal-wide {
@@ -3966,6 +3985,7 @@ button.monitor-sidecar-show-more:active:not(:disabled) {
   justify-content: space-between;
   gap: 0.5rem;
   margin-bottom: 0.35rem;
+  min-width: 0;
 }
 
 .monitor-source-modality,
@@ -3995,9 +4015,18 @@ button.monitor-sidecar-show-more:active:not(:disabled) {
   transition: width 0.3s ease;
 }
 
+.monitor-association-label {
+  flex-shrink: 0;
+}
+
 .monitor-association-detail {
   font-size: 0.6875rem;
   color: var(--color-text-muted);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
 }
 
 .monitor-association-meta {
@@ -4087,22 +4116,37 @@ button.monitor-sidecar-show-more:active:not(:disabled) {
   }
 }
 
+.monitor-association-item {
+  padding: 0.35rem 0.55rem;
+  border-left: 3px solid transparent;
+  border-radius: var(--radius-md);
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
 .monitor-association-item--selectable,
 .activity-feed-item--selectable {
   cursor: pointer;
-  border-radius: var(--radius-md);
-  transition: background 0.15s ease;
 }
 
 .monitor-association-item--selectable:hover,
-.activity-feed-item--selectable:hover {
+.activity-feed-item--selectable:hover,
+.monitor-association-item--hovered,
+.activity-feed-item--hovered {
   background: color-mix(in srgb, var(--color-primary) 6%, transparent);
+  border-left-color: color-mix(in srgb, var(--color-primary) 45%, transparent);
 }
 
 .monitor-association-item--selected,
 .activity-feed-item--selected {
   background: color-mix(in srgb, var(--color-primary) 10%, transparent);
-  box-shadow: inset 3px 0 0 var(--color-primary);
+  border-left-color: var(--color-primary);
+}
+
+.monitor-association-item--selected:hover,
+.activity-feed-item--selected:hover,
+.monitor-association-item--selected.monitor-association-item--hovered,
+.activity-feed-item--selected.activity-feed-item--hovered {
+  border-left-color: var(--color-primary);
 }
 
 /* Transaction list */
@@ -4118,6 +4162,10 @@ button.monitor-sidecar-show-more:active:not(:disabled) {
 }
 
 .txn-block:hover {
+  background: color-mix(in srgb, var(--color-primary) 6%, transparent);
+}
+
+.txn-block--hovered {
   background: color-mix(in srgb, var(--color-primary) 6%, transparent);
 }
 
@@ -4395,11 +4443,14 @@ input[type="checkbox"]:not(.settings-switch input) {
 
 .activity-feed-item {
   display: grid;
-  grid-template-columns: 36px 1fr auto;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
   gap: 0.65rem;
   align-items: center;
-  padding: 0.65rem 0;
+  padding: 0.65rem 0.55rem;
+  border-left: 3px solid transparent;
   border-bottom: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  transition: background 0.15s ease, border-color 0.15s ease;
 }
 
 .activity-feed-item:last-child {
@@ -4425,15 +4476,26 @@ input[type="checkbox"]:not(.settings-switch input) {
   color: var(--color-accent);
 }
 
+.activity-feed-body {
+  min-width: 0;
+}
+
 .activity-feed-body strong {
   display: block;
   font-size: 0.8125rem;
   margin-bottom: 0.15rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .activity-feed-body code {
+  display: block;
   font-size: 0.7rem;
   color: var(--color-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .activity-feed-meta {
@@ -4442,6 +4504,7 @@ input[type="checkbox"]:not(.settings-switch input) {
   flex-direction: column;
   gap: 0.25rem;
   align-items: flex-end;
+  flex-shrink: 0;
 }
 
 .activity-feed-meta time {

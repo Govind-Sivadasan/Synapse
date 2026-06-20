@@ -15,6 +15,8 @@ interface Props {
   emptyLabel?: string;
   onSelectStudyUid?: (studyUid: string) => void;
   selectedStudyUid?: string | null;
+  hoveredStudyUid?: string | null;
+  onHoverStudyUid?: (studyUid: string | null) => void;
 }
 
 export default function ActivityFeed({
@@ -22,6 +24,8 @@ export default function ActivityFeed({
   emptyLabel = "No recent activity",
   onSelectStudyUid,
   selectedStudyUid,
+  hoveredStudyUid,
+  onHoverStudyUid,
 }: Props) {
   if (!items.length) {
     return <p className="empty-message">{emptyLabel}</p>;
@@ -37,10 +41,12 @@ export default function ActivityFeed({
           key={item.id}
           className={`activity-feed-item${selectable ? " activity-feed-item--selectable" : ""}${
             studyUid && studyUid === selectedStudyUid ? " activity-feed-item--selected" : ""
-          }`}
+          }${studyUid && studyUid === hoveredStudyUid ? " activity-feed-item--hovered" : ""}`}
           role={selectable ? "button" : undefined}
           tabIndex={selectable ? 0 : undefined}
           onClick={selectable ? () => onSelectStudyUid!(studyUid!) : undefined}
+          onMouseEnter={selectable ? () => onHoverStudyUid?.(studyUid!) : undefined}
+          onMouseLeave={selectable ? () => onHoverStudyUid?.(null) : undefined}
           onKeyDown={
             selectable
               ? (e) => {
