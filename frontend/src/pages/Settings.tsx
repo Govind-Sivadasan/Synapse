@@ -23,7 +23,7 @@ import PageHeader from "../components/ui/PageHeader";
 import { PageLoading } from "../components/ui/LoadingScreen";
 import StatusBadge from "../components/ui/StatusBadge";
 import { PERMISSION_MATRIX } from "../config/permissions";
-import { ChatbotStatus, SystemConfig } from "../types/api";
+import { ChatbotStatus, DimseStatus, SystemConfig } from "../types/api";
 import { useNotifications } from "../services/notifications";
 
 type SettingsTab = "dimse" | "workers" | "retry" | "security" | "roles" | "audit" | "chatbot";
@@ -178,6 +178,13 @@ export default function Settings() {
     refetchInterval: tab === "chatbot" ? 15000 : false,
   });
 
+  const { data: dimseStatus } = useQuery({
+    queryKey: ["dimse-status"],
+    queryFn: () => apiFetch<DimseStatus>("/api/v1/dimse/status"),
+    enabled: tab === "dimse",
+    refetchInterval: tab === "dimse" ? 10000 : false,
+  });
+
   useEffect(() => {
     if (data) setForm(data);
   }, [data]);
@@ -188,13 +195,40 @@ export default function Settings() {
 
   const saveMutation = useMutation({
     mutationFn: (payload: Partial<SystemConfig>) =>
-      apiFetch<SystemConfig>("/api/v1/config", { method: "PUT", body: JSON.stringify(payload) }),
+      apiFetch<SystemConfig>("/api/v1/config", {
+        method: "PUT",
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(45_000),
+      }),
     onSuccess: (result) => {
       setForm(result);
       queryClient.invalidateQueries({ queryKey: ["system-config"] });
       queryClient.invalidateQueries({ queryKey: ["chatbot-status"] });
+      queryClient.invalidateQueries({ queryKey: ["dimse-status"] });
       queryClient.invalidateQueries({ queryKey: ["health"] });
       success("Settings saved successfully.");
+    },
+    onError: (err: Error) => notifyError(err.message),
+  });
+
+  const reloadDimseMutation = useMutation({
+    mutationFn: () =>
+      apiFetch<DimseStatus>("/api/v1/dimse/reload", {
+        method: "POST",
+        signal: AbortSignal.timeout(30_000),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["dimse-status"] });
+      queryClient.invalidateQueries({ queryKey: ["health"] });
+      success("DIMSE listener reloaded.");
+    },
+    onError: (err: Error) => {
+      const message =
+        err.name === "TimeoutError"
+          ? "DIMSE listener reload timed out. Check for active DIMSE connections and try again."
+          : err.message;
+      notifyError(message);
+      queryClient.invalidateQueries({ queryKey: ["dimse-status"] });
     },
   });
 
@@ -264,8 +298,49 @@ export default function Settings() {
 
           {tab === "dimse" && (
             <form className="settings-form" onSubmit={handleSave}>
+              {dimseStatus && (
+                <div
+                  className={`settings-dimse-status${
+                    dimseStatus.listener_pending ? " settings-dimse-status--pending" : ""
+                  }`}
+                >
+                  <p>
+                    <strong>Active listener:</strong>{" "}
+                    {dimseStatus.listening && dimseStatus.active_ae_title
+                      ? `${dimseStatus.active_ae_title} @ port ${dimseStatus.active_port}`
+                      : "Not running"}
+                  </p>
+                  {dimseStatus.listener_pending && (
+                    <p className="settings-field-hint">
+                      Configured values ({dimseStatus.configured_ae_title} @ port{" "}
+                      {dimseStatus.configured_port}) differ from the active listener. Save changes to
+                      apply automatically, or use Apply listener now.
+                    </p>
+                  )}
+                  {dimseStatus.listener_pending && (
+                    <ActionButton
+                      type="button"
+                      variant="secondary"
+                      icon={
+                        reloadDimseMutation.isPending ? (
+                          <Loader2 size={16} className="spin-icon" />
+                        ) : (
+                          <RotateCw size={16} />
+                        )
+                      }
+                      disabled={reloadDimseMutation.isPending}
+                      onClick={() => reloadDimseMutation.mutate()}
+                    >
+                      {reloadDimseMutation.isPending ? "Applying…" : "Apply listener now"}
+                    </ActionButton>
+                  )}
+                </div>
+              )}
               <div className="settings-rows">
-                <FieldRow label="AE title" hint="Application Entity Title for this DICOM node">
+                <FieldRow
+                  label="AE title"
+                  hint="Called AE title remote modalities use (-aec). Applied to the listener on save."
+                >
                   <input
                     className="settings-input"
                     value={form.dimse_ae_title}
@@ -273,7 +348,7 @@ export default function Settings() {
                     maxLength={16}
                   />
                 </FieldRow>
-                <FieldRow label="Listening port" hint="TCP port for incoming DIMSE connections">
+                <FieldRow label="Listening port" hint="TCP port for incoming DIMSE. Applied to the listener on save.">
                   <input
                     className="settings-input"
                     type="number"

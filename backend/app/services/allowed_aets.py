@@ -45,6 +45,10 @@ def get_required_calling_aets() -> list[str]:
     allowed = get_allowed_calling_aets()
     registered = allowed - set(_TEST_CALLING_AETS)
     if not registered:
+        # Allow built-in test callers even when no source nodes are registered yet.
+        test_callers = sorted(allowed & set(_TEST_CALLING_AETS))
+        if test_callers:
+            return test_callers
         # pynetdicom treats [] as "no restriction"; use impossible AET to reject all.
         return [_DENY_ALL_CALLING_AET]
     return sorted(allowed)

@@ -54,20 +54,21 @@ export default function MetricCard({
     <div className={cardClass}>
       <div className="metric-card__body">
         {icon && <div className={`metric-icon metric-icon--${toneClass}`}>{icon}</div>}
-        <div className="metric-card__content">
-          <div
-            className={[
-              "metric-value",
-              tone !== "default" ? `metric-value--${toneClass}` : "",
-            ]
-              .filter(Boolean)
-              .join(" ")}
-          >
-            {value}
-          </div>
-          <div className="metric-label">{label}</div>
-          {sub && <div className="metric-sub">{sub}</div>}
+        <div
+          className={[
+            "metric-value",
+            tone !== "default" ? `metric-value--${toneClass}` : "",
+          ]
+            .filter(Boolean)
+            .join(" ")}
+        >
+          {value}
         </div>
+      </div>
+
+      <div className="metric-card__content">
+        <div className="metric-label">{label}</div>
+        {sub && <div className="metric-sub">{sub}</div>}
       </div>
 
       {footerActions.length > 0 && (

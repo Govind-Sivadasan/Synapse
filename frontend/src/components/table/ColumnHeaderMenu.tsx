@@ -3,7 +3,6 @@ import { createPortal } from "react-dom";
 import {
   ArrowDown,
   ArrowUp,
-  ArrowUpDown,
   Columns3,
   EyeOff,
   MoreVertical,
@@ -118,8 +117,8 @@ export default function ColumnHeaderMenu({
     setOpen(false);
   };
 
-  const handleSortToggle = (event: React.MouseEvent) => {
-    event.stopPropagation();
+  const handleLabelClick = () => {
+    if (!sortable) return;
     if (!activeSortDir) onSort("asc");
     else if (activeSortDir === "asc") onSort("desc");
     else onSort("asc");
@@ -256,18 +255,19 @@ export default function ColumnHeaderMenu({
         className={`col-header-menu${activeSortDir ? " col-header-menu--sorted" : ""}${sortable ? " col-header-menu--sortable" : ""}`}
         ref={rootRef}
       >
-        <span className="col-header-menu-label">{label}</span>
-        {sortable && (
+        {sortable ? (
           <button
             type="button"
-            className={`col-header-sort-trigger${activeSortDir ? ` col-header-sort-trigger--${activeSortDir}` : ""}`}
+            className="col-header-menu-label col-header-menu-label-btn"
             aria-label={sortToggleLabel}
-            onClick={handleSortToggle}
+            onClick={handleLabelClick}
           >
-            {activeSortDir === "asc" && <ArrowUp size={14} aria-hidden />}
-            {activeSortDir === "desc" && <ArrowDown size={14} aria-hidden />}
-            {!activeSortDir && <ArrowUpDown size={14} aria-hidden />}
+            <span className="col-header-menu-label-text">{label}</span>
+            {activeSortDir === "asc" && <ArrowUp size={12} className="col-header-menu-sort-icon" aria-hidden />}
+            {activeSortDir === "desc" && <ArrowDown size={12} className="col-header-menu-sort-icon" aria-hidden />}
           </button>
+        ) : (
+          <span className="col-header-menu-label">{label}</span>
         )}
         <button
           ref={triggerRef}

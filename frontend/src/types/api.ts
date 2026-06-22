@@ -68,6 +68,37 @@ export interface SystemConfig {
   chatbot_enabled: boolean;
 }
 
+export interface DimseStatus {
+  listening: boolean;
+  ae_title: string;
+  port: number;
+  configured_ae_title: string;
+  configured_port: number;
+  active_ae_title: string | null;
+  active_port: number | null;
+  listener_pending: boolean;
+  promiscuous_mode: boolean;
+  allowed_calling_aets: string[];
+  registered_source_aets: string[];
+  statistics: {
+    associations_total: number;
+    associations_accepted: number;
+    associations_rejected: number;
+    c_echo_total: number;
+    instances_received: number;
+    studies_assembled: number;
+    last_association_at: string | null;
+    last_calling_ae: string | null;
+    last_study_uid: string | null;
+  };
+  recent_events: {
+    type: string;
+    calling_ae?: string;
+    study_uid?: string;
+    at: string;
+  }[];
+}
+
 export interface AuditLog {
   id: string;
   event_type: string;

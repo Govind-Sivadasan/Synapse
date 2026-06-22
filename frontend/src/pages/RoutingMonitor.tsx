@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Activity, AlertTriangle, ArrowLeftRight, RefreshCw, Radio, Server, ShieldCheck, Wifi, WifiOff } from "lucide-react";
 import { apiFetch } from "../api/client";
 import DataTable from "../components/DataTable";
+import RowActionsMenu from "../components/table/RowActionsMenu";
 import {
   RoutingMonitorLeftSidecar,
   RoutingMonitorRightSidecar,
@@ -15,8 +16,9 @@ import { PageLoading } from "../components/ui/LoadingScreen";
 import Pagination from "../components/ui/Pagination";
 import TableSearch from "../components/ui/TableSearch";
 import ActionButton from "../components/ui/ActionButton";
+import DateRangeField from "../components/ui/DateRangeField";
 import { useWebSocket } from "../hooks/useWebSocket";
-import { RoutingTransaction } from "../types/api";
+import { DimseStatus, RoutingTransaction } from "../types/api";
 
 interface TransactionList {
   total: number;
@@ -31,21 +33,6 @@ const STATUS_FILTERS = [
   { value: "no_match", label: "No match", tone: "info" as const },
   { value: "pending", label: "Pending", tone: "warning" as const },
 ];
-
-interface DimseStatus {
-  listening: boolean;
-  ae_title: string;
-  port: number;
-  promiscuous_mode: boolean;
-  statistics: {
-    instances_received: number;
-    studies_assembled: number;
-    c_echo_total: number;
-    associations_accepted: number;
-    associations_rejected: number;
-  };
-  recent_events: { type: string; calling_ae?: string; study_uid?: string; at: string }[];
-}
 
 export default function RoutingMonitor() {
   const queryClient = useQueryClient();
@@ -201,10 +188,18 @@ export default function RoutingMonitor() {
               />
               <MetricCard
                 label="DIMSE Listener"
-                value={dimse.listening ? `${dimse.ae_title}@${dimse.port}` : "Offline"}
+                value={
+                  dimse.listening
+                    ? `${dimse.active_ae_title ?? dimse.ae_title}@${dimse.active_port ?? dimse.port}`
+                    : "Offline"
+                }
                 icon={<Radio size={20} />}
                 tone={dimse.listening ? "success" : "error"}
-                sub={`Promiscuous mode: ${dimse.promiscuous_mode ? "ON" : "OFF"}`}
+                sub={
+                  dimse.listener_pending
+                    ? `Configured: ${dimse.configured_ae_title}@${dimse.configured_port} (apply in Settings)`
+                    : `Promiscuous mode: ${dimse.promiscuous_mode ? "ON" : "OFF"}`
+                }
               />
               {opsSnapshot && (
                 <>
@@ -236,14 +231,13 @@ export default function RoutingMonitor() {
               onChange={setStatusFilter}
             />
             <div className="filter-date-row">
-              <label className="filter-date-field">
-                <span>From</span>
-                <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
-              </label>
-              <label className="filter-date-field">
-                <span>To</span>
-                <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
-              </label>
+              <DateRangeField
+                label="Date range"
+                from={dateFrom}
+                to={dateTo}
+                onFromChange={setDateFrom}
+                onToChange={setDateTo}
+              />
               {(dateFrom || dateTo || statusFilter) && (
                 <button
                   type="button"
@@ -316,7 +310,7 @@ export default function RoutingMonitor() {
                             <th>Status</th>
                             <th>Retries</th>
                             <th>Failure</th>
-                            <th>Actions</th>
+                            <th className="data-table-th--actions">Actions</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -330,19 +324,22 @@ export default function RoutingMonitor() {
                               <td style={{ fontSize: "0.8125rem", color: "var(--color-error)" }}>
                                 {d.failure_reason ?? "—"}
                               </td>
-                              <td>
+                              <td className="data-table-td--actions">
                                 {d.status === "failed" && (
-                                  <button
-                                    type="button"
-                                    className="btn-sm"
-                                    disabled={retryMutation.isPending}
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      retryMutation.mutate(d.id);
-                                    }}
-                                  >
-                                    Retry
-                                  </button>
+                                  <div onClick={(e) => e.stopPropagation()}>
+                                    <RowActionsMenu
+                                      ariaLabel={`Actions for ${d.destination_name ?? d.destination_node_id}`}
+                                      items={[
+                                        {
+                                          key: "retry",
+                                          label: retryMutation.isPending ? "Retrying…" : "Retry",
+                                          icon: <RefreshCw size={14} />,
+                                          disabled: retryMutation.isPending,
+                                          onClick: () => retryMutation.mutate(d.id),
+                                        },
+                                      ]}
+                                    />
+                                  </div>
                                 )}
                               </td>
                             </tr>
@@ -377,12 +374,13 @@ export default function RoutingMonitor() {
                 resizable={false}
                 defaultClientSort={{ sortBy: "at", sortDir: "desc" }}
                 columns={[
-                  { key: "at", header: "Time", sortValue: (e) => e.at, render: (e) => new Date(e.at).toLocaleString() },
-                  { key: "type", header: "Event" },
-                  { key: "calling_ae", header: "Calling AE" },
+                  { key: "at", header: "Time", minWidth: 160, sortValue: (e) => e.at, render: (e) => new Date(e.at).toLocaleString() },
+                  { key: "type", header: "Event", minWidth: 88 },
+                  { key: "calling_ae", header: "Calling AE", minWidth: 120 },
                   {
                     key: "study_uid",
                     header: "Study UID",
+                    minWidth: 200,
                     render: (e) =>
                       e.study_uid ? (
                         <code className="table-cell-uid" title={e.study_uid}>

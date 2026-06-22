@@ -1,4 +1,4 @@
-import StatusBadge, { statusVariant } from "./StatusBadge";
+import { statusVariant } from "./StatusBadge";
 
 type BadgeVariant = "success" | "error" | "warning" | "info" | "neutral";
 

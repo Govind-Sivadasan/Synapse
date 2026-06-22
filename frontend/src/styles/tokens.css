@@ -10,6 +10,8 @@
   /* Neutrals */
   --color-bg: #f1f5f9;
   --color-bg-elevated: #ffffff;
+  --color-bg-subtle: #f8fafc;
+  --color-bg-hover: color-mix(in srgb, var(--color-primary) 5%, var(--color-surface));
   --color-surface: #ffffff;
   --color-border: #e2e8f0;
   --color-border-strong: #cbd5e1;

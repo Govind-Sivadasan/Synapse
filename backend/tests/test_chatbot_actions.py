@@ -9,7 +9,9 @@ from app.chatbot.chat_actions import (
     action_followup_for_conversation,
     detect_chat_action_intent,
     detect_chat_action_intent_with_context,
+    is_action_continuation,
     is_chat_action_request,
+    is_informational_query,
 )
 
 
@@ -216,3 +218,13 @@ def test_detects_migration_job_retry_failed_with_limit():
     assert action is not None
     assert action["action_type"] == "retry_failed"
     assert action["payload"]["limit"] == 25
+
+
+def test_informational_query_not_action_continuation():
+    prior = [
+        _Msg("user", "Create a new node"),
+        _Msg("assistant", "Should this be a source node or a destination node?"),
+    ]
+    message = "what the status regarding today's audit"
+    assert is_informational_query(message)
+    assert not is_action_continuation(message, prior)

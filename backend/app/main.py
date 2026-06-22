@@ -11,7 +11,7 @@ from fastapi.responses import Response
 from app.api.v1.router import api_router
 from app.config import settings
 from app.database import async_session_factory
-from app.dimse.listener import DIMSEListener
+from app.dimse.listener import DIMSEListener, bind_dimse_listener
 from app.middleware.trace import TraceMiddleware
 from app.observability.logging_config import configure_logging
 from app.observability.otel import instrument_fastapi
@@ -41,6 +41,7 @@ async def lifespan(app: FastAPI):
     await refresh_allowed_calling_aets()
 
     dimse_listener = DIMSEListener()
+    bind_dimse_listener(dimse_listener)
     dimse_task = asyncio.create_task(dimse_listener.start())
     await event_batcher.start()
     redis_task = asyncio.create_task(redis_event_subscriber())

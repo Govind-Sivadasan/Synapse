@@ -7,7 +7,9 @@ function loadCustomTags(): string[] {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed.filter((t): t is string => typeof t === "string" && t.trim()) : [];
+    return Array.isArray(parsed)
+      ? parsed.filter((t): t is string => typeof t === "string" && t.trim().length > 0)
+      : [];
   } catch {
     return [];
   }

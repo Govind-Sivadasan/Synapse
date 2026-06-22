@@ -1,13 +1,13 @@
 """System configuration API."""
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.keycloak import CurrentUser, require_roles
 from app.database import get_db
+from app.dimse.listener import refresh_calling_aet_policy, reload_dimse_listener
 from app.schemas.config import SystemConfigResponse, SystemConfigUpdate
 from app.services.audit_logger import AuditLogger
-from app.dimse.listener import refresh_calling_aet_policy
 from app.services.runtime_config import set_runtime_overrides
 from app.services.system_config import get_system_config, save_system_config
 
@@ -30,9 +30,23 @@ async def update_config(
     user: CurrentUser = Depends(require_roles("admin")),
 ) -> dict:
     updates = payload.model_dump(exclude_unset=True)
+    previous = await get_system_config(db)
     config = await save_system_config(db, updates, updated_by=user.username)
     set_runtime_overrides(config)
-    refresh_calling_aet_policy()
+
+    dimse_identity_changed = config["dimse_ae_title"] != previous["dimse_ae_title"] or config[
+        "dimse_port"
+    ] != previous["dimse_port"]
+    if dimse_identity_changed:
+        try:
+            await reload_dimse_listener()
+        except Exception as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=f"Settings saved but DIMSE listener reload failed: {exc}",
+            ) from exc
+    else:
+        refresh_calling_aet_policy()
 
     await AuditLogger.log(
         db,

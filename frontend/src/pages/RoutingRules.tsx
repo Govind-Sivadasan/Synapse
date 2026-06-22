@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { Plus } from "lucide-react";
+import { Pencil, Plus, Power, Trash2 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import ActionButton from "../components/ui/ActionButton";
 import { apiFetch } from "../api/client";
 import DataTable from "../components/DataTable";
+import RowActionsMenu from "../components/table/RowActionsMenu";
 import Modal from "../components/Modal";
 import PageHeader from "../components/ui/PageHeader";
 import StatusBadge from "../components/ui/StatusBadge";
@@ -133,6 +134,8 @@ export default function RoutingRules() {
             tableId="routing-rules"
             data={rules}
             keyField="id"
+            onRowClick={openEdit}
+            selectedRowId={editingId}
             paginate
             pageSize={10}
             searchable
@@ -140,23 +143,28 @@ export default function RoutingRules() {
             searchPlaceholder="Search routing rules…"
             defaultClientSort={{ sortBy: "priority", sortDir: "asc" }}
             columns={[
-              { key: "name", header: "Name" },
-              { key: "priority", header: "Priority", sortValue: (r) => r.priority },
+              { key: "name", header: "Name", width: 180, minWidth: 120 },
+              { key: "priority", header: "Priority", width: 88, minWidth: 72, sortValue: (r) => r.priority },
               {
                 key: "condition",
                 header: "Condition",
+                minWidth: 160,
                 sortable: false,
                 render: (r) => `${r.condition_tag} ${r.condition_operator} "${r.condition_value}"`,
               },
               {
                 key: "destinations",
                 header: "Destinations",
+                width: 180,
+                minWidth: 140,
                 sortable: false,
                 render: (r) => r.destination_node_ids.map(nodeName).join(", "),
               },
               {
                 key: "is_active",
                 header: "Status",
+                width: 100,
+                minWidth: 88,
                 sortValue: (r) => (r.is_active ? 1 : 0),
                 render: (r) => (
                   <StatusBadge status={r.is_active ? "active" : "inactive"} label={r.is_active ? "Active" : "Disabled"} />
@@ -165,35 +173,46 @@ export default function RoutingRules() {
               {
                 key: "actions",
                 header: "Actions",
+                width: 84,
+                minWidth: 84,
                 sortable: false,
                 hideable: false,
-                defaultPin: "right",
+                pinnable: false,
                 render: (r) => (
-                  <>
-                    <button className="btn-sm" onClick={() => openEdit(r)} style={{ marginRight: "0.25rem" }}>
-                      Edit
-                    </button>
-                    <button className="btn-sm btn-secondary" onClick={() => toggleMutation.mutate(r)} style={{ marginRight: "0.25rem" }}>
-                      {r.is_active ? "Disable" : "Enable"}
-                    </button>
-                    <button
-                      className="btn-sm btn-danger"
-                      onClick={() =>
-                        confirm({
-                          title: "Delete routing rule",
-                          message: (
-                            <p>
-                              Delete <strong>{r.name}</strong>? This cannot be undone.
-                            </p>
-                          ),
-                          confirmLabel: "Delete",
-                          onConfirm: () => deleteMutation.mutate(r.id),
-                        })
-                      }
-                    >
-                      Delete
-                    </button>
-                  </>
+                  <RowActionsMenu
+                    ariaLabel={`Actions for ${r.name}`}
+                    items={[
+                      {
+                        key: "edit",
+                        label: "Edit",
+                        icon: <Pencil size={14} />,
+                        onClick: () => openEdit(r),
+                      },
+                      {
+                        key: "toggle",
+                        label: r.is_active ? "Disable" : "Enable",
+                        icon: <Power size={14} />,
+                        onClick: () => toggleMutation.mutate(r),
+                      },
+                      {
+                        key: "delete",
+                        label: "Delete",
+                        icon: <Trash2 size={14} />,
+                        danger: true,
+                        onClick: () =>
+                          confirm({
+                            title: "Delete routing rule",
+                            message: (
+                              <p>
+                                Delete <strong>{r.name}</strong>? This cannot be undone.
+                              </p>
+                            ),
+                            confirmLabel: "Delete",
+                            onConfirm: () => deleteMutation.mutate(r.id),
+                          }),
+                      },
+                    ]}
+                  />
                 ),
               },
             ]}

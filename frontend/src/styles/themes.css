@@ -83,6 +83,8 @@
 [data-mode="dark"] {
   --color-bg: #0f172a;
   --color-bg-elevated: #1e293b;
+  --color-bg-subtle: color-mix(in srgb, white 4%, var(--color-bg-elevated));
+  --color-bg-hover: color-mix(in srgb, white 6%, var(--color-bg-elevated));
   --color-surface: #1e293b;
   --color-border: #334155;
   --color-border-strong: #475569;
@@ -178,8 +180,19 @@
   background: var(--color-bg);
 }
 
-[data-mode="dark"] .data-table tr:hover td {
-  background: rgba(255, 255, 255, 0.03);
+[data-mode="dark"] .data-table tbody tr.data-table-row--selected td {
+  background: color-mix(in srgb, var(--color-primary) 14%, var(--color-surface));
+}
+
+[data-mode="dark"] .data-table tbody tr.data-table-row--selected:hover td {
+  background: color-mix(in srgb, var(--color-primary) 18%, var(--color-surface));
+}
+
+[data-mode="dark"] .data-table--pinned tbody tr.data-table-row--selected .data-table-td--pin-left,
+[data-mode="dark"] .data-table--pinned tbody tr.data-table-row--selected .data-table-td--pin-left-edge,
+[data-mode="dark"] .data-table--pinned tbody tr.data-table-row--selected .data-table-td--pin-right,
+[data-mode="dark"] .data-table--pinned tbody tr.data-table-row--selected .data-table-td--pin-right-edge {
+  background: color-mix(in srgb, var(--color-primary) 14%, var(--color-surface));
 }
 
 /* Dark mode: metric cards */

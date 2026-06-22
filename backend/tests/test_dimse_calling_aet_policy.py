@@ -42,14 +42,14 @@ def test_get_required_calling_aets_lists_registered_sources_when_strict(monkeypa
     assert allowed_aets.get_required_calling_aets() == ["ECHOSCU", "PACS_A", "STORESCU"]
 
 
-def test_get_required_calling_aets_deny_all_without_registered_sources(monkeypatch):
+def test_get_required_calling_aets_allows_test_callers_without_registered_sources(monkeypatch):
     monkeypatch.setattr(
         allowed_aets,
         "get_runtime_config",
         lambda: {"dimse_promiscuous_mode": False},
     )
     allowed_aets.set_allowed_calling_aets(set())
-    assert allowed_aets.get_required_calling_aets() == ["__SYNAPSE_NO_CALLERS__"]
+    assert allowed_aets.get_required_calling_aets() == ["ECHOSCU", "STORESCU"]
 
 
 def test_is_calling_aet_allowed_respects_promiscuous_mode(monkeypatch):

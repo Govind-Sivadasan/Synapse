@@ -39,10 +39,86 @@ export type NodeFormState = {
   ae_title: string;
   dicomweb_url: string;
   auth_type: "none" | "basic" | "bearer" | "apikey";
+  auth_username: string;
+  auth_password: string;
+  auth_token: string;
+  auth_api_key: string;
+  auth_api_key_header: string;
   is_active: boolean;
 };
 
-export function buildNodePayload(form: NodeFormState, forUpdate: boolean) {
+export const emptyNodeForm: NodeFormState = {
+  name: "",
+  node_type: "destination",
+  protocol: "DICOMweb",
+  host: "",
+  port: null,
+  ae_title: "",
+  dicomweb_url: "",
+  auth_type: "none",
+  auth_username: "",
+  auth_password: "",
+  auth_token: "",
+  auth_api_key: "",
+  auth_api_key_header: "X-API-Key",
+  is_active: true,
+};
+
+export function nodeToForm(node: Node): NodeFormState {
+  const cfg = node.auth_config ?? {};
+  return {
+    name: node.name,
+    node_type: node.node_type,
+    protocol: node.protocol,
+    host: node.host,
+    port: node.port,
+    ae_title: node.ae_title ?? "",
+    dicomweb_url: node.dicomweb_url ?? "",
+    auth_type: node.auth_type ?? "none",
+    auth_username: cfg.username ?? "",
+    auth_password: "",
+    auth_token: "",
+    auth_api_key: "",
+    auth_api_key_header: cfg.header_name ?? "X-API-Key",
+    is_active: node.is_active,
+  };
+}
+
+function buildAuthConfig(
+  form: NodeFormState,
+  existingAuth?: Record<string, string> | null,
+): Record<string, string> | null {
+  if (form.auth_type === "none") return null;
+
+  if (form.auth_type === "basic") {
+    const username = form.auth_username.trim();
+    const password = form.auth_password || existingAuth?.password || "";
+    if (!username && !password) return null;
+    return { username, password };
+  }
+
+  if (form.auth_type === "bearer") {
+    const token = form.auth_token || existingAuth?.token || "";
+    return token ? { token } : null;
+  }
+
+  if (form.auth_type === "apikey") {
+    const api_key = form.auth_api_key || existingAuth?.api_key || "";
+    if (!api_key) return null;
+    return {
+      header_name: form.auth_api_key_header.trim() || "X-API-Key",
+      api_key,
+    };
+  }
+
+  return null;
+}
+
+export function buildNodePayload(
+  form: NodeFormState,
+  forUpdate: boolean,
+  existingAuth?: Record<string, string> | null,
+) {
   const normalized = {
     name: form.name.trim(),
     node_type: form.node_type,
@@ -52,12 +128,23 @@ export function buildNodePayload(form: NodeFormState, forUpdate: boolean) {
     ae_title: form.ae_title.trim() || null,
     dicomweb_url: form.dicomweb_url.trim() || null,
     auth_type: form.auth_type || "none",
+    auth_config: buildAuthConfig(form, forUpdate ? existingAuth : null),
     is_active: form.is_active,
   };
 
-  if (!forUpdate) {
-    return normalized;
-  }
-
   return normalized;
+}
+
+export function isNodeAuthValid(form: NodeFormState, forUpdate: boolean): boolean {
+  if (form.auth_type === "none") return true;
+  if (form.auth_type === "basic") {
+    return Boolean(form.auth_username.trim() && (forUpdate || form.auth_password));
+  }
+  if (form.auth_type === "bearer") {
+    return Boolean(forUpdate || form.auth_token.trim());
+  }
+  if (form.auth_type === "apikey") {
+    return Boolean(forUpdate || form.auth_api_key.trim());
+  }
+  return true;
 }

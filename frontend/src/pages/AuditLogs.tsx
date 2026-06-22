@@ -3,12 +3,13 @@ import { useQuery } from "@tanstack/react-query";
 import { Download, RefreshCw } from "lucide-react";
 import { apiFetch, downloadFile } from "../api/client";
 import DataTable from "../components/DataTable";
-import TableSearch from "../components/ui/TableSearch";
 import BarChart from "../components/ui/BarChart";
 import PageHeader from "../components/ui/PageHeader";
 import EventBadge from "../components/ui/EventBadge";
 import { PageLoading } from "../components/ui/LoadingScreen";
 import ActionButton from "../components/ui/ActionButton";
+import DateRangeField from "../components/ui/DateRangeField";
+import AuditLogCardList from "../components/audit/AuditLogCardList";
 import { useNotifications } from "../services/notifications";
 import { AuditLog, AuditLogList, ChartDataPoint } from "../types/api";
 
@@ -90,6 +91,16 @@ export default function AuditLogs() {
     queryFn: () => apiFetch<ChartDataPoint[]>("/api/v1/reports/audit/summary?days=7"),
   });
 
+  const { data: recentData } = useQuery({
+    queryKey: ["audit-logs-recent"],
+    queryFn: () =>
+      apiFetch<AuditLogList>("/api/v1/audit-logs?limit=8&sort_by=created_at&sort_dir=desc"),
+    staleTime: 30 * 1000,
+  });
+
+  const recentLogs = recentData?.items ?? [];
+  const showSummarySection = auditSummary.length > 0 || recentLogs.length > 0;
+
   const logs: AuditLog[] = data?.items ?? [];
 
   const handleExport = async () => {
@@ -124,15 +135,34 @@ export default function AuditLogs() {
         }
       />
 
-      {auditSummary.length > 0 && (
-        <div className="card" style={{ marginBottom: "1rem" }}>
-          <h3 className="card-title">Last 7 Days — Events by Type</h3>
-          <BarChart data={auditSummary} color="var(--color-warning)" />
+      {showSummarySection && (
+        <div className="audit-logs-summary-grid">
+          <div className="card">
+            <h3 className="card-title">Last 7 Days — Events by Type</h3>
+            <div className="audit-logs-summary-scroll">
+              {auditSummary.length > 0 ? (
+                <BarChart
+                  data={auditSummary}
+                  color="var(--color-warning)"
+                  showTooltip
+                  emptyLabel="No events in the last 7 days."
+                />
+              ) : (
+                <p className="empty-message">No events in the last 7 days.</p>
+              )}
+            </div>
+          </div>
+          <div className="card">
+            <h3 className="card-title">Recent events</h3>
+            <div className="audit-logs-summary-scroll">
+              <AuditLogCardList logs={recentLogs} emptyLabel="No recent audit events." />
+            </div>
+          </div>
         </div>
       )}
 
       <div className="card">
-        <div className="form-grid" style={{ marginBottom: "1rem" }}>
+        <div className="audit-log-filters">
           <div className="form-field">
             <label>Event Type</label>
             <select value={eventType} onChange={(e) => setEventType(e.target.value)}>
@@ -146,21 +176,13 @@ export default function AuditLogs() {
             <label>User</label>
             <input value={userId} onChange={(e) => setUserId(e.target.value)} placeholder="Username or Keycloak user ID" />
           </div>
-          <div className="form-field">
-            <label>Date From</label>
-            <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
-          </div>
-          <div className="form-field">
-            <label>Date To</label>
-            <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
-          </div>
+          <DateRangeField
+            from={dateFrom}
+            to={dateTo}
+            onFromChange={setDateFrom}
+            onToChange={setDateTo}
+          />
         </div>
-
-        <TableSearch
-          value={search}
-          onChange={setSearch}
-          placeholder="Search event, user, entity, details…"
-        />
 
         {isLoading ? (
           <PageLoading label="Loading audit logs…" compact />
@@ -169,6 +191,9 @@ export default function AuditLogs() {
             tableId="audit-logs"
             data={logs}
             keyField="id"
+            searchValue={search}
+            onSearchChange={setSearch}
+            searchPlaceholder="Search event, user, entity, details…"
             serverSort={{
               sortBy,
               sortDir,
@@ -188,35 +213,45 @@ export default function AuditLogs() {
               {
                 key: "created_at",
                 header: "Timestamp",
+                minWidth: 160,
                 sortKey: "created_at",
                 render: (l) => new Date(l.created_at).toLocaleString(),
               },
               {
                 key: "event_type",
                 header: "Event",
+                minWidth: 120,
                 sortKey: "event_type",
                 render: (l) => <EventBadge eventType={l.event_type} />,
               },
               {
                 key: "user_id",
                 header: "User",
+                minWidth: 120,
                 sortKey: "user_id",
                 render: (l) => {
                   const user = auditUserLabel(l);
                   return (
                     <span className="audit-user-cell" title={user.secondary ?? user.primary}>
                       <strong>{user.primary}</strong>
-                      {user.secondary && user.username && (
+                      {user.secondary && (
                         <span className="audit-user-cell-id">{user.secondary}</span>
                       )}
                     </span>
                   );
                 },
               },
-              { key: "entity_type", header: "Entity", sortKey: "entity_type", render: (l) => l.entity_type ?? "—" },
+              {
+                key: "entity_type",
+                header: "Entity",
+                minWidth: 88,
+                sortKey: "entity_type",
+                render: (l) => l.entity_type ?? "—",
+              },
               {
                 key: "details",
                 header: "Details",
+                minWidth: 180,
                 sortable: false,
                 render: (l) => (
                   <span style={{ fontSize: "0.8125rem" }} title={l.details ? JSON.stringify(l.details) : ""}>

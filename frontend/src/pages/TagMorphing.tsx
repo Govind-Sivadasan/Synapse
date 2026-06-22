@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { Plus } from "lucide-react";
+import { Pencil, Plus, Trash2 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import ActionButton from "../components/ui/ActionButton";
 import { apiFetch } from "../api/client";
 import DataTable from "../components/DataTable";
+import RowActionsMenu from "../components/table/RowActionsMenu";
 import Modal from "../components/Modal";
 import PageHeader from "../components/ui/PageHeader";
 import StatusBadge from "../components/ui/StatusBadge";
@@ -137,6 +138,8 @@ export default function TagMorphing() {
             tableId="tag-morphing-rules"
             data={rules}
             keyField="id"
+            onRowClick={openEdit}
+            selectedRowId={editing?.id ?? null}
             paginate
             pageSize={10}
             searchable
@@ -144,12 +147,13 @@ export default function TagMorphing() {
             searchPlaceholder="Search morphing rules…"
             defaultClientSort={{ sortBy: "name", sortDir: "asc" }}
             columns={[
-              { key: "name", header: "Name" },
-              { key: "target_tag", header: "Target Tag" },
-              { key: "new_value", header: "New Value" },
+              { key: "name", header: "Name", width: 180, minWidth: 120 },
+              { key: "target_tag", header: "Target Tag", width: 120, minWidth: 96 },
+              { key: "new_value", header: "New Value", width: 120, minWidth: 96 },
               {
                 key: "condition",
                 header: "Condition",
+                minWidth: 160,
                 sortable: false,
                 render: (r) =>
                   r.condition_tag
@@ -159,6 +163,8 @@ export default function TagMorphing() {
               {
                 key: "is_active",
                 header: "Status",
+                width: 100,
+                minWidth: 88,
                 sortValue: (r) => (r.is_active ? 1 : 0),
                 render: (r) => (
                   <StatusBadge status={r.is_active ? "active" : "inactive"} label={r.is_active ? "Active" : "Disabled"} />
@@ -167,32 +173,40 @@ export default function TagMorphing() {
               {
                 key: "actions",
                 header: "Actions",
+                width: 84,
+                minWidth: 84,
                 sortable: false,
                 hideable: false,
-                defaultPin: "right",
+                pinnable: false,
                 render: (r) => (
-                  <>
-                    <button className="btn-sm" onClick={() => openEdit(r)} style={{ marginRight: "0.5rem" }}>
-                      Edit
-                    </button>
-                    <button
-                      className="btn-sm btn-danger"
-                      onClick={() =>
-                        confirm({
-                          title: "Delete tag morphing rule",
-                          message: (
-                            <p>
-                              Delete <strong>{r.name}</strong>? This cannot be undone.
-                            </p>
-                          ),
-                          confirmLabel: "Delete",
-                          onConfirm: () => deleteMutation.mutate(r.id),
-                        })
-                      }
-                    >
-                      Delete
-                    </button>
-                  </>
+                  <RowActionsMenu
+                    ariaLabel={`Actions for ${r.name}`}
+                    items={[
+                      {
+                        key: "edit",
+                        label: "Edit",
+                        icon: <Pencil size={14} />,
+                        onClick: () => openEdit(r),
+                      },
+                      {
+                        key: "delete",
+                        label: "Delete",
+                        icon: <Trash2 size={14} />,
+                        danger: true,
+                        onClick: () =>
+                          confirm({
+                            title: "Delete tag morphing rule",
+                            message: (
+                              <p>
+                                Delete <strong>{r.name}</strong>? This cannot be undone.
+                              </p>
+                            ),
+                            confirmLabel: "Delete",
+                            onConfirm: () => deleteMutation.mutate(r.id),
+                          }),
+                      },
+                    ]}
+                  />
                 ),
               },
             ]}

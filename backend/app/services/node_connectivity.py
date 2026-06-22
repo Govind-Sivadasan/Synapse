@@ -10,6 +10,7 @@ from pynetdicom.sop_class import Verification
 from app.config import settings
 from app.dicomweb.auth_handler import AuthHandler
 from app.models.node import Node
+from app.services.runtime_config import get_runtime_config
 
 logger = structlog.get_logger()
 
@@ -24,7 +25,7 @@ def test_dimse_echo(
     timeout: float = 10.0,
 ) -> tuple[bool, str, int | None, int]:
     """Send C-ECHO SCU to a remote DIMSE node."""
-    caller = calling_ae or settings.dimse_ae_title
+    caller = calling_ae or get_runtime_config().get("dimse_ae_title", settings.dimse_ae_title)
     started = time.perf_counter()
     ae = AE(ae_title=caller)
     ae.add_requested_context(Verification)

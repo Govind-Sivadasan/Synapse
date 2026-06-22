@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Plus, Radio } from "lucide-react";
+import { Pencil, Plus, Radio, Trash2 } from "lucide-react";
 import ActionButton from "../components/ui/ActionButton";
 import { apiFetch } from "../api/client";
 import DataTable from "../components/DataTable";
+import RowActionsMenu from "../components/table/RowActionsMenu";
 import Modal from "../components/Modal";
 import PageHeader from "../components/ui/PageHeader";
 import StatusBadge from "../components/ui/StatusBadge";
@@ -11,22 +12,13 @@ import { PageLoading } from "../components/ui/LoadingScreen";
 import Switch from "../components/ui/Switch";
 import { useConfirmDialog } from "../hooks/useConfirmDialog";
 import { useAppMetadata } from "../hooks/useAppMetadata";
-import { buildNodePayload, NodeFormState } from "../lib/nodes";
+import { buildNodePayload, emptyNodeForm, isNodeAuthValid, nodeToForm, NodeFormState } from "../lib/nodes";
+import NodeAuthFields from "../components/nodes/NodeAuthFields";
 import { formatNodeEchoMessage, formatNotificationMessage } from "../lib/notificationMessages";
 import { useNotifications } from "../services/notifications";
 import { Node, NodeEchoResult } from "../types/api";
 
-const emptyForm: NodeFormState = {
-  name: "",
-  node_type: "destination",
-  protocol: "DICOMweb",
-  host: "",
-  port: null,
-  ae_title: "",
-  dicomweb_url: "",
-  auth_type: "none",
-  is_active: true,
-};
+const emptyForm = emptyNodeForm;
 
 export default function Nodes() {
   const queryClient = useQueryClient();
@@ -35,6 +27,7 @@ export default function Nodes() {
   const { success, error: notifyError } = useNotifications();
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingAuth, setEditingAuth] = useState<Record<string, string> | null>(null);
   const [form, setForm] = useState(emptyForm);
 
   const { data: nodes = [], isLoading } = useQuery({
@@ -83,31 +76,27 @@ export default function Nodes() {
 
   const openCreate = () => {
     setEditingId(null);
+    setEditingAuth(null);
     setForm(emptyForm);
     setModalOpen(true);
   };
 
   const openEdit = (node: Node) => {
     setEditingId(node.id);
-    setForm({
-      name: node.name,
-      node_type: node.node_type,
-      protocol: node.protocol,
-      host: node.host,
-      port: node.port,
-      ae_title: node.ae_title ?? "",
-      dicomweb_url: node.dicomweb_url ?? "",
-      auth_type: node.auth_type ?? "none",
-      is_active: node.is_active,
-    });
+    setEditingAuth(node.auth_config);
+    setForm(nodeToForm(node));
     setModalOpen(true);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isNodeAuthValid(form, !!editingId)) {
+      notifyError("Enter credentials for the selected auth type.");
+      return;
+    }
     saveMutation.mutate({
       nodeId: editingId,
-      payload: buildNodePayload(form, !!editingId),
+      payload: buildNodePayload(form, !!editingId, editingAuth),
     });
   };
 
@@ -146,6 +135,8 @@ export default function Nodes() {
             tableId="nodes"
             data={nodes}
             keyField="id"
+            onRowClick={openEdit}
+            selectedRowId={editingId}
             paginate
             pageSize={10}
             searchable
@@ -153,13 +144,15 @@ export default function Nodes() {
             searchPlaceholder="Search nodes…"
             defaultClientSort={{ sortBy: "name", sortDir: "asc" }}
             columns={[
-              { key: "name", header: "Name" },
-              { key: "node_type", header: "Type", sortValue: (n) => n.node_type },
-              { key: "protocol", header: "Protocol" },
-              { key: "host", header: "Host" },
+              { key: "name", header: "Name", width: 200, minWidth: 140 },
+              { key: "node_type", header: "Type", width: 96, minWidth: 72, sortValue: (n) => n.node_type },
+              { key: "protocol", header: "Protocol", width: 108, minWidth: 88 },
+              { key: "host", header: "Host", minWidth: 160 },
               {
                 key: "is_active",
                 header: "Status",
+                width: 100,
+                minWidth: 88,
                 sortValue: (n) => (n.is_active ? 1 : 0),
                 render: (n) => (
                   <StatusBadge status={n.is_active ? "active" : "inactive"} label={n.is_active ? "Active" : "Inactive"} />
@@ -168,44 +161,49 @@ export default function Nodes() {
               {
                 key: "actions",
                 header: "Actions",
+                width: 84,
+                minWidth: 84,
                 sortable: false,
                 hideable: false,
-                defaultPin: "right",
+                pinnable: false,
                 render: (n) => {
                   const echoing = echoMutation.isPending && echoMutation.variables === n.id;
                   return (
-                    <div className="table-actions">
-                      <button
-                        type="button"
-                        className="btn-sm btn-secondary"
-                        disabled={echoMutation.isPending}
-                        onClick={() => echoMutation.mutate(n.id)}
-                      >
-                        {echoing ? <Loader2 size={14} className="spin-icon" /> : <Radio size={14} />}
-                        {echoing ? "Testing…" : "Echo"}
-                      </button>
-                      <button type="button" className="btn-sm" onClick={() => openEdit(n)}>
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        className="btn-sm btn-danger"
-                        onClick={() =>
-                          confirm({
-                            title: "Delete node",
-                            message: (
-                              <p>
-                                Delete <strong>{n.name}</strong>? This cannot be undone.
-                              </p>
-                            ),
-                            confirmLabel: "Delete",
-                            onConfirm: () => deleteMutation.mutate(n.id),
-                          })
-                        }
-                      >
-                        Delete
-                      </button>
-                    </div>
+                    <RowActionsMenu
+                      ariaLabel={`Actions for ${n.name}`}
+                      items={[
+                        {
+                          key: "echo",
+                          label: echoing ? "Testing…" : "Echo",
+                          icon: echoing ? undefined : <Radio size={14} />,
+                          disabled: echoMutation.isPending,
+                          onClick: () => echoMutation.mutate(n.id),
+                        },
+                        {
+                          key: "edit",
+                          label: "Edit",
+                          icon: <Pencil size={14} />,
+                          onClick: () => openEdit(n),
+                        },
+                        {
+                          key: "delete",
+                          label: "Delete",
+                          icon: <Trash2 size={14} />,
+                          danger: true,
+                          onClick: () =>
+                            confirm({
+                              title: "Delete node",
+                              message: (
+                                <p>
+                                  Delete <strong>{n.name}</strong>? This cannot be undone.
+                                </p>
+                              ),
+                              confirmLabel: "Delete",
+                              onConfirm: () => deleteMutation.mutate(n.id),
+                            }),
+                        },
+                      ]}
+                    />
                   );
                 },
               },
@@ -306,7 +304,17 @@ export default function Nodes() {
               <label>Auth Type</label>
               <select
                 value={form.auth_type}
-                onChange={(e) => setForm({ ...form, auth_type: e.target.value as NodeFormState["auth_type"] })}
+                onChange={(e) => {
+                  const auth_type = e.target.value as NodeFormState["auth_type"];
+                  setForm({
+                    ...form,
+                    auth_type,
+                    auth_username: "",
+                    auth_password: "",
+                    auth_token: "",
+                    auth_api_key: "",
+                  });
+                }}
               >
                 {authTypes.map((a) => (
                   <option key={a.value} value={a.value}>
@@ -315,6 +323,7 @@ export default function Nodes() {
                 ))}
               </select>
             </div>
+            <NodeAuthFields form={form} onChange={setForm} editing={!!editingId} />
             <div className="form-field">
               <label>Active</label>
               <Switch

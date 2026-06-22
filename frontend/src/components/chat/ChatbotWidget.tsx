@@ -111,6 +111,7 @@ export default function ChatbotWidget({ roles }: Props) {
             <div className="chatbot-drawer-actions">
               <Link
                 to="/chatbot"
+                className="chatbot-drawer-expand"
                 title="Open full page"
                 onMouseEnter={() => {
                   void ensureChatMessages(queryClient);
@@ -122,8 +123,13 @@ export default function ChatbotWidget({ roles }: Props) {
               >
                 <Maximize2 size={16} />
               </Link>
-              <button type="button" onClick={() => setOpen(false)} aria-label="Close chat">
-                <X size={18} />
+              <button
+                type="button"
+                className="chatbot-drawer-close"
+                onClick={() => setOpen(false)}
+                aria-label="Close chat"
+              >
+                <X size={18} strokeWidth={2.25} aria-hidden />
               </button>
             </div>
           </div>

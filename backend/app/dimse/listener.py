@@ -2,6 +2,7 @@
 
 import asyncio
 import threading
+import time
 from pathlib import Path
 
 import structlog
@@ -11,6 +12,7 @@ from pynetdicom.status import Status
 
 from app.config import settings
 from app.dimse.stats import (
+    get_dimse_runtime,
     mark_listening,
     mark_stopped,
     record_association_accepted,
@@ -35,6 +37,50 @@ logger = structlog.get_logger()
 ROUTE_DEBOUNCE_SECONDS = 5.0
 
 _active_listener: "DIMSEListener | None" = None
+_bound_listener: "DIMSEListener | None" = None
+_reload_lock = asyncio.Lock()
+
+
+def bind_dimse_listener(listener: "DIMSEListener") -> None:
+    """Register the process DIMSE listener for hot-reload from settings updates."""
+    global _bound_listener
+    _bound_listener = listener
+
+
+async def reload_dimse_listener() -> dict:
+    """Stop and restart the DIMSE listener to apply AE title / port changes."""
+    if _bound_listener is None:
+        raise RuntimeError("DIMSE listener is not registered")
+
+    async with _reload_lock:
+        try:
+            await _bound_listener.reload()
+        except TimeoutError as exc:
+            raise RuntimeError(str(exc)) from exc
+
+    runtime_state = get_dimse_runtime()
+    configured = get_runtime_config()
+    if not runtime_state.listening:
+        raise RuntimeError("DIMSE listener failed to start after reload")
+
+    if (
+        runtime_state.ae_title != configured["dimse_ae_title"]
+        or runtime_state.port != configured["dimse_port"]
+    ):
+        raise RuntimeError(
+            "DIMSE listener is running but active AE title/port do not match configured values"
+        )
+
+    logger.info(
+        "dimse_listener_reloaded",
+        ae_title=runtime_state.ae_title,
+        port=runtime_state.port,
+    )
+    return {
+        "listening": runtime_state.listening,
+        "active_ae_title": runtime_state.ae_title,
+        "active_port": runtime_state.port,
+    }
 
 
 def calling_ae_from_assoc(assoc) -> str:
@@ -67,6 +113,8 @@ class DIMSEListener:
         self._ae: AE | None = None
         self._server = None
         self._executor_future = None
+        self._stop_event = threading.Event()
+        self._server_ready = threading.Event()
         self._route_timers: dict[str, threading.Timer] = {}
         self._route_lock = threading.Lock()
         self._pending_calling_ae: dict[str, str] = {}
@@ -214,6 +262,20 @@ class DIMSEListener:
         except Exception as exc:
             logger.error("association_release_failed", error=str(exc))
 
+    def _shutdown_server(self) -> None:
+        server = self._server
+        ae = self._ae
+        if server is not None:
+            try:
+                server.shutdown()
+            except Exception:
+                logger.exception("dimse_server_shutdown_error")
+        if ae is not None:
+            try:
+                ae.shutdown()
+            except Exception:
+                logger.exception("dimse_ae_shutdown_error")
+
     def _run_server(self):
         global _active_listener
         runtime = get_runtime_config()
@@ -221,33 +283,126 @@ class DIMSEListener:
         port = runtime["dimse_port"]
         promiscuous = runtime["dimse_promiscuous_mode"]
 
-        self._ae = AE(ae_title=ae_title)
-        self._ae.supported_contexts = AllStoragePresentationContexts
-        self._ae.add_supported_context(Verification)
-        _active_listener = self
-        self.apply_calling_aet_policy()
+        self._stop_event.clear()
+        self._server_ready.clear()
 
-        handlers = [
-            (evt.EVT_REJECTED, self._handle_rejected),
-            (evt.EVT_ACCEPTED, self._handle_accepted),
-            (evt.EVT_ABORTED, self._handle_aborted),
-            (evt.EVT_C_STORE, self._handle_store),
-            (evt.EVT_C_ECHO, self._handle_echo),
-            (evt.EVT_RELEASED, self._handle_released),
-        ]
-        mark_listening(ae_title, port, promiscuous)
-        logger.info("dimse_listener_started", ae_title=ae_title, port=port, promiscuous=promiscuous)
-        self._server = self._ae.start_server(("0.0.0.0", port), block=True, evt_handlers=handlers)
+        try:
+            self._ae = AE(ae_title=ae_title)
+            self._ae.supported_contexts = AllStoragePresentationContexts
+            self._ae.add_supported_context(Verification)
+            _active_listener = self
+            self.apply_calling_aet_policy()
 
-    async def start(self) -> None:
+            handlers = [
+                (evt.EVT_REJECTED, self._handle_rejected),
+                (evt.EVT_ACCEPTED, self._handle_accepted),
+                (evt.EVT_ABORTED, self._handle_aborted),
+                (evt.EVT_C_STORE, self._handle_store),
+                (evt.EVT_C_ECHO, self._handle_echo),
+                (evt.EVT_RELEASED, self._handle_released),
+            ]
+            self._server = self._ae.start_server(
+                ("0.0.0.0", port),
+                block=False,
+                evt_handlers=handlers,
+            )
+            mark_listening(ae_title, port, promiscuous)
+            logger.info("dimse_listener_started", ae_title=ae_title, port=port, promiscuous=promiscuous)
+            self._server_ready.set()
+            self._stop_event.wait()
+        except Exception:
+            mark_stopped()
+            _active_listener = None
+            self._server = None
+            self._server_ready.set()
+            raise
+        finally:
+            self._shutdown_server()
+            self._server = None
+            self._ae = None
+            _active_listener = None
+            mark_stopped()
+            logger.info("dimse_listener_thread_exited")
+
+    async def start(self, *, force: bool = False) -> None:
+        if (
+            not force
+            and self._executor_future is not None
+            and not self._executor_future.done()
+        ):
+            return
         loop = asyncio.get_running_loop()
-        self._executor_future = await loop.run_in_executor(None, self._run_server)
+        self._executor_future = loop.run_in_executor(None, self._run_server)
 
-    async def stop(self) -> None:
-        global _active_listener
+    async def _wait_for_server_ready(self, timeout: float) -> None:
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            if self._server_ready.is_set() and self._server is not None:
+                return
+            future = self._executor_future
+            if future is not None and future.done():
+                exc = future.exception()
+                if exc is not None:
+                    raise RuntimeError(f"DIMSE listener failed to start: {exc}") from exc
+                if not self._server_ready.is_set():
+                    raise RuntimeError("DIMSE listener thread exited before becoming ready")
+                return
+            await asyncio.sleep(0.05)
+        raise TimeoutError("DIMSE listener did not become ready")
+
+    async def stop(self, timeout: float = 30.0) -> None:
         self._cancel_route_timers()
-        if self._server:
-            self._server.shutdown()
-        _active_listener = None
-        mark_stopped()
+
+        if not self._stop_event.is_set():
+            self._stop_event.set()
+
+        future = self._executor_future
+        loop = asyncio.get_running_loop()
+
+        if self._server is None and future is not None and not future.done():
+            try:
+                await self._wait_for_server_ready(min(timeout, 5.0))
+            except TimeoutError:
+                pass
+
+        if self._server is not None or self._ae is not None:
+            try:
+                await asyncio.wait_for(
+                    loop.run_in_executor(None, self._shutdown_server),
+                    timeout=timeout * 0.75,
+                )
+            except asyncio.TimeoutError:
+                logger.error("dimse_listener_shutdown_timeout")
+                raise TimeoutError(
+                    "DIMSE listener did not stop in time. Active associations may be blocking shutdown."
+                ) from None
+            except Exception:
+                logger.exception("dimse_listener_shutdown_error")
+
+        if future is not None:
+            try:
+                await asyncio.wait_for(future, timeout=timeout * 0.25)
+            except asyncio.TimeoutError:
+                logger.error("dimse_listener_thread_join_timeout")
+                raise TimeoutError(
+                    "DIMSE listener did not stop in time. Active associations may be blocking shutdown."
+                ) from None
+            except Exception:
+                logger.exception("dimse_listener_thread_exit_error")
+
+        self._executor_future = None
+        self._server = None
+        self._ae = None
+        self._stop_event.clear()
+        self._server_ready.clear()
         logger.info("dimse_listener_stopped")
+
+    async def reload(self) -> None:
+        await self.stop()
+        await self.start(force=True)
+        await self._wait_until_listening()
+
+    async def _wait_until_listening(self, timeout: float = 15.0) -> None:
+        await self._wait_for_server_ready(timeout)
+        if not get_dimse_runtime().listening:
+            raise RuntimeError("DIMSE listener failed to start after reload")

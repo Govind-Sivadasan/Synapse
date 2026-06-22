@@ -4,7 +4,8 @@ import { Loader2 } from "lucide-react";
 import { createPortal } from "react-dom";
 import { apiFetch } from "../../api/client";
 import Modal from "../Modal";
-import { buildNodePayload, NodeFormState } from "../../lib/nodes";
+import { buildNodePayload, emptyNodeForm, isNodeAuthValid, NodeFormState } from "../../lib/nodes";
+import NodeAuthFields from "./NodeAuthFields";
 import { formatNotificationMessage } from "../../lib/notificationMessages";
 import { useNotifications } from "../../services/notifications";
 import { Node } from "../../types/api";
@@ -13,21 +14,16 @@ const CREATE_NODE_OPTION = "__create_node__";
 export { CREATE_NODE_OPTION };
 
 function emptyForm(nodeType: "source" | "destination"): NodeFormState {
-  return {
-    name: "",
-    node_type: nodeType,
-    protocol: "DICOMweb",
-    host: "",
-    port: null,
-    ae_title: "",
-    dicomweb_url: "",
-    auth_type: "none",
-    is_active: true,
-  };
+  return { ...emptyNodeForm, node_type: nodeType };
 }
 
 function isFormValid(form: NodeFormState): boolean {
-  return !!(form.name.trim() && form.host.trim() && form.dicomweb_url.trim());
+  return !!(
+    form.name.trim() &&
+    form.host.trim() &&
+    form.dicomweb_url.trim() &&
+    isNodeAuthValid(form, false)
+  );
 }
 
 interface Props {
@@ -64,7 +60,11 @@ export default function QuickCreateNodeDialog({ open, nodeType, onClose, onCreat
 
   const handleCreate = useCallback(() => {
     if (!isFormValid(form)) {
-      notifyError("Name, host, and DICOMweb URL are required.");
+      notifyError(
+        form.auth_type !== "none" && !isNodeAuthValid(form, false)
+          ? "Enter credentials for the selected auth type."
+          : "Name, host, and DICOMweb URL are required.",
+      );
       return;
     }
     saveMutation.mutate();
@@ -147,6 +147,29 @@ export default function QuickCreateNodeDialog({ open, nodeType, onClose, onCreat
               </div>
             </>
           )}
+          <div className="form-field">
+            <label>Auth Type</label>
+            <select
+              value={form.auth_type}
+              onChange={(e) => {
+                const auth_type = e.target.value as NodeFormState["auth_type"];
+                setForm({
+                  ...form,
+                  auth_type,
+                  auth_username: "",
+                  auth_password: "",
+                  auth_token: "",
+                  auth_api_key: "",
+                });
+              }}
+            >
+              <option value="none">None</option>
+              <option value="basic">Basic</option>
+              <option value="bearer">Bearer</option>
+              <option value="apikey">API Key</option>
+            </select>
+          </div>
+          <NodeAuthFields form={form} onChange={setForm} />
         </div>
         <div className="form-actions">
           <button

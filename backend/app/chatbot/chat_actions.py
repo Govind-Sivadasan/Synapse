@@ -50,6 +50,11 @@ CANCELLATION_REPLY_RE = re.compile(
     r"^(no|nope|cancel|nevermind|never mind|stop|don'?t)\.?!?$",
     re.IGNORECASE,
 )
+INFORMATIONAL_QUERY_RE = re.compile(
+    r"(?:^\s*(?:what|why|how|when|where|who|which|is|are|was|were|can|could|should|would|tell|show|explain|describe|summarize|list)\b)"
+    r"|(?:\b(status|summary|overview|progress|happened|going on)\b)",
+    re.IGNORECASE,
+)
 NODE_CHANGE_RE = re.compile(
     r"\b(create|add|new|update|edit|rename|delete|remove|disable|enable|test|echo)\b.*\bnode\b",
     re.IGNORECASE,
@@ -276,10 +281,22 @@ def is_chat_action_request(message: str) -> bool:
     )
 
 
+def is_informational_query(message: str) -> bool:
+    """True when the user is asking a question rather than continuing an action."""
+    text = message.strip()
+    if not text:
+        return False
+    if text.endswith("?"):
+        return True
+    return bool(INFORMATIONAL_QUERY_RE.search(text))
+
+
 def is_action_continuation(message: str, prior_messages: Sequence[Any]) -> bool:
     """True when the user is confirming or supplying follow-up details for an action."""
     text = message.strip()
     if not text or not prior_messages:
+        return False
+    if is_informational_query(text):
         return False
     if CONFIRMATION_REPLY_RE.match(text) or CANCELLATION_REPLY_RE.match(text):
         return True

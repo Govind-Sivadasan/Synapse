@@ -11,6 +11,7 @@ from app.chatbot.chat_actions import (
     build_conversation_action_text,
     detect_chat_action_intent_with_context,
     is_chat_action_request_with_context,
+    is_informational_query,
     load_action_resources,
 )
 from app.chatbot.context_builder import build_chat_context
@@ -120,7 +121,7 @@ class ChatbotEngine:
                 "I don't have a pending change to confirm. Describe what you want to do and I'll show a "
                 "confirmation card when the details are clear."
             )
-        elif change_request and can_operate and not pending_action:
+        elif change_request and can_operate and not pending_action and not is_informational_query(message):
             answer = (
                 action_followup_for_conversation(message, resources, recent_messages)
                 or action_guidance_for_unmapped_request(combined_text)

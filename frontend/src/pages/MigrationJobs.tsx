@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Plus, Play, Square, RefreshCw, Copy, Trash2, Pause } from "lucide-react";
 import { apiFetch } from "../api/client";
 import DataTable from "../components/DataTable";
+import RowActionsMenu, { RowActionItem } from "../components/table/RowActionsMenu";
 import FilterChips from "../components/ui/FilterChips";
 import Modal from "../components/Modal";
 import NodeSelectField from "../components/nodes/NodeSelectField";
@@ -12,7 +13,6 @@ import PageHeader from "../components/ui/PageHeader";
 import StatusBadge from "../components/ui/StatusBadge";
 import StudyProgressRing from "../components/ui/StudyProgressRing";
 import { PageLoading } from "../components/ui/LoadingScreen";
-import TableSearch from "../components/ui/TableSearch";
 import { useConfirmDialog } from "../hooks/useConfirmDialog";
 import { useAppMetadata } from "../hooks/useAppMetadata";
 import { formatNotificationMessage } from "../lib/notificationMessages";
@@ -24,17 +24,30 @@ import ThroughputSparkChart from "../components/migration/ThroughputSparkChart";
 import ModalitySelect from "../components/forms/ModalitySelect";
 import { MigrationJob, MigrationJobList, MigrationJobProgress, MigrationJobThroughput, MigrationStudyList, Node, TagMorphingRule } from "../types/api";
 
-const emptyForm = {
+const emptyForm: JobForm = {
   name: "",
   source_node_id: "",
   destination_node_id: "",
-  job_type: "historical" as const,
+  job_type: "historical",
   modality: "",
   patient_id: "",
   date_from: "",
   date_to: "",
   study_uids: "",
-  tag_morphing_rule_ids: [] as string[],
+  tag_morphing_rule_ids: [],
+};
+
+type JobForm = {
+  name: string;
+  source_node_id: string;
+  destination_node_id: string;
+  job_type: "historical" | "batch" | "incremental";
+  modality: string;
+  patient_id: string;
+  date_from: string;
+  date_to: string;
+  study_uids: string;
+  tag_morphing_rule_ids: string[];
 };
 
 const JOB_STATUS_FILTERS = [
@@ -55,8 +68,6 @@ const STUDY_STATUS_FILTERS = [
   { value: "success", label: "Success", tone: "success" as const },
   { value: "pending", label: "Pending", tone: "warning" as const },
 ];
-
-type JobForm = typeof emptyForm;
 
 function jobFormFromJob(job: MigrationJob): JobForm {
   const config = (job.job_config ?? {}) as Record<string, unknown>;
@@ -621,15 +632,16 @@ export default function MigrationJobs() {
             value={jobsStatusFilter}
             onChange={setJobsStatusFilter}
           />
-          <TableSearch
-            value={jobsSearch}
-            onChange={setJobsSearch}
-            placeholder="Search jobs by name, type, status…"
-          />
           <DataTable
             tableId="migration-jobs"
             data={jobs}
             keyField="id"
+            searchable
+            onRowClick={openJobDetails}
+            selectedRowId={selectedJob?.id ?? null}
+            searchValue={jobsSearch}
+            onSearchChange={setJobsSearch}
+            searchPlaceholder="Search jobs by name, type, status…"
             emptyMessage="No migration jobs yet. Create one to migrate studies from on-prem to cloud."
             serverSort={{
               sortBy: jobsSortBy,
@@ -661,125 +673,95 @@ export default function MigrationJobs() {
                 },
               },
               { key: "status", header: "Status", width: 130, minWidth: 110, sortKey: "status", render: (j) => <StatusBadge status={j.status} /> },
-              { key: "progress", header: "Progress", width: 130, minWidth: 100, sortKey: "completed_studies", render: (j) => <JobProgressCell job={j} /> },
-              { key: "failed", header: "Failed", width: 96, minWidth: 80, sortKey: "failed_studies", render: (j) => j.failed_studies },
+              { key: "progress", header: "Progress", width: 140, minWidth: 120, sortKey: "completed_studies", render: (j) => <JobProgressCell job={j} /> },
+              { key: "failed", header: "Failed", width: 88, minWidth: 72, sortKey: "failed_studies", render: (j) => j.failed_studies },
               {
                 key: "actions",
                 header: "Actions",
-                width: 340,
-                minWidth: 280,
+                width: 84,
+                minWidth: 84,
                 sortable: false,
                 hideable: false,
-                defaultPin: "right",
+                pinnable: false,
                 render: (j) => {
                   const starting = isStarting(j.id);
                   const cancelling = isCancelling(j.id);
                   const canStart =
                     ["not_started", "failed", "partial", "cancelled"].includes(j.status) ||
                     (j.status === "completed" && (j.total_studies ?? 0) === 0);
+                  const items: RowActionItem[] = [
+                    {
+                      key: "details",
+                      label: "Details",
+                      onClick: () => openJobDetails(j),
+                    },
+                  ];
 
-                  return (
-                    <div className="table-actions">
-                      <button
-                        type="button"
-                        className={`btn-sm ${selectedJob?.id === j.id ? "" : "btn-secondary"}`}
-                        onClick={() => openJobDetails(j)}
-                      >
-                        Details
-                      </button>
-                      {starting ? (
-                        <button type="button" className="btn-sm" disabled>
-                          <Loader2 size={14} className="spin-icon" />
-                          Starting…
-                        </button>
-                      ) : canStart ? (
-                        <button
-                          type="button"
-                          className="btn-sm"
-                          disabled={startMutation.isPending}
-                          onClick={() => startMutation.mutate(j.id)}
-                        >
-                          <Play size={14} />
-                          {j.status === "not_started" ? "Start" : "Resume"}
-                        </button>
-                      ) : isJobRunning(j) ? (
-                        <>
-                          <button
-                            type="button"
-                            className="btn-sm btn-secondary"
-                            disabled={isPausing(j.id)}
-                            onClick={() => pauseMutation.mutate(j.id)}
-                          >
-                            {isPausing(j.id) ? (
-                              <Loader2 size={14} className="spin-icon" />
-                            ) : (
-                              <Pause size={14} />
-                            )}
-                            {isPausing(j.id) ? "Pausing…" : "Pause"}
-                          </button>
-                          <button
-                            type="button"
-                            className="btn-sm btn-secondary"
-                            disabled={cancelling}
-                            onClick={() => cancelMutation.mutate(j.id)}
-                          >
-                            {cancelling ? (
-                              <Loader2 size={14} className="spin-icon" />
-                            ) : (
-                              <Square size={14} />
-                            )}
-                            {cancelling ? "Cancelling…" : "Cancel"}
-                          </button>
-                        </>
-                      ) : j.status === "paused" ? (
-                        <>
-                          <button
-                            type="button"
-                            className="btn-sm"
-                            disabled={isResuming(j.id)}
-                            onClick={() => resumeMutation.mutate(j.id)}
-                          >
-                            {isResuming(j.id) ? (
-                              <Loader2 size={14} className="spin-icon" />
-                            ) : (
-                              <Play size={14} />
-                            )}
-                            {isResuming(j.id) ? "Resuming…" : "Resume"}
-                          </button>
-                          <button
-                            type="button"
-                            className="btn-sm btn-secondary"
-                            disabled={cancelling}
-                            onClick={() => cancelMutation.mutate(j.id)}
-                          >
-                            <Square size={14} />
-                            Cancel
-                          </button>
-                        </>
-                      ) : null}
-                      <button
-                        type="button"
-                        className="btn-sm btn-secondary"
-                        title="Create a new job from this configuration"
-                        onClick={() => duplicateJob(j)}
-                      >
-                        <Copy size={14} />
-                        Duplicate
-                      </button>
-                      {canDeleteJob(j) && (
-                        <button
-                          type="button"
-                          className="btn-sm btn-danger"
-                          disabled={deleteMutation.isPending}
-                          title="Remove job and study records"
-                          onClick={() => confirmDeleteJob(j)}
-                        >
-                          <Trash2 size={14} />
-                          Delete
-                        </button>
-                      )}
-                    </div>
-                  );
+                  if (starting) {
+                    items.push({ key: "starting", label: "Starting…", disabled: true });
+                  } else if (canStart) {
+                    items.push({
+                      key: "start",
+                      label: j.status === "not_started" ? "Start" : "Resume",
+                      icon: <Play size={14} />,
+                      disabled: startMutation.isPending,
+                      onClick: () => startMutation.mutate(j.id),
+                    });
+                  } else if (isJobRunning(j)) {
+                    items.push(
+                      {
+                        key: "pause",
+                        label: isPausing(j.id) ? "Pausing…" : "Pause",
+                        icon: isPausing(j.id) ? undefined : <Pause size={14} />,
+                        disabled: isPausing(j.id),
+                        onClick: () => pauseMutation.mutate(j.id),
+                      },
+                      {
+                        key: "cancel",
+                        label: cancelling ? "Cancelling…" : "Cancel",
+                        icon: cancelling ? undefined : <Square size={14} />,
+                        disabled: cancelling,
+                        onClick: () => cancelMutation.mutate(j.id),
+                      },
+                    );
+                  } else if (j.status === "paused") {
+                    items.push(
+                      {
+                        key: "resume",
+                        label: isResuming(j.id) ? "Resuming…" : "Resume",
+                        icon: isResuming(j.id) ? undefined : <Play size={14} />,
+                        disabled: isResuming(j.id),
+                        onClick: () => resumeMutation.mutate(j.id),
+                      },
+                      {
+                        key: "cancel",
+                        label: cancelling ? "Cancelling…" : "Cancel",
+                        icon: <Square size={14} />,
+                        disabled: cancelling,
+                        onClick: () => cancelMutation.mutate(j.id),
+                      },
+                    );
+                  }
+
+                  items.push({
+                    key: "duplicate",
+                    label: "Duplicate",
+                    icon: <Copy size={14} />,
+                    onClick: () => duplicateJob(j),
+                  });
+
+                  if (canDeleteJob(j)) {
+                    items.push({
+                      key: "delete",
+                      label: "Delete",
+                      icon: <Trash2 size={14} />,
+                      danger: true,
+                      disabled: deleteMutation.isPending,
+                      onClick: () => confirmDeleteJob(j),
+                    });
+                  }
+
+                  return <RowActionsMenu items={items} ariaLabel={`Actions for ${j.name}`} />;
                 },
               },
             ]}
@@ -1013,12 +995,6 @@ export default function MigrationJobs() {
             onChange={setStudiesStatusFilter}
           />
 
-          <TableSearch
-            value={studiesSearch}
-            onChange={setStudiesSearch}
-            placeholder="Search study UID, patient, modality…"
-          />
-
           {studiesLoading ? (
             <PageLoading label="Loading studies…" compact />
           ) : (
@@ -1026,6 +1002,9 @@ export default function MigrationJobs() {
               tableId="migration-job-studies"
               data={studiesData?.items ?? []}
               keyField="id"
+              searchValue={studiesSearch}
+              onSearchChange={setStudiesSearch}
+              searchPlaceholder="Search study UID, patient, modality…"
               serverSort={{
                 sortBy: studiesSortBy,
                 sortDir: studiesSortDir,
@@ -1089,24 +1068,26 @@ export default function MigrationJobs() {
                 {
                   key: "actions",
                   header: "Actions",
+                  width: 84,
+                  minWidth: 84,
                   sortable: false,
                   hideable: false,
-                  defaultPin: "right",
+                  pinnable: false,
                   render: (s) =>
                     s.status === "failed" || s.status === "skipped" ? (
-                      <div className="table-actions">
-                        <button
-                          type="button"
-                          className="btn-sm"
-                          disabled={retryStudyMutation.isPending}
-                          onClick={() =>
-                            retryStudyMutation.mutate({ jobId: displayJob.id, studyId: s.id })
-                          }
-                        >
-                          <RefreshCw size={14} />
-                          Retry
-                        </button>
-                      </div>
+                      <RowActionsMenu
+                        ariaLabel={`Actions for study ${s.study_uid}`}
+                        items={[
+                          {
+                            key: "retry",
+                            label: retryStudyMutation.isPending ? "Retrying…" : "Retry",
+                            icon: <RefreshCw size={14} />,
+                            disabled: retryStudyMutation.isPending,
+                            onClick: () =>
+                              retryStudyMutation.mutate({ jobId: displayJob.id, studyId: s.id }),
+                          },
+                        ]}
+                      />
                     ) : null,
                 },
               ]}
