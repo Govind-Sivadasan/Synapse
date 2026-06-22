@@ -71,7 +71,7 @@ export default function Chatbot() {
     <div className="chatbot-page">
       <PageHeader
         title="Synapse Assistant"
-        description="Ask about routing status, migration jobs, and system health. Read-only — powered by Ollama."
+        description="Ask about routing status, migration jobs, nodes, tag morphing, and system health. Admins and operators can confirm supported changes here — powered by Ollama."
         actions={
           <>
             {hasMessages && (

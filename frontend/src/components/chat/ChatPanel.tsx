@@ -9,7 +9,8 @@ import { useConfirmDialog } from "../../hooks/useConfirmDialog";
 import { formatNotificationMessage } from "../../lib/notificationMessages";
 import { useNotifications } from "../../services/notifications";
 import { formatChatDateLabel, formatChatTime, isSameChatDay } from "../../lib/chatFormat";
-import { ChatQueryResponse } from "../../types/api";
+import { ChatActionExecuteResponse, ChatPendingAction, ChatQueryResponse } from "../../types/api";
+import ChatActionCard from "./ChatActionCard";
 import {
   appendChatMessages,
   CHAT_AWAITING_KEY,
@@ -32,10 +33,12 @@ export default function ChatPanel({ variant = "page", showSuggestions = variant 
   const { info, error: notifyError } = useNotifications();
   const { roles } = useAuth();
   const [input, setInput] = useState("");
+  const [pendingAction, setPendingAction] = useState<ChatPendingAction | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const phiNoticeShown = useRef(false);
   const lastChatError = useRef<string | null>(null);
 
+  const canOperate = roles.includes("admin") || roles.includes("operator");
   const isViewer = roles.includes("viewer") && !roles.some((r) => ["admin", "operator", "service_user"].includes(r));
   const isWidget = variant === "widget";
 
@@ -75,12 +78,14 @@ export default function ChatPanel({ variant = "page", showSuggestions = variant 
       }),
     onMutate: (message) => {
       setInput("");
+      setPendingAction(null);
       setChatPending(queryClient, message);
       setChatAwaiting(queryClient, true);
     },
     onSuccess: (data) => {
       appendChatMessages(queryClient, data.user_message, data.assistant_message);
       clearChatTransientState(queryClient);
+      setPendingAction(canOperate ? data.pending_action : null);
     },
     onError: () => {
       clearChatTransientState(queryClient);
@@ -94,12 +99,33 @@ export default function ChatPanel({ variant = "page", showSuggestions = variant 
     onSuccess: () => {
       clearChatTransientState(queryClient);
       queryClient.setQueryData(CHAT_MESSAGES_KEY, { total: 0, items: [] });
+      setPendingAction(null);
+    },
+  });
+
+  const actionMutation = useMutation({
+    mutationFn: (action: ChatPendingAction) =>
+      apiFetch<ChatActionExecuteResponse>("/api/v1/chatbot/actions/execute", {
+        method: "POST",
+        body: JSON.stringify({
+          entity_type: action.entity_type,
+          action_type: action.action_type,
+          target_id: action.target_id,
+          payload: action.payload,
+        }),
+      }),
+    onSuccess: (result) => {
+      setPendingAction(null);
+      info(result.message, 6000);
+    },
+    onError: (error) => {
+      notifyError(formatNotificationMessage((error as Error).message));
     },
   });
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, showTypingIndicator, pendingUserText]);
+  }, [messages, showTypingIndicator, pendingUserText, pendingAction]);
 
   useEffect(() => {
     if (!isViewer || isWidget || phiNoticeShown.current) return;
@@ -249,6 +275,15 @@ export default function ChatPanel({ variant = "page", showSuggestions = variant 
                   </div>
                 </div>
               </div>
+            )}
+
+            {pendingAction && canOperate && (
+              <ChatActionCard
+                action={pendingAction}
+                loading={actionMutation.isPending}
+                onCancel={() => setPendingAction(null)}
+                onConfirm={() => actionMutation.mutate(pendingAction)}
+              />
             )}
 
             <div ref={bottomRef} />

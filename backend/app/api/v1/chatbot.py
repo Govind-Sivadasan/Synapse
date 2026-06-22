@@ -1,15 +1,19 @@
 """Service chatbot API powered by Ollama."""
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.keycloak import CurrentUser, require_roles
+from app.chatbot.chat_actions import execute_chat_action as execute_confirmed_chat_action
 from app.chatbot.engine import ChatbotEngine, SUGGESTED_PROMPTS
 from app.chatbot.ollama_client import check_ollama_health
 from app.database import get_db
 from app.schemas.chatbot import (
+    ChatActionExecuteRequest,
+    ChatActionExecuteResponse,
     ChatMessageListResponse,
     ChatMessageResponse,
+    ChatPendingAction,
     ChatQueryRequest,
     ChatQueryResponse,
     ChatbotStatusResponse,
@@ -98,7 +102,40 @@ async def chat_query(
     await db.flush()
 
     return ChatQueryResponse(
-        **result,
+        answer=result["answer"],
+        phi_redacted=result["phi_redacted"],
+        used_fallback=result["used_fallback"],
+        model=result.get("model"),
+        suggestions=result.get("suggestions", SUGGESTED_PROMPTS),
+        pending_action=ChatPendingAction.model_validate(result["pending_action"])
+        if result.get("pending_action")
+        else None,
         user_message=ChatMessageResponse.model_validate(user_row),
         assistant_message=ChatMessageResponse.model_validate(assistant_row),
+    )
+
+
+@router.post("/actions/execute", response_model=ChatActionExecuteResponse)
+async def execute_chat_action(
+    payload: ChatActionExecuteRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    user: CurrentUser = Depends(require_roles("operator", "admin")),
+) -> ChatActionExecuteResponse:
+    message, target_name = await execute_confirmed_chat_action(
+        db,
+        entity_type=payload.entity_type,
+        action_type=payload.action_type,
+        target_id=payload.target_id,
+        payload=payload.payload,
+        user_id=user.sub,
+        username=user.username,
+        user_roles=user.roles,
+        request=request,
+    )
+    return ChatActionExecuteResponse(
+        success=True,
+        message=message,
+        entity_type=payload.entity_type,
+        target_name=target_name,
     )

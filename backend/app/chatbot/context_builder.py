@@ -36,8 +36,13 @@ async def build_chat_context(db: AsyncSession, query: str) -> dict:
     if any(k in q for k in ("migration", "migrate", "job")):
         ctx["migration"] = await _migration_context(db)
 
-    if any(k in q for k in ("routing", "rout", "stow", "dimse", "failed", "success")):
+    if any(k in q for k in ("routing", "rout", "stow", "dimse", "failed", "success", "rule")):
         ctx["routing"] = await _routing_context(db, include_failures="fail" in q)
+
+    if any(k in q for k in ("rule", "route", "routing", "destination", "pacs", "node", "migration", "morph")):
+        from app.chatbot.chat_actions import action_context_snapshot, load_action_resources
+
+        ctx["action_entities"] = action_context_snapshot(await load_action_resources(db))
 
     if any(k in q for k in ("today", "recent", "latest")):
         ctx["recent_activity"] = await _recent_activity(db)

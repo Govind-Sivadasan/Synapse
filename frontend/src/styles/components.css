@@ -442,7 +442,6 @@ a:hover {
   min-height: 100vh;
   max-height: 100vh;
   overflow: hidden;
-  padding-bottom: 0.75rem;
   box-sizing: border-box;
 }
 
@@ -1558,6 +1557,11 @@ button.user-menu-swatch:hover:not(:disabled) {
   flex: 1;
   min-height: 0;
   padding-bottom: 0;
+}
+
+.app-content-body:has(> .chatbot-page) {
+  flex: 1;
+  min-height: 0;
 }
 
 .app-content-body:has(> .page-loading:only-child)::after {
@@ -5059,6 +5063,73 @@ button.chat-suggestion-chip:hover:not(:disabled) {
   flex-wrap: wrap;
   justify-content: center;
   margin-top: 0.75rem;
+}
+
+.chat-action-card {
+  margin: 0.5rem 0 0.25rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-elevated);
+  box-shadow: var(--shadow-sm);
+}
+
+.chat-action-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.chat-action-card-header strong {
+  font-size: 0.9375rem;
+  color: var(--color-text);
+}
+
+.chat-action-card-badge {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-primary);
+  background: var(--color-primary-light);
+  border: 1px solid var(--color-primary-muted);
+  border-radius: 999px;
+  padding: 0.2rem 0.5rem;
+  white-space: nowrap;
+}
+
+.chat-action-card-details {
+  margin: 0 0 0.9rem;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.chat-action-card-row {
+  display: grid;
+  grid-template-columns: 7rem 1fr;
+  gap: 0.65rem;
+  font-size: 0.8125rem;
+}
+
+.chat-action-card-row dt {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-weight: 500;
+}
+
+.chat-action-card-row dd {
+  margin: 0;
+  color: var(--color-text);
+  word-break: break-word;
+}
+
+.chat-action-card-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  flex-wrap: wrap;
 }
 
 @media (max-width: 640px) {

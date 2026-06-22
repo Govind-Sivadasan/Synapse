@@ -220,12 +220,33 @@ export interface VolumeChart {
   migration: ChartDataPoint[];
 }
 
+export interface ChatPendingAction {
+  entity_type: "routing_rule" | "migration_job" | "node" | "tag_morphing";
+  action_type: string;
+  target_id: string | null;
+  target_name: string | null;
+  summary: string;
+  confirm_label: string;
+  role_required: "admin" | "operator";
+  payload: Record<string, unknown>;
+  details: Array<{ label: string; value: string }>;
+  proposal_text: string;
+}
+
+export interface ChatActionExecuteResponse {
+  success: boolean;
+  message: string;
+  entity_type: "routing_rule" | "migration_job" | "node" | "tag_morphing";
+  target_name: string | null;
+}
+
 export interface ChatQueryResponse {
   answer: string;
   phi_redacted: boolean;
   used_fallback: boolean;
   model: string | null;
   suggestions: string[];
+  pending_action: ChatPendingAction | null;
   user_message: ChatMessage;
   assistant_message: ChatMessage;
 }
