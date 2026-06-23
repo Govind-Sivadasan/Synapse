@@ -216,13 +216,21 @@ function JobConfigurationPanel({
 }
 
 function processedStudies(job: MigrationJob): number {
-  return job.completed_studies + job.failed_studies;
+  const total = job.total_studies ?? 0;
+  const raw = job.completed_studies + job.failed_studies;
+  return total > 0 ? Math.min(raw, total) : raw;
 }
 
 function progressPct(job: MigrationJob): number {
   const total = job.total_studies ?? 0;
   if (!total) return 0;
-  return Math.round((processedStudies(job) / total) * 100);
+  return Math.min(100, Math.round((processedStudies(job) / total) * 100));
+}
+
+function displayedFailedStudies(job: MigrationJob): number {
+  const total = job.total_studies ?? 0;
+  if (!total) return job.failed_studies;
+  return Math.min(job.failed_studies, Math.max(0, total - job.completed_studies));
 }
 
 function JobProgressCell({ job }: { job: MigrationJob }) {
@@ -704,7 +712,7 @@ export default function MigrationJobs() {
               },
               { key: "status", header: "Status", width: 130, minWidth: 110, sortKey: "status", render: (j) => <StatusBadge status={j.status} /> },
               { key: "progress", header: "Progress", width: 140, minWidth: 120, sortKey: "completed_studies", render: (j) => <JobProgressCell job={j} /> },
-              { key: "failed", header: "Failed", width: 88, minWidth: 72, sortKey: "failed_studies", render: (j) => j.failed_studies },
+              { key: "failed", header: "Failed", width: 88, minWidth: 72, sortKey: "failed_studies", render: (j) => displayedFailedStudies(j) },
               {
                 key: "actions",
                 header: "Actions",

@@ -231,11 +231,9 @@ export default function DataTable<T extends object>({
   const [manageOpen, setManageOpen] = useState(false);
   const [manageAnchor, setManageAnchor] = useState<HTMLElement | null>(null);
   const manageToolbarRef = useRef<HTMLButtonElement>(null);
-  const manageActionsRef = useRef<HTMLButtonElement>(null);
-  const actionsHeaderRef = useRef<HTMLTableCellElement>(null);
 
   const openManageColumns = useCallback((anchor?: HTMLElement | null) => {
-    setManageAnchor(actionsHeaderRef.current ?? manageActionsRef.current ?? anchor ?? manageToolbarRef.current);
+    setManageAnchor(anchor ?? manageToolbarRef.current);
     setManageOpen(true);
   }, []);
   const [columnPrefs, setColumnPrefs] = useState<TableColumnPrefs>(() => initialPrefs);
@@ -592,7 +590,6 @@ export default function DataTable<T extends object>({
                   return (
                     <th
                       key={col.key}
-                      ref={isActions ? actionsHeaderRef : undefined}
                       style={colWidthStyle(col, columnWidths)}
                       className={[
                         resizable && !isActions && !isSelect ? "data-table-th--resizable" : undefined,
@@ -605,24 +602,7 @@ export default function DataTable<T extends object>({
                         .join(" ") || undefined}
                     >
                       {isActions ? (
-                        <div className="data-table-actions-header">
-                          <span className="data-table-th-label data-table-th-label--actions">{col.header}</span>
-                          {manageColumns && (
-                            <button
-                              ref={manageActionsRef}
-                              type="button"
-                              className="data-table-actions-manage"
-                              aria-label="Manage columns"
-                              aria-expanded={manageOpen}
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                openManageColumns(manageActionsRef.current);
-                              }}
-                            >
-                              <Columns3 size={14} aria-hidden />
-                            </button>
-                          )}
-                        </div>
+                        <span className="data-table-th-label data-table-th-label--actions">{col.header}</span>
                       ) : col.renderHeader ? (
                         <div className="data-table-th-custom">{col.renderHeader()}</div>
                       ) : manageColumns ? (

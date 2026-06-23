@@ -81,6 +81,20 @@ def record_study_in_progress(job_id: uuid.UUID | str) -> None:
     client.hincrby(key, "in_progress", 1)
 
 
+def undo_study_failure_terminal(job_id: uuid.UUID | str) -> None:
+    """Reverse a failed terminal count when a study task will be retried."""
+    if not settings.migration_redis_counters_enabled:
+        return
+    client = _redis()
+    key = _key(job_id)
+    if not client.exists(key):
+        return
+    if int(client.hget(key, "failed") or 0) > 0:
+        client.hincrby(key, "failed", -1)
+    if int(client.hget(key, "terminals") or 0) > 0:
+        client.hincrby(key, "terminals", -1)
+
+
 def record_study_terminal(job_id: uuid.UUID | str, status: str) -> int:
     """Update Redis counters on study completion. Returns terminal count for flush interval."""
     if not settings.migration_redis_counters_enabled:

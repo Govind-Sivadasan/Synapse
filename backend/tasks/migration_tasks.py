@@ -295,6 +295,30 @@ async def _fetch_and_enqueue(job_id: str) -> dict:
     return await _fetch_and_enqueue_legacy(job_id)
 
 
+async def _rollback_study_failure_for_retry(job_id: str, study_uid: str) -> None:
+    """Reset study record and undo failure counter before Celery retries migrate_study."""
+    from sqlalchemy import select
+
+    from app.database import async_session_factory
+    from app.models.migration import MigrationStudyRecord
+    from app.services.migration_job_counters import undo_study_failure_terminal
+
+    job_uuid = uuid.UUID(job_id)
+    async with async_session_factory() as session:
+        record = await session.scalar(
+            select(MigrationStudyRecord).where(
+                MigrationStudyRecord.job_id == job_uuid,
+                MigrationStudyRecord.study_uid == study_uid,
+            )
+        )
+        if record and record.status == "failed":
+            record.status = "pending"
+            record.failure_reason = None
+            record.completed_at = None
+            await session.commit()
+    undo_study_failure_terminal(job_uuid)
+
+
 async def _migrate_study(job_id: str, study_uid: str) -> dict:
     from app.migration.engine import MigrationEngine
 
@@ -354,4 +378,7 @@ def migrate_study(self, job_id: str, study_uid: str, **_: object) -> dict:
             retries=self.request.retries,
         )
         logger.error("migrate_study_task_failed", job_id=job_id, study_uid=study_uid, error=str(exc))
-        raise self.retry(exc=exc, countdown=2**self.request.retries)
+        if self.request.retries < self.max_retries:
+            run_async_task(_rollback_study_failure_for_retry(job_id, study_uid))
+            raise self.retry(exc=exc, countdown=2**self.request.retries)
+        raise

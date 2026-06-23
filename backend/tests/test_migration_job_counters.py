@@ -58,6 +58,19 @@ def fake_redis(monkeypatch):
     return client
 
 
+def test_undo_study_failure_terminal_reverses_failed_count(fake_redis):
+    job_id = uuid.uuid4()
+    counters.init_job_counters(job_id, completed=0, failed=0)
+    counters.record_study_in_progress(job_id)
+    counters.record_study_terminal(job_id, "failed")
+    assert counters.get_job_counters(job_id)["failed"] == 1
+
+    counters.undo_study_failure_terminal(job_id)
+    counts = counters.get_job_counters(job_id)
+    assert counts["failed"] == 0
+    assert counts["terminals"] == 0
+
+
 def test_record_study_terminal_updates_counters(fake_redis):
     job_id = uuid.uuid4()
     counters.init_job_counters(job_id, completed=0, failed=0)

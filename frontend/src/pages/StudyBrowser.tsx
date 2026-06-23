@@ -143,6 +143,7 @@ export default function StudyBrowser() {
       searchNonce,
     ],
     enabled: Boolean(sourceNodeId) && searchNonce > 0,
+    retry: false,
     queryFn: () => {
       const params = new URLSearchParams({
         source_node_id: sourceNodeId,
@@ -543,8 +544,11 @@ export default function StudyBrowser() {
             Clear
           </ActionButton>
 
-          <ActionButton icon={<Search size={16} />} onClick={runSearch} disabled={studiesQuery.isFetching}>
-            {studiesQuery.isFetching ? <Loader2 size={16} className="spin" /> : null}
+          <ActionButton
+            icon={studiesQuery.isFetching ? <Loader2 size={16} className="spin-icon" /> : <Search size={16} />}
+            onClick={runSearch}
+            disabled={studiesQuery.isFetching}
+          >
             Search
           </ActionButton>
         </div>
@@ -553,6 +557,8 @@ export default function StudyBrowser() {
           <p className="table-empty-hint">Choose a source node and run Search to load studies.</p>
         ) : studiesQuery.isLoading ? (
           <PageLoading label="Loading studies…" />
+        ) : studiesQuery.isError ? (
+          <p className="empty-message">{(studiesQuery.error as Error).message}</p>
         ) : (
           <DataTable
             tableId="study-browser"
@@ -631,7 +637,7 @@ export default function StudyBrowser() {
         </div>
         <div className="form-actions">
           <ActionButton
-            icon={migrateMutation.isPending ? <Loader2 size={16} className="spin" /> : <ArrowLeftRight size={16} />}
+            icon={migrateMutation.isPending ? <Loader2 size={16} className="spin-icon" /> : <ArrowLeftRight size={16} />}
             onClick={submitMigrate}
             disabled={migrateMutation.isPending}
           >
