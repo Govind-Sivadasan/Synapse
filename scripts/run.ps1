@@ -79,7 +79,13 @@ function Test-Docker {
     if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
         throw "Docker is not installed or not on PATH. Install Docker Desktop and retry."
     }
-    $null = docker info 2>&1
+    $prevEap = $ErrorActionPreference
+    $ErrorActionPreference = 'SilentlyContinue'
+    try {
+        $null = docker info 2>&1
+    } finally {
+        $ErrorActionPreference = $prevEap
+    }
     if ($LASTEXITCODE -ne 0) {
         throw "Docker daemon is not running. Start Docker Desktop and retry."
     }
