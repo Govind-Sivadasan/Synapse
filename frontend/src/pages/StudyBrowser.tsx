@@ -4,6 +4,7 @@ import { ArrowLeftRight, Loader2, Route, Search } from "lucide-react";
 import { apiFetch } from "../api/client";
 import DataTable from "../components/DataTable";
 import ModalitySelect from "../components/forms/ModalitySelect";
+import DestinationNodePicker from "../components/nodes/DestinationNodePicker";
 import NodeSelectField from "../components/nodes/NodeSelectField";
 import TagMorphingRulePicker from "../components/tagMorphing/TagMorphingRulePicker";
 import ActionButton from "../components/ui/ActionButton";
@@ -13,7 +14,7 @@ import PageHeader from "../components/ui/PageHeader";
 import { PageLoading } from "../components/ui/LoadingScreen";
 import { useConfirmDialog } from "../hooks/useConfirmDialog";
 import { formatNotificationMessage } from "../lib/notificationMessages";
-import { isSameNodePair, migrationDestinationNodes, migrationSourceNodes, SAME_NODE_PAIR_MESSAGE } from "../lib/nodes";
+import { isSameNodePair, migrationSourceNodes, SAME_NODE_PAIR_MESSAGE } from "../lib/nodes";
 import { useNotifications } from "../services/notifications";
 import {
   Node,
@@ -109,7 +110,7 @@ export default function StudyBrowser() {
   const [selectedUids, setSelectedUids] = useState<Set<string>>(new Set());
   const [migrateOpen, setMigrateOpen] = useState(false);
   const [migrateName, setMigrateName] = useState("");
-  const [migrateDestinationId, setMigrateDestinationId] = useState("");
+  const [migrateDestinationIds, setMigrateDestinationIds] = useState<string[]>([]);
   const [migrateMorphIds, setMigrateMorphIds] = useState<string[]>([]);
 
   const { data: nodes = [] } = useQuery({
@@ -123,7 +124,6 @@ export default function StudyBrowser() {
   });
 
   const sourceNodes = useMemo(() => migrationSourceNodes(nodes), [nodes]);
-  const destinationNodes = useMemo(() => migrationDestinationNodes(nodes), [nodes]);
 
   useEffect(() => {
     setPage(0);
@@ -218,7 +218,7 @@ export default function StudyBrowser() {
     mutationFn: (payload: {
       name: string;
       source_node_id: string;
-      destination_node_id: string;
+      destination_node_ids: string[];
       study_uids: string[];
       tag_morphing_rule_ids: string[];
     }) =>
@@ -228,9 +228,12 @@ export default function StudyBrowser() {
       }),
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["migration-jobs"] });
+      const jobCount = result.job_ids?.length ?? (result.job_id ? 1 : 0);
       success(
         formatNotificationMessage(
-          `Migration job created for ${result.enqueued} ${result.enqueued === 1 ? "study" : "studies"}.`,
+          jobCount > 1
+            ? `Created ${jobCount} migration jobs for ${result.enqueued} ${result.enqueued === 1 ? "study" : "studies"}. Job #1 started; start the rest when the active job finishes.`
+            : `Migration job created for ${result.enqueued} ${result.enqueued === 1 ? "study" : "studies"}.`,
         ),
       );
       setMigrateOpen(false);
@@ -265,24 +268,27 @@ export default function StudyBrowser() {
     if (!sourceNodeId || selectedList.length === 0) return;
     const sourceName = sourceNodes.find((node) => node.id === sourceNodeId)?.name ?? "source";
     setMigrateName(`Study browser · ${sourceName} · ${selectedList.length} studies`);
-    setMigrateDestinationId("");
+    setMigrateDestinationIds([]);
     setMigrateMorphIds([]);
     setMigrateOpen(true);
   };
 
   const submitMigrate = () => {
-    if (!migrateDestinationId) {
-      warning("Choose a destination node.");
+    const destinationIds = migrateDestinationIds.filter(
+      (id) => id && id !== sourceNodeId,
+    );
+    if (destinationIds.length === 0) {
+      warning("Choose at least one destination node.");
       return;
     }
-    if (isSameNodePair(sourceNodeId, migrateDestinationId)) {
+    if (destinationIds.some((id) => isSameNodePair(sourceNodeId, id))) {
       notifyError(SAME_NODE_PAIR_MESSAGE);
       return;
     }
     migrateMutation.mutate({
       name: migrateName.trim() || "Study browser migration",
       source_node_id: sourceNodeId,
-      destination_node_id: migrateDestinationId,
+      destination_node_ids: destinationIds,
       study_uids: selectedList,
       tag_morphing_rule_ids: migrateMorphIds,
     });
@@ -603,15 +609,12 @@ export default function StudyBrowser() {
             <label>Job name</label>
             <input value={migrateName} onChange={(e) => setMigrateName(e.target.value)} />
           </div>
-          <NodeSelectField
-            label="Destination"
-            value={migrateDestinationId}
-            onChange={setMigrateDestinationId}
-            nodes={destinationNodes}
-            nodeType="destination"
-            required
-            excludeNodeId={sourceNodeId || undefined}
-            emptyHint="Add an active destination node with a DICOMweb URL."
+          <DestinationNodePicker
+            variant="migration"
+            nodes={nodes}
+            selectedIds={migrateDestinationIds}
+            onChange={setMigrateDestinationIds}
+            excludeNodeIds={sourceNodeId ? [sourceNodeId] : []}
           />
           <div className="form-field full-width">
             <TagMorphingRulePicker
@@ -621,8 +624,9 @@ export default function StudyBrowser() {
             />
           </div>
           <p className="form-field-hint full-width">
-            Creates a batch migration job for {selectedList.length}{" "}
-            {selectedList.length === 1 ? "study" : "studies"} and starts it immediately.
+            Creates {migrateDestinationIds.length > 1 ? `${migrateDestinationIds.length} batch jobs` : "a batch migration job"} for{" "}
+            {selectedList.length} {selectedList.length === 1 ? "study" : "studies"}
+            {migrateDestinationIds.length > 1 ? " (names suffixed #1, #2, …)" : ""} and starts the first job immediately.
           </p>
         </div>
         <div className="form-actions">
@@ -631,7 +635,7 @@ export default function StudyBrowser() {
             onClick={submitMigrate}
             disabled={migrateMutation.isPending}
           >
-            Create & start job
+            Create & start {migrateDestinationIds.length > 1 ? "jobs" : "job"}
           </ActionButton>
           <ActionButton variant="secondary" onClick={() => setMigrateOpen(false)}>
             Cancel

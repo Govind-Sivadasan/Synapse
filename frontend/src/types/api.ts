@@ -208,6 +208,7 @@ export interface SourceStudyActionResult {
   enqueued: number;
   study_uids: string[];
   job_id?: string | null;
+  job_ids?: string[];
   task_ids: string[];
 }
 

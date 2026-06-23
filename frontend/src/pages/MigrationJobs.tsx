@@ -6,6 +6,7 @@ import DataTable from "../components/DataTable";
 import RowActionsMenu, { RowActionItem } from "../components/table/RowActionsMenu";
 import FilterChips from "../components/ui/FilterChips";
 import Modal from "../components/Modal";
+import DestinationNodePicker from "../components/nodes/DestinationNodePicker";
 import NodeSelectField from "../components/nodes/NodeSelectField";
 import TagMorphingRulePicker from "../components/tagMorphing/TagMorphingRulePicker";
 import ActionButton from "../components/ui/ActionButton";
@@ -17,7 +18,8 @@ import { useConfirmDialog } from "../hooks/useConfirmDialog";
 import { useAppMetadata } from "../hooks/useAppMetadata";
 import { formatNotificationMessage } from "../lib/notificationMessages";
 import { useNotifications } from "../services/notifications";
-import { isSameNodePair, migrationDestinationNodes, migrationSourceNodes, SAME_NODE_PAIR_MESSAGE } from "../lib/nodes";
+import { isSameNodePair, migrationSourceNodes, SAME_NODE_PAIR_MESSAGE } from "../lib/nodes";
+import { migrationJobNames } from "../lib/migrationJobNames";
 import JobProgressBreakdown from "../components/migration/JobProgressBreakdown";
 import MigrationQueueWidget from "../components/migration/MigrationQueueWidget";
 import ThroughputSparkChart from "../components/migration/ThroughputSparkChart";
@@ -27,7 +29,7 @@ import { MigrationJob, MigrationJobList, MigrationJobProgress, MigrationJobThrou
 const emptyForm: JobForm = {
   name: "",
   source_node_id: "",
-  destination_node_id: "",
+  destination_node_ids: [],
   job_type: "historical",
   modality: "",
   patient_id: "",
@@ -40,7 +42,7 @@ const emptyForm: JobForm = {
 type JobForm = {
   name: string;
   source_node_id: string;
-  destination_node_id: string;
+  destination_node_ids: string[];
   job_type: "historical" | "batch" | "incremental";
   modality: string;
   patient_id: string;
@@ -82,7 +84,7 @@ function jobFormFromJob(job: MigrationJob): JobForm {
   return {
     name: `${job.name} (copy)`,
     source_node_id: job.source_node_id,
-    destination_node_id: job.destination_node_id,
+    destination_node_ids: [job.destination_node_id],
     job_type: job.job_type,
     modality: String(filters.modality ?? ""),
     patient_id: String(filters.patient_id ?? ""),
@@ -388,7 +390,6 @@ export default function MigrationJobs() {
   };
 
   const sources = migrationSourceNodes(nodes);
-  const destinations = migrationDestinationNodes(nodes);
   const jobTypes = metadata?.migration_job_types ?? [
     { value: "historical", label: "Historical (QIDO filter)" },
     { value: "incremental", label: "Incremental (date filter)" },
@@ -410,14 +411,52 @@ export default function MigrationJobs() {
   };
 
   const createMutation = useMutation({
-    mutationFn: (payload: object) =>
-      apiFetch<MigrationJob>("/api/v1/migration-jobs", { method: "POST", body: JSON.stringify(payload) }),
-    onSuccess: () => {
+    mutationFn: async (form: JobForm) => {
+      const studyUids = form.study_uids
+        .split(/[\n,]/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const destinationIds = form.destination_node_ids.filter(
+        (id) => id && id !== form.source_node_id,
+      );
+      const names = migrationJobNames(form.name, destinationIds.length);
+      const jobConfig = {
+        filters: {
+          modality: form.modality || null,
+          patient_id: form.patient_id || null,
+          date_from: form.date_from || null,
+          date_to: form.date_to || null,
+          study_uids: form.job_type === "batch" && studyUids.length ? studyUids : null,
+        },
+        tag_morphing_rule_ids: form.tag_morphing_rule_ids.length ? form.tag_morphing_rule_ids : null,
+      };
+
+      const created: MigrationJob[] = [];
+      for (let index = 0; index < destinationIds.length; index += 1) {
+        const job = await apiFetch<MigrationJob>("/api/v1/migration-jobs", {
+          method: "POST",
+          body: JSON.stringify({
+            name: names[index],
+            source_node_id: form.source_node_id,
+            destination_node_id: destinationIds[index],
+            job_type: form.job_type,
+            job_config: jobConfig,
+          }),
+        });
+        created.push(job);
+      }
+      return created;
+    },
+    onSuccess: (jobs) => {
       queryClient.invalidateQueries({ queryKey: ["migration-jobs"] });
       setModalOpen(false);
       setForm(emptyForm);
       setIsDuplicating(false);
-      success("Migration job created.");
+      success(
+        jobs.length === 1
+          ? `Migration job “${jobs[0].name}” created.`
+          : `Created ${jobs.length} migration jobs (${jobs.map((job) => job.name).join(", ")}).`,
+      );
     },
     onError: (err: Error) => notifyError(formatNotificationMessage(err.message)),
   });
@@ -571,31 +610,18 @@ export default function MigrationJobs() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (isSameNodePair(form.source_node_id, form.destination_node_id)) {
+    const destinationIds = form.destination_node_ids.filter(
+      (id) => id && id !== form.source_node_id,
+    );
+    if (destinationIds.length === 0) {
+      notifyError("Select at least one destination PACS.");
+      return;
+    }
+    if (destinationIds.some((id) => isSameNodePair(form.source_node_id, id))) {
       notifyError(SAME_NODE_PAIR_MESSAGE);
       return;
     }
-    const studyUids = form.study_uids
-      .split(/[\n,]/)
-      .map((s) => s.trim())
-      .filter(Boolean);
-
-    createMutation.mutate({
-      name: form.name,
-      source_node_id: form.source_node_id,
-      destination_node_id: form.destination_node_id,
-      job_type: form.job_type,
-      job_config: {
-        filters: {
-          modality: form.modality || null,
-          patient_id: form.patient_id || null,
-          date_from: form.date_from || null,
-          date_to: form.date_to || null,
-          study_uids: form.job_type === "batch" && studyUids.length ? studyUids : null,
-        },
-        tag_morphing_rule_ids: form.tag_morphing_rule_ids.length ? form.tag_morphing_rule_ids : null,
-      },
-    });
+    createMutation.mutate(form);
   };
 
   const jobs = jobsData?.items ?? [];
@@ -1143,32 +1169,21 @@ export default function MigrationJobs() {
                 setForm((prev) => ({
                   ...prev,
                   source_node_id,
-                  destination_node_id:
-                    source_node_id === prev.destination_node_id ? "" : prev.destination_node_id,
+                  destination_node_ids: prev.destination_node_ids.filter((id) => id !== source_node_id),
                 }))
               }
               nodes={sources}
               nodeType="source"
               required
-              excludeNodeId={form.destination_node_id || undefined}
+              excludeNodeId={form.destination_node_ids[0]}
               emptyHint="No active source nodes with a DICOMweb URL. Create one below or under Nodes."
             />
-            <NodeSelectField
-              label="Destination PACS"
-              value={form.destination_node_id}
-              onChange={(destination_node_id) =>
-                setForm((prev) => ({
-                  ...prev,
-                  destination_node_id,
-                  source_node_id:
-                    destination_node_id === prev.source_node_id ? "" : prev.source_node_id,
-                }))
-              }
-              nodes={destinations}
-              nodeType="destination"
-              required
-              excludeNodeId={form.source_node_id || undefined}
-              emptyHint="No active destination nodes with a DICOMweb URL. Create one below or under Nodes."
+            <DestinationNodePicker
+              variant="migration"
+              nodes={nodes}
+              selectedIds={form.destination_node_ids}
+              onChange={(destination_node_ids) => setForm((prev) => ({ ...prev, destination_node_ids }))}
+              excludeNodeIds={form.source_node_id ? [form.source_node_id] : []}
             />
             {form.job_type !== "batch" && (
               <>

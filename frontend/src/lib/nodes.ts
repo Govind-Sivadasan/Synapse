@@ -34,9 +34,10 @@ export function routingDestinationNodes(nodes: Node[]): Node[] {
 }
 
 /** Nodes list with an optional node id removed (e.g. hide source from destination picker). */
-export function nodesExcluding(nodes: Node[], excludeId?: string): Node[] {
-  if (!excludeId) return nodes;
-  return nodes.filter((node) => node.id !== excludeId);
+export function nodesExcluding(nodes: Node[], ...excludeIds: Array<string | undefined>): Node[] {
+  const excluded = new Set(excludeIds.filter(Boolean) as string[]);
+  if (excluded.size === 0) return nodes;
+  return nodes.filter((node) => !excluded.has(node.id));
 }
 
 export function isSameNodePair(sourceId: string, destinationId: string): boolean {

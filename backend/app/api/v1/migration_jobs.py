@@ -29,6 +29,7 @@ from app.services.migration_preflight import (
 )
 from app.services.node_pair_validation import ensure_distinct_endpoints
 from app.services.migration_job_counters import init_job_counters
+from app.services.migration_job_names import reserve_unique_migration_job_name
 from app.services.migration_job_progress import build_job_progress, build_throughput_snapshot
 from app.services.migration_backpressure import wait_for_migration_queue_slot
 from app.workers.dispatch import enqueue_fetch_and_enqueue_studies, enqueue_migrate_study
@@ -147,8 +148,10 @@ async def create_migration_job(
 
     ensure_distinct_endpoints(payload.source_node_id, payload.destination_node_id)
 
+    job_name = await reserve_unique_migration_job_name(db, payload.name)
+
     job = MigrationJob(
-        name=payload.name,
+        name=job_name,
         source_node_id=payload.source_node_id,
         destination_node_id=payload.destination_node_id,
         job_type=payload.job_type,

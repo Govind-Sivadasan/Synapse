@@ -22,6 +22,7 @@ from app.schemas.source_studies import (
 from app.config import settings
 from app.services.audit_logger import AuditLogger
 from app.services.migration_job_counters import init_job_counters
+from app.services.migration_job_names import batch_migration_job_names, reserve_unique_migration_job_name
 from app.services.migration_preflight import (
     ensure_no_other_active_migration_job,
     verify_migration_node_connectivity,
@@ -141,66 +142,90 @@ async def migrate_source_studies(
     user: CurrentUser = Depends(require_roles("operator", "admin")),
 ) -> SourceStudyActionResponse:
     source = await _get_source_node(db, payload.source_node_id)
-    dest = await db.get(Node, payload.destination_node_id)
-    if not dest or not dest.is_active:
-        raise HTTPException(status_code=400, detail="Destination node not found or inactive")
-    if not node_is_destination(dest.node_type):
-        raise HTTPException(status_code=400, detail="Node must be a destination node")
-    if not dest.dicomweb_url:
-        raise HTTPException(status_code=400, detail="Destination node requires a DICOMweb URL")
-
-    ensure_distinct_endpoints(source.id, dest.id, context="study browser migration")
-
     study_uids = [uid.strip() for uid in payload.study_uids if uid.strip()]
     if not study_uids:
         raise HTTPException(status_code=400, detail="At least one study UID is required")
+
+    destination_ids = list(dict.fromkeys(payload.destination_node_ids))
+    if not destination_ids:
+        raise HTTPException(status_code=400, detail="At least one destination node is required")
 
     job_config = MigrationJobConfig(
         filters=MigrationFilters(study_uids=study_uids),
         tag_morphing_rule_ids=payload.tag_morphing_rule_ids,
     )
-    job = MigrationJob(
-        name=payload.name,
-        source_node_id=source.id,
-        destination_node_id=dest.id,
-        job_type="batch",
-        status="not_started",
-        job_config=job_config.model_dump(mode="json"),
-        created_by=user.username,
-    )
-    db.add(job)
-    await db.flush()
-    await db.refresh(job)
+    job_config_json = job_config.model_dump(mode="json")
+    job_names = batch_migration_job_names(payload.name, len(destination_ids))
 
+    created_jobs: list[MigrationJob] = []
     task_ids: list[str] = []
-    if payload.start:
-        await ensure_no_other_active_migration_job(db, job.id)
-        await verify_migration_node_connectivity(source, dest)
-        task_id = enqueue_fetch_and_enqueue_studies(str(job.id))
-        job.celery_task_id = task_id
-        job.status = "discovering" if settings.migration_streaming_discovery else "in_progress"
-        init_job_counters(job.id, completed=job.completed_studies or 0, failed=job.failed_studies or 0)
-        task_ids.append(task_id)
+    started_jobs = 0
 
-    await AuditLogger.log(
-        db,
-        "CONFIG_CHANGE",
-        user_id=user.sub,
-        user_role=",".join(user.roles),
-        entity_type="MigrationJob",
-        entity_id=job.id,
-        details={
-            "action": "create_from_study_browser",
-            "study_count": len(study_uids),
-            "started": payload.start,
-        },
-        ip_address=request.client.host if request.client else None,
-    )
+    for index, dest_id in enumerate(destination_ids):
+        if dest_id == source.id:
+            raise HTTPException(
+                status_code=400,
+                detail="Source and destination must be different nodes for each migration job.",
+            )
+        dest = await db.get(Node, dest_id)
+        if not dest or not dest.is_active:
+            raise HTTPException(status_code=400, detail=f"Destination node not found or inactive: {dest_id}")
+        if not node_is_destination(dest.node_type):
+            raise HTTPException(status_code=400, detail=f"Node must be a destination node: {dest_id}")
+        if not dest.dicomweb_url:
+            raise HTTPException(status_code=400, detail=f"Destination node requires a DICOMweb URL: {dest_id}")
 
+        ensure_distinct_endpoints(source.id, dest.id, context="study browser migration")
+        job_name = await reserve_unique_migration_job_name(db, job_names[index])
+
+        job = MigrationJob(
+            name=job_name,
+            source_node_id=source.id,
+            destination_node_id=dest.id,
+            job_type="batch",
+            status="not_started",
+            job_config=job_config_json,
+            created_by=user.username,
+        )
+        db.add(job)
+        await db.flush()
+        await db.refresh(job)
+        created_jobs.append(job)
+
+        should_start = payload.start and (len(destination_ids) == 1 or started_jobs == 0)
+        if should_start:
+            await ensure_no_other_active_migration_job(db, job.id)
+            await verify_migration_node_connectivity(source, dest)
+            task_id = enqueue_fetch_and_enqueue_studies(str(job.id))
+            job.celery_task_id = task_id
+            job.status = "discovering" if settings.migration_streaming_discovery else "in_progress"
+            init_job_counters(job.id, completed=job.completed_studies or 0, failed=job.failed_studies or 0)
+            task_ids.append(task_id)
+            started_jobs += 1
+
+        await AuditLogger.log(
+            db,
+            "CONFIG_CHANGE",
+            user_id=user.sub,
+            user_role=",".join(user.roles),
+            entity_type="MigrationJob",
+            entity_id=job.id,
+            details={
+                "action": "create_from_study_browser",
+                "study_count": len(study_uids),
+                "started": should_start,
+                "destination_index": index + 1,
+                "destination_count": len(destination_ids),
+            },
+            ip_address=request.client.host if request.client else None,
+        )
+
+    job_ids = [job.id for job in created_jobs]
     return SourceStudyActionResponse(
-        enqueued=len(study_uids) if payload.start else 0,
+        enqueued=len(study_uids) * started_jobs,
         study_uids=study_uids,
-        job_id=job.id,
+        job_id=job_ids[0] if job_ids else None,
+        job_ids=job_ids,
         task_ids=task_ids,
     )
 

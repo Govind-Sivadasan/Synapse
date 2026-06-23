@@ -37,19 +37,20 @@ class SourceStudyListResponse(BaseModel):
 class SourceStudyMigrateRequest(BaseModel):
     name: str = Field(..., max_length=200)
     source_node_id: UUID
-    destination_node_id: UUID
+    destination_node_ids: list[UUID] = Field(..., min_length=1, max_length=20)
     study_uids: list[str] = Field(..., min_length=1, max_length=500)
     tag_morphing_rule_ids: list[UUID] | None = None
     start: bool = True
-
-
-class SourceStudyRouteRequest(BaseModel):
-    source_node_id: UUID
-    study_uids: list[str] = Field(..., min_length=1, max_length=100)
 
 
 class SourceStudyActionResponse(BaseModel):
     enqueued: int
     study_uids: list[str]
     job_id: UUID | None = None
+    job_ids: list[UUID] = Field(default_factory=list)
     task_ids: list[str] = Field(default_factory=list)
+
+
+class SourceStudyRouteRequest(BaseModel):
+    source_node_id: UUID
+    study_uids: list[str] = Field(..., min_length=1, max_length=100)
