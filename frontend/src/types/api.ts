@@ -1,7 +1,7 @@
 export interface Node {
   id: string;
   name: string;
-  node_type: "source" | "destination";
+  node_type: "source" | "destination" | "both";
   protocol: "DIMSE" | "DICOMweb";
   host: string;
   port: number | null;
@@ -171,6 +171,44 @@ export interface MigrationJob {
 export interface MigrationJobList {
   total: number;
   items: MigrationJob[];
+}
+
+export interface SourceStudy {
+  study_uid: string;
+  patient_id: string | null;
+  patient_name: string | null;
+  patient_birth_date: string | null;
+  modality: string | null;
+  study_date: string | null;
+  study_time: string | null;
+  acquisition_date: string | null;
+  study_description: string | null;
+  accession_number: string | null;
+  referring_physician: string | null;
+  station_name: string | null;
+  body_part_examined: string | null;
+  protocol_name: string | null;
+  acquisition_description: string | null;
+  requested_procedure: string | null;
+  patient_location: string | null;
+  num_series: number | null;
+  num_instances: number | null;
+}
+
+export interface SourceStudyList {
+  source_node_id: string;
+  source_node_name: string;
+  items: SourceStudy[];
+  limit: number;
+  offset: number;
+  has_more: boolean;
+}
+
+export interface SourceStudyActionResult {
+  enqueued: number;
+  study_uids: string[];
+  job_id?: string | null;
+  task_ids: string[];
 }
 
 export interface RoutingDestination {

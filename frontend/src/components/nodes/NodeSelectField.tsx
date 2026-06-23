@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { nodeLabel } from "../../lib/nodes";
+import { nodeLabel, nodesExcluding } from "../../lib/nodes";
 import { Node } from "../../types/api";
 import QuickCreateNodeDialog, { CREATE_NODE_OPTION } from "./QuickCreateNodeDialog";
 
@@ -11,6 +11,8 @@ interface Props {
   nodeType: "source" | "destination";
   required?: boolean;
   emptyHint?: string;
+  /** Hide this node from the list (e.g. already selected on the other side). */
+  excludeNodeId?: string;
 }
 
 export default function NodeSelectField({
@@ -21,8 +23,10 @@ export default function NodeSelectField({
   nodeType,
   required,
   emptyHint,
+  excludeNodeId,
 }: Props) {
   const [createOpen, setCreateOpen] = useState(false);
+  const options = nodesExcluding(nodes, excludeNodeId);
 
   return (
     <>
@@ -40,14 +44,14 @@ export default function NodeSelectField({
           required={required && !createOpen}
         >
           <option value="">Select {nodeType}…</option>
-          {nodes.map((n) => (
+          {options.map((n) => (
             <option key={n.id} value={n.id}>
               {nodeLabel(n)}
             </option>
           ))}
           <option value={CREATE_NODE_OPTION}>+ Create new node…</option>
         </select>
-        {nodes.length === 0 && emptyHint && <p className="form-field-hint">{emptyHint}</p>}
+        {options.length === 0 && emptyHint && <p className="form-field-hint">{emptyHint}</p>}
       </div>
 
       <QuickCreateNodeDialog

@@ -1,16 +1,30 @@
 import { Node } from "../types/api";
 
+export function nodeIsSource(node: Pick<Node, "node_type">): boolean {
+  return node.node_type === "source" || node.node_type === "both";
+}
+
+export function nodeIsDestination(node: Pick<Node, "node_type">): boolean {
+  return node.node_type === "destination" || node.node_type === "both";
+}
+
+export function formatNodeType(node: Pick<Node, "node_type">): string {
+  if (node.node_type === "both") return "Source · Destination";
+  if (node.node_type === "source") return "Source";
+  return "Destination";
+}
+
 /** Source PACS nodes eligible for migration (QIDO/WADO require DICOMweb URL). */
 export function migrationSourceNodes(nodes: Node[]): Node[] {
   return nodes
-    .filter((n) => n.node_type === "source" && n.is_active && !!n.dicomweb_url?.trim())
+    .filter((n) => nodeIsSource(n) && n.is_active && !!n.dicomweb_url?.trim())
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 /** Destination PACS nodes eligible for migration (STOW-RS via DICOMweb URL). */
 export function migrationDestinationNodes(nodes: Node[]): Node[] {
   return nodes
-    .filter((n) => n.node_type === "destination" && n.is_active && !!n.dicomweb_url?.trim())
+    .filter((n) => nodeIsDestination(n) && n.is_active && !!n.dicomweb_url?.trim())
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
@@ -18,6 +32,19 @@ export function migrationDestinationNodes(nodes: Node[]): Node[] {
 export function routingDestinationNodes(nodes: Node[]): Node[] {
   return migrationDestinationNodes(nodes);
 }
+
+/** Nodes list with an optional node id removed (e.g. hide source from destination picker). */
+export function nodesExcluding(nodes: Node[], excludeId?: string): Node[] {
+  if (!excludeId) return nodes;
+  return nodes.filter((node) => node.id !== excludeId);
+}
+
+export function isSameNodePair(sourceId: string, destinationId: string): boolean {
+  return Boolean(sourceId && destinationId && sourceId === destinationId);
+}
+
+export const SAME_NODE_PAIR_MESSAGE =
+  "Source and destination must be different nodes.";
 
 export function nodeLabel(node: Node): string {
   const parts = [node.name];
@@ -32,7 +59,7 @@ export function nodeLabel(node: Node): string {
 
 export type NodeFormState = {
   name: string;
-  node_type: "source" | "destination";
+  node_type: Node["node_type"];
   protocol: "DIMSE" | "DICOMweb";
   host: string;
   port: number | null;

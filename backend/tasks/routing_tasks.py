@@ -58,6 +58,48 @@ async def _retry_destination(destination_record_id: str) -> dict:
     }
 
 
+async def _route_study_from_source(source_node_id: str, study_uid: str) -> dict:
+    from app.services.source_routing import pull_and_route_study
+
+    return await pull_and_route_study(uuid.UUID(source_node_id), study_uid)
+
+
+@celery_app.task(name="tasks.routing_tasks.route_study_from_source", bind=True, max_retries=3)
+def route_study_from_source(self, source_node_id: str, study_uid: str, **_: object) -> dict:
+    """WADO-RS pull from a source node, then route via active rules."""
+    logger.info(
+        "route_study_from_source_started",
+        source_node_id=source_node_id,
+        study_uid=study_uid,
+    )
+    started = time.perf_counter()
+    try:
+        result = run_async_task(_route_study_from_source(source_node_id, study_uid))
+        track_task_outcome(
+            "routing_queue",
+            "route_study_from_source",
+            time.perf_counter() - started,
+            success=True,
+            retries=self.request.retries,
+        )
+        return result
+    except Exception as exc:
+        track_task_outcome(
+            "routing_queue",
+            "route_study_from_source",
+            time.perf_counter() - started,
+            success=False,
+            retries=self.request.retries,
+        )
+        logger.error(
+            "route_study_from_source_failed",
+            source_node_id=source_node_id,
+            study_uid=study_uid,
+            error=str(exc),
+        )
+        raise self.retry(exc=exc, countdown=2**self.request.retries)
+
+
 @celery_app.task(name="tasks.routing_tasks.route_study", bind=True, max_retries=3)
 def route_study(
     self,

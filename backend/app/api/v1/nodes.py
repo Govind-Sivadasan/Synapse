@@ -13,6 +13,9 @@ from app.schemas.node import NodeCreate, NodeEchoResponse, NodeResponse, NodeUpd
 from app.services.allowed_aets import refresh_allowed_calling_aets
 from app.services.audit_logger import AuditLogger
 from app.services.node_connectivity import probe_node_connectivity
+from app.services.node_deletion import get_node_deletion_blockers, prepare_node_deletion
+from app.routing.engine import invalidate_rules_cache
+from app.services.rules_cache import invalidate_routing_rules_cache
 
 router = APIRouter(prefix="/nodes", tags=["Nodes"])
 
@@ -116,6 +119,12 @@ async def delete_node(
     node = await db.get(Node, node_id)
     if not node:
         raise HTTPException(status_code=404, detail="Node not found")
+
+    blockers = await get_node_deletion_blockers(db, node_id)
+    if blockers:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=" ".join(blockers))
+
+    rules_changed = await prepare_node_deletion(db, node_id)
     await AuditLogger.log(
         db,
         "CONFIG_CHANGE",
@@ -127,4 +136,7 @@ async def delete_node(
         ip_address=request.client.host if request.client else None,
     )
     await db.delete(node)
+    if rules_changed:
+        await invalidate_routing_rules_cache()
+        invalidate_rules_cache()
     await refresh_allowed_calling_aets()

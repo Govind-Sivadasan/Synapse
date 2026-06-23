@@ -69,6 +69,7 @@ class RoutingEngine:
         dicom_files: list[str],
         metadata: dict[str, str],
         calling_ae_title: str = "",
+        exclude_destination_node_ids: set[uuid.UUID] | None = None,
     ) -> RoutingTransactionResult:
         file_paths = [Path(p) for p in dicom_files]
         morph_cleanup_dirs: list[Path] = []
@@ -124,6 +125,38 @@ class RoutingEngine:
                 primary_rule_id = primary_rule.routing_rule_id
                 transaction.routing_rule_id = primary_rule_id
                 destination_plans = self.rule_evaluator.resolve_destinations(matches)
+                if exclude_destination_node_ids:
+                    destination_plans = [
+                        plan
+                        for plan in destination_plans
+                        if plan.destination_node_id not in exclude_destination_node_ids
+                    ]
+
+                if not destination_plans:
+                    transaction.overall_status = "no_match"
+                    transaction.completed_at = datetime.now(timezone.utc)
+                    await AuditLogger.log(
+                        session,
+                        "ROUTING_RULE_MATCH",
+                        entity_type="RoutingTransaction",
+                        entity_id=transaction_id,
+                        details={
+                            "study_uid": study_uid,
+                            "matched": True,
+                            "excluded_self_destination": bool(exclude_destination_node_ids),
+                            "destinations_after_filter": 0,
+                        },
+                    )
+                    await record_routing_completion(session, "no_match", transaction.received_at)
+                    await session.commit()
+                    self._publish_status(transaction, [])
+                    inc_counter("synapse_routing_studies_total", {"status": "no_match"})
+                    return RoutingTransactionResult(
+                        transaction_id=transaction_id,
+                        study_uid=study_uid,
+                        overall_status="no_match",
+                        matched_rule_id=primary_rule_id,
+                    )
 
                 await AuditLogger.log(
                     session,

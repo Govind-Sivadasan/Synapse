@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 class NodeBase(BaseModel):
     name: str = Field(..., max_length=100)
-    node_type: str = Field(..., pattern="^(source|destination)$")
+    node_type: str = Field(..., pattern="^(source|destination|both)$")
     protocol: str = Field(..., pattern="^(DIMSE|DICOMweb)$")
     host: str
     port: int | None = None
@@ -23,7 +23,7 @@ class NodeCreate(NodeBase):
 
 class NodeUpdate(BaseModel):
     name: str | None = Field(None, max_length=100)
-    node_type: str | None = Field(None, pattern="^(source|destination)$")
+    node_type: str | None = Field(None, pattern="^(source|destination|both)$")
     protocol: str | None = Field(None, pattern="^(DIMSE|DICOMweb)$")
     host: str | None = None
     port: int | None = None

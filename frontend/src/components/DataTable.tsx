@@ -19,6 +19,8 @@ export type { SortDir };
 export interface Column<T> {
   key: string;
   header: string;
+  /** Custom header cell content (e.g. select-all checkbox). */
+  renderHeader?: () => ReactNode;
   render?: (row: T) => ReactNode;
   width?: number;
   minWidth?: number;
@@ -64,6 +66,12 @@ interface Props<T> {
   onRowClick?: (row: T) => void;
   /** Highlight the active row (e.g. while a detail modal is open). */
   selectedRowId?: string | null;
+  /** Content at the start of the table toolbar (e.g. selection summary). */
+  toolbarStart?: ReactNode;
+  /** Content before “Manage columns” on the right side of the toolbar. */
+  toolbarEnd?: ReactNode;
+  /** Applied when no saved column prefs exist for this table. */
+  columnPrefsDefaults?: TableColumnPrefs;
 }
 
 const DEFAULT_MIN_WIDTH = 72;
@@ -200,6 +208,9 @@ export default function DataTable<T extends object>({
   serverPagination,
   onRowClick,
   selectedRowId,
+  toolbarStart,
+  toolbarEnd,
+  columnPrefsDefaults,
 }: Props<T>) {
   const manageColumns = columnManagement ?? Boolean(tableId);
   const [internalSearch, setInternalSearch] = useState("");
@@ -218,6 +229,15 @@ export default function DataTable<T extends object>({
   );
   const [isResizing, setIsResizing] = useState(false);
   const [manageOpen, setManageOpen] = useState(false);
+  const [manageAnchor, setManageAnchor] = useState<HTMLElement | null>(null);
+  const manageToolbarRef = useRef<HTMLButtonElement>(null);
+  const manageActionsRef = useRef<HTMLButtonElement>(null);
+  const actionsHeaderRef = useRef<HTMLTableCellElement>(null);
+
+  const openManageColumns = useCallback((anchor?: HTMLElement | null) => {
+    setManageAnchor(actionsHeaderRef.current ?? manageActionsRef.current ?? anchor ?? manageToolbarRef.current);
+    setManageOpen(true);
+  }, []);
   const [columnPrefs, setColumnPrefs] = useState<TableColumnPrefs>(() => initialPrefs);
   const tableRef = useRef<HTMLTableElement>(null);
   const columnWidthsRef = useRef(columnWidths);
@@ -251,7 +271,7 @@ export default function DataTable<T extends object>({
 
   useEffect(() => {
     if (!tableId) return;
-    const prefs = loadTableColumnPrefs(tableId);
+    const prefs = loadTableColumnPrefs(tableId, columnPrefsDefaults);
     setColumnPrefs(prefs);
     setColumnWidths((prev) =>
       clampActionsColumnWidth(
@@ -266,7 +286,7 @@ export default function DataTable<T extends object>({
     if (prefs.widths && Object.keys(prefs.widths).length > 0) {
       setLayoutLocked(true);
     }
-  }, [tableId, columnKeys]);
+  }, [tableId, columnKeys, columnPrefsDefaults]);
 
   const persistPrefs = useCallback(
     (next: TableColumnPrefs) => {
@@ -508,8 +528,9 @@ export default function DataTable<T extends object>({
 
   return (
     <div className="data-table-panel">
-      {(searchable || manageColumns) && (
+      {(searchable || manageColumns || toolbarStart || toolbarEnd) && (
         <div className="data-table-toolbar">
+          {toolbarStart ? <div className="data-table-toolbar-lead">{toolbarStart}</div> : null}
           {searchable && (
             <TableSearch
               value={search}
@@ -517,15 +538,21 @@ export default function DataTable<T extends object>({
               placeholder={searchPlaceholder ?? "Search records…"}
             />
           )}
-          {manageColumns && (
-            <button
-              type="button"
-              className="btn-sm btn-secondary data-table-manage-cols"
-              onClick={() => setManageOpen(true)}
-            >
-              <Columns3 size={14} />
-              Manage columns
-            </button>
+          {(toolbarEnd || manageColumns) && (
+            <div className="data-table-toolbar-actions">
+              {toolbarEnd}
+              {manageColumns && (
+                <button
+                  ref={manageToolbarRef}
+                  type="button"
+                  className="btn-sm btn-secondary data-table-manage-cols"
+                  onClick={() => openManageColumns(manageToolbarRef.current)}
+                >
+                  <Columns3 size={14} />
+                  Manage columns
+                </button>
+              )}
+            </div>
           )}
         </div>
       )}
@@ -548,6 +575,7 @@ export default function DataTable<T extends object>({
                 {visibleColumns.map((col, index) => {
                   const pin = resolvePin(col, columnPrefs.pinned);
                   const isActions = col.key === "actions";
+                  const isSelect = col.key === "select";
                   const sortKey = col.sortKey ?? col.key;
                   const isSorted = activeSortBy === sortKey || activeSortBy === col.key;
                   const pinClass =
@@ -564,18 +592,39 @@ export default function DataTable<T extends object>({
                   return (
                     <th
                       key={col.key}
+                      ref={isActions ? actionsHeaderRef : undefined}
                       style={colWidthStyle(col, columnWidths)}
                       className={[
-                        resizable && !isActions ? "data-table-th--resizable" : undefined,
-                        manageColumns && !isActions ? "data-table-th--managed" : undefined,
+                        resizable && !isActions && !isSelect ? "data-table-th--resizable" : undefined,
+                        manageColumns && !isActions && !isSelect ? "data-table-th--managed" : undefined,
                         isActions ? "data-table-th--actions" : undefined,
+                        isSelect ? "data-table-th--select" : undefined,
                         pinClass,
                       ]
                         .filter(Boolean)
                         .join(" ") || undefined}
                     >
                       {isActions ? (
-                        <span className="data-table-th-label data-table-th-label--actions">{col.header}</span>
+                        <div className="data-table-actions-header">
+                          <span className="data-table-th-label data-table-th-label--actions">{col.header}</span>
+                          {manageColumns && (
+                            <button
+                              ref={manageActionsRef}
+                              type="button"
+                              className="data-table-actions-manage"
+                              aria-label="Manage columns"
+                              aria-expanded={manageOpen}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                openManageColumns(manageActionsRef.current);
+                              }}
+                            >
+                              <Columns3 size={14} aria-hidden />
+                            </button>
+                          )}
+                        </div>
+                      ) : col.renderHeader ? (
+                        <div className="data-table-th-custom">{col.renderHeader()}</div>
                       ) : manageColumns ? (
                         <ColumnHeaderMenu
                           label={col.header}
@@ -588,7 +637,7 @@ export default function DataTable<T extends object>({
                           onUnsort={() => handleUnsort(col)}
                           onPin={(nextPin) => handlePin(col, nextPin)}
                           onHide={() => handleHide(col.key)}
-                          onManageColumns={() => setManageOpen(true)}
+                          onManageColumns={openManageColumns}
                         />
                       ) : (
                         <span className="data-table-th-label">{col.header}</span>
@@ -640,7 +689,11 @@ export default function DataTable<T extends object>({
                     return (
                       <td
                         key={col.key}
-                        className={[tdPinClass, col.key === "actions" ? "data-table-td--actions" : undefined]
+                        className={[
+                          tdPinClass,
+                          col.key === "actions" ? "data-table-td--actions" : undefined,
+                          col.key === "select" ? "data-table-td--select" : undefined,
+                        ]
                           .filter(Boolean)
                           .join(" ") || undefined}
                       >
@@ -668,6 +721,7 @@ export default function DataTable<T extends object>({
       {manageColumns && (
         <ManageColumnsPanel
           open={manageOpen}
+          anchorEl={manageAnchor}
           columns={columns.map((col) => ({
             key: col.key,
             header: col.header,

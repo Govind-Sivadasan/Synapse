@@ -17,7 +17,7 @@ import { useConfirmDialog } from "../hooks/useConfirmDialog";
 import { useAppMetadata } from "../hooks/useAppMetadata";
 import { formatNotificationMessage } from "../lib/notificationMessages";
 import { useNotifications } from "../services/notifications";
-import { migrationDestinationNodes, migrationSourceNodes } from "../lib/nodes";
+import { isSameNodePair, migrationDestinationNodes, migrationSourceNodes, SAME_NODE_PAIR_MESSAGE } from "../lib/nodes";
 import JobProgressBreakdown from "../components/migration/JobProgressBreakdown";
 import MigrationQueueWidget from "../components/migration/MigrationQueueWidget";
 import ThroughputSparkChart from "../components/migration/ThroughputSparkChart";
@@ -571,6 +571,10 @@ export default function MigrationJobs() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSameNodePair(form.source_node_id, form.destination_node_id)) {
+      notifyError(SAME_NODE_PAIR_MESSAGE);
+      return;
+    }
     const studyUids = form.study_uids
       .split(/[\n,]/)
       .map((s) => s.trim())
@@ -1135,19 +1139,35 @@ export default function MigrationJobs() {
             <NodeSelectField
               label="Source PACS"
               value={form.source_node_id}
-              onChange={(source_node_id) => setForm({ ...form, source_node_id })}
+              onChange={(source_node_id) =>
+                setForm((prev) => ({
+                  ...prev,
+                  source_node_id,
+                  destination_node_id:
+                    source_node_id === prev.destination_node_id ? "" : prev.destination_node_id,
+                }))
+              }
               nodes={sources}
               nodeType="source"
               required
+              excludeNodeId={form.destination_node_id || undefined}
               emptyHint="No active source nodes with a DICOMweb URL. Create one below or under Nodes."
             />
             <NodeSelectField
               label="Destination PACS"
               value={form.destination_node_id}
-              onChange={(destination_node_id) => setForm({ ...form, destination_node_id })}
+              onChange={(destination_node_id) =>
+                setForm((prev) => ({
+                  ...prev,
+                  destination_node_id,
+                  source_node_id:
+                    destination_node_id === prev.source_node_id ? "" : prev.source_node_id,
+                }))
+              }
               nodes={destinations}
               nodeType="destination"
               required
+              excludeNodeId={form.source_node_id || undefined}
               emptyHint="No active destination nodes with a DICOMweb URL. Create one below or under Nodes."
             />
             {form.job_type !== "batch" && (

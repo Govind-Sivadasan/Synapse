@@ -21,6 +21,7 @@ from app.schemas.routing_rule import (
     RulePreviewResponse,
 )
 from app.services.audit_logger import AuditLogger
+from app.services.node_roles import node_is_destination
 from app.services.rule_evaluator import evaluate_condition
 from app.routing.engine import invalidate_rules_cache
 from app.services.rules_cache import invalidate_routing_rules_cache
@@ -43,7 +44,7 @@ async def _validate_rule_payload(db: AsyncSession, payload: RoutingRuleCreate | 
     if dest_ids is not None:
         for node_id in dest_ids:
             node = await db.get(Node, node_id)
-            if not node or node.node_type != "destination":
+            if not node or not node_is_destination(node.node_type):
                 raise HTTPException(status_code=400, detail=f"Invalid destination node: {node_id}")
 
     morph_ids = data.get("tag_morphing_rule_ids")

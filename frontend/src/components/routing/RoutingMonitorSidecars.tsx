@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Server } from "lucide-react";
 import { apiFetch } from "../../api/client";
+import { nodeIsDestination } from "../../lib/nodes";
 import Modal from "../Modal";
 import StatusBadge from "../ui/StatusBadge";
 import { WsEvent } from "../../hooks/useWebSocket";
@@ -445,7 +446,7 @@ export function RoutingMonitorRightSidecar({
     () => [...rules.filter((rule) => rule.is_active)].sort((a, b) => a.priority - b.priority),
     [rules],
   );
-  const destinations = nodes.filter((node) => node.node_type === "destination" && node.is_active);
+  const destinations = nodes.filter((node) => nodeIsDestination(node) && node.is_active);
 
   const hasStudyDetail = Boolean(selectedStudyUid || selectedTransaction);
 

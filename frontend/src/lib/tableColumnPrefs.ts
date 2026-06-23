@@ -32,10 +32,15 @@ function sanitizeWidths(raw: unknown): Record<string, number> {
   return widths;
 }
 
-export function loadTableColumnPrefs(tableId: string): TableColumnPrefs {
+export function loadTableColumnPrefs(
+  tableId: string,
+  defaults?: TableColumnPrefs,
+): TableColumnPrefs {
   try {
     const raw = localStorage.getItem(storageKey(tableId));
-    if (!raw) return { hidden: [], pinned: {} };
+    if (!raw) {
+      return defaults ?? { hidden: [], pinned: {} };
+    }
     const parsed = JSON.parse(raw) as TableColumnPrefs;
     return {
       hidden: Array.isArray(parsed.hidden) ? parsed.hidden : [],

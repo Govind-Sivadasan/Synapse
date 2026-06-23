@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
 
-from fastapi import HTTPException, Request
+from fastapi import HTTPException, Request, status
 from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -27,7 +27,10 @@ from app.services.audit_logger import AuditLogger
 from app.services.migration_backpressure import wait_for_migration_queue_slot
 from app.services.migration_job_counters import init_job_counters
 from app.services.migration_preflight import ensure_no_other_active_migration_job, verify_migration_node_connectivity
+from app.services.node_pair_validation import ensure_distinct_endpoints
 from app.services.node_connectivity import probe_node_connectivity
+from app.services.node_roles import node_is_destination
+from app.services.node_deletion import get_node_deletion_blockers, prepare_node_deletion
 from app.services.rule_evaluator import evaluate_condition
 from app.services.rules_cache import invalidate_routing_rules_cache
 from app.workers.dispatch import enqueue_fetch_and_enqueue_studies, enqueue_migrate_study
@@ -151,7 +154,9 @@ def _match_by_name(query: str, items: Sequence[Any], name_attr: str = "name") ->
 
 
 def _resolve_node(message: str, nodes: Sequence[Node], *, node_type: str | None = None) -> Node | None:
-    scoped = [node for node in nodes if node_type is None or node.node_type == node_type]
+    from app.services.node_roles import node_matches_role
+
+    scoped = [node for node in nodes if node_type is None or node_matches_role(node.node_type, node_type)]
     return _match_by_name(message, scoped)
 
 
@@ -204,7 +209,7 @@ def action_context_snapshot(resources: dict[str, list[Any]]) -> dict[str, Any]:
     rules: list[RoutingRule] = resources["routing_rules"]
     jobs: list[MigrationJob] = resources["migration_jobs"]
     morphs: list[TagMorphingRule] = resources["tag_morphing_rules"]
-    destinations = [node for node in nodes if node.node_type == "destination"]
+    destinations = [node for node in nodes if node_is_destination(node.node_type)]
     return {
         "routing_rules": [
             {
@@ -354,7 +359,7 @@ def _plan_entity_action(entity: str, message: str, resources: dict[str, list[Any
 
 def _plan_routing_rule_action(message: str, resources: dict[str, list[Any]]) -> dict[str, Any] | None:
     rules: list[RoutingRule] = resources["routing_rules"]
-    destinations: list[Node] = [node for node in resources["nodes"] if node.node_type == "destination" and node.is_active]
+    destinations: list[Node] = [node for node in resources["nodes"] if node_is_destination(node.node_type) and node.is_active]
     text = message.strip()
     if not RULE_CHANGE_RE.search(text):
         return None
@@ -658,6 +663,8 @@ def _plan_migration_job_action(message: str, resources: dict[str, list[Any]]) ->
     source = _resolve_node(text, nodes, node_type="source")
     destination = _resolve_node(text, nodes, node_type="destination")
     if not source or not destination:
+        return None
+    if source.id == destination.id:
         return None
     job_type = _extract_job_type(text)
     filters = _parse_migration_filters(text)
@@ -1203,7 +1210,7 @@ async def _execute_routing_rule_action(
     _require_chat_role(user_roles, "admin")
     role = _primary_role(user_roles)
     ip = _ip_address(request)
-    destinations = [node for node in (await load_action_resources(db))["nodes"] if node.node_type == "destination"]
+    destinations = [node for node in (await load_action_resources(db))["nodes"] if node_is_destination(node.node_type)]
 
     if action_type == "create":
         create_payload = RoutingRuleCreate.model_validate(payload)
@@ -1271,6 +1278,7 @@ async def _execute_migration_job_action(
             raise HTTPException(status_code=400, detail="Destination node not found or inactive")
         if not source.dicomweb_url or not dest.dicomweb_url:
             raise HTTPException(status_code=400, detail="Migration jobs require DICOMweb source and destination nodes")
+        ensure_distinct_endpoints(create_payload.source_node_id, create_payload.destination_node_id)
         job = MigrationJob(
             name=create_payload.name,
             source_node_id=create_payload.source_node_id,
@@ -1436,9 +1444,16 @@ async def _execute_node_action(
 
     if action_type == "delete":
         name = node.name
+        blockers = await get_node_deletion_blockers(db, node.id)
+        if blockers:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=" ".join(blockers))
+        rules_changed = await prepare_node_deletion(db, node.id)
         await AuditLogger.log(db, "CHATBOT_ACTION", user_id=user_id, user_role=role, entity_type="Node", entity_id=node.id, details={"action": "delete", "name": name, "via": "chatbot"}, ip_address=ip)
         await AuditLogger.log(db, "CONFIG_CHANGE", user_id=user_id, user_role=role, entity_type="Node", entity_id=node.id, details={"action": "delete", "name": name, "via": "chatbot"}, ip_address=ip)
         await db.delete(node)
+        if rules_changed:
+            await invalidate_routing_rules_cache()
+            invalidate_rules_cache()
         await refresh_allowed_calling_aets()
         return f"Node “{name}” was deleted.", name
 

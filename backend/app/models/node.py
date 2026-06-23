@@ -13,7 +13,7 @@ class Node(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
-    node_type: Mapped[str] = mapped_column(String(20), nullable=False)  # source | destination
+    node_type: Mapped[str] = mapped_column(String(20), nullable=False)  # source | destination | both
     protocol: Mapped[str] = mapped_column(String(20), nullable=False)  # DIMSE | DICOMweb
     host: Mapped[str] = mapped_column(String(255), nullable=False)
     port: Mapped[int | None] = mapped_column(Integer, nullable=True)

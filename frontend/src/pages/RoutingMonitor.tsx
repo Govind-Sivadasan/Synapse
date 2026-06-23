@@ -224,13 +224,13 @@ export default function RoutingMonitor() {
 
           <div className="card">
             <h3 className="card-title">Routing Transactions</h3>
-            <FilterChips
-              label="Status"
-              options={STATUS_FILTERS}
-              value={statusFilter}
-              onChange={setStatusFilter}
-            />
-            <div className="filter-date-row">
+            <div className="card-filters-toolbar">
+              <FilterChips
+                label="Status"
+                options={STATUS_FILTERS}
+                value={statusFilter}
+                onChange={setStatusFilter}
+              />
               <DateRangeField
                 label="Date range"
                 from={dateFrom}
@@ -241,7 +241,7 @@ export default function RoutingMonitor() {
               {(dateFrom || dateTo || statusFilter) && (
                 <button
                   type="button"
-                  className="btn-sm btn-secondary filter-date-clear"
+                  className="btn-sm btn-secondary card-filters-clear"
                   onClick={() => {
                     setStatusFilter("");
                     setDateFrom("");
@@ -251,12 +251,12 @@ export default function RoutingMonitor() {
                   Clear filters
                 </button>
               )}
+              <TableSearch
+                value={search}
+                onChange={setSearch}
+                placeholder="Search study UID, patient, modality…"
+              />
             </div>
-            <TableSearch
-              value={search}
-              onChange={setSearch}
-              placeholder="Search study UID, patient, modality…"
-            />
             {isLoading ? (
               <PageLoading label="Loading transactions…" compact />
             ) : (transactions?.items ?? []).length === 0 ? (

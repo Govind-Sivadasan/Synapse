@@ -2,10 +2,11 @@
 
 import threading
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 
 from app.database import async_session_factory
 from app.models.node import Node
+from app.services.node_roles import NODE_TYPE_BOTH, NODE_TYPE_SOURCE
 from app.services.runtime_config import get_runtime_config
 
 # Built-in test callers (scripts/test_dimse_e2e.py). Not registered PACS nodes.
@@ -64,9 +65,9 @@ async def refresh_allowed_calling_aets() -> set[str]:
     async with async_session_factory() as session:
         result = await session.execute(
             select(Node.ae_title).where(
-                Node.node_type == "source",
                 Node.is_active.is_(True),
                 Node.ae_title.isnot(None),
+                or_(Node.node_type == NODE_TYPE_SOURCE, Node.node_type == NODE_TYPE_BOTH),
             )
         )
         source_aets = {row[0].strip() for row in result.all() if row[0] and row[0].strip()}

@@ -30,7 +30,7 @@ interface Props {
   onUnsort: () => void;
   onPin: (pin: ColumnPin) => void;
   onHide: () => void;
-  onManageColumns: () => void;
+  onManageColumns: (anchor: HTMLElement) => void;
 }
 
 const MENU_GAP = 6;
@@ -239,7 +239,10 @@ export default function ColumnHeaderMenu({
             type="button"
             className="col-header-menu-item"
             role="menuitem"
-            onClick={() => run(onManageColumns)}
+            onClick={() => {
+              if (!triggerRef.current) return;
+              run(() => onManageColumns(triggerRef.current!));
+            }}
           >
             <Columns3 size={14} />
             Manage columns…

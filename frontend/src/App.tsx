@@ -6,6 +6,7 @@ import Nodes from "./pages/Nodes";
 import RoutingRules from "./pages/RoutingRules";
 import TagMorphing from "./pages/TagMorphing";
 import MigrationJobs from "./pages/MigrationJobs";
+import StudyBrowser from "./pages/StudyBrowser";
 import RoutingMonitor from "./pages/RoutingMonitor";
 import AuditLogs from "./pages/AuditLogs";
 import Chatbot from "./pages/Chatbot";
@@ -27,6 +28,7 @@ export default function App() {
           <Route path="/routing-rules" element={<RoutingRules />} />
           <Route path="/tag-morphing" element={<TagMorphing />} />
           <Route path="/migration-jobs" element={<MigrationJobs />} />
+          <Route path="/study-browser" element={<StudyBrowser />} />
           <Route path="/routing-monitor" element={<RoutingMonitor />} />
           <Route path="/audit-logs" element={<AuditLogs />} />
           <Route path="/chatbot" element={<Chatbot />} />

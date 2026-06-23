@@ -34,6 +34,7 @@ async def get_metadata(
         "node_types": [
             {"value": "source", "label": "Source"},
             {"value": "destination", "label": "Destination"},
+            {"value": "both", "label": "Source & Destination"},
         ],
         "protocols": [
             {"value": "DIMSE", "label": "DIMSE"},

@@ -12,7 +12,7 @@ import { PageLoading } from "../components/ui/LoadingScreen";
 import Switch from "../components/ui/Switch";
 import { useConfirmDialog } from "../hooks/useConfirmDialog";
 import { useAppMetadata } from "../hooks/useAppMetadata";
-import { buildNodePayload, emptyNodeForm, isNodeAuthValid, nodeToForm, NodeFormState } from "../lib/nodes";
+import { buildNodePayload, emptyNodeForm, formatNodeType, isNodeAuthValid, nodeIsDestination, nodeIsSource, nodeToForm, NodeFormState } from "../lib/nodes";
 import NodeAuthFields from "../components/nodes/NodeAuthFields";
 import { formatNodeEchoMessage, formatNotificationMessage } from "../lib/notificationMessages";
 import { useNotifications } from "../services/notifications";
@@ -103,6 +103,7 @@ export default function Nodes() {
   const nodeTypes = metadata?.node_types ?? [
     { value: "source", label: "Source" },
     { value: "destination", label: "Destination" },
+    { value: "both", label: "Source & Destination" },
   ];
   const protocols = metadata?.protocols ?? [
     { value: "DIMSE", label: "DIMSE" },
@@ -145,7 +146,14 @@ export default function Nodes() {
             defaultClientSort={{ sortBy: "name", sortDir: "asc" }}
             columns={[
               { key: "name", header: "Name", width: 200, minWidth: 140 },
-              { key: "node_type", header: "Type", width: 96, minWidth: 72, sortValue: (n) => n.node_type },
+              {
+                key: "node_type",
+                header: "Type",
+                width: 160,
+                minWidth: 120,
+                sortValue: (n) => formatNodeType(n),
+                render: (n) => formatNodeType(n),
+              },
               { key: "protocol", header: "Protocol", width: 108, minWidth: 88 },
               { key: "host", header: "Host", minWidth: 160 },
               {
@@ -264,7 +272,7 @@ export default function Nodes() {
               <label>Host</label>
               <input value={form.host} onChange={(e) => setForm({ ...form, host: e.target.value })} required />
             </div>
-            {(form.protocol === "DIMSE" || form.node_type === "source") && (
+            {(form.protocol === "DIMSE" || nodeIsSource(form)) && (
               <div className="form-field">
                 <label>Port</label>
                 <input
@@ -274,18 +282,18 @@ export default function Nodes() {
                 />
               </div>
             )}
-            {(form.protocol === "DIMSE" || form.node_type === "source") && (
+            {(form.protocol === "DIMSE" || nodeIsSource(form)) && (
               <div className="form-field">
                 <label>AE Title</label>
                 <input
                   value={form.ae_title}
                   onChange={(e) => setForm({ ...form, ae_title: e.target.value })}
                   maxLength={16}
-                  placeholder={form.node_type === "source" ? "Calling AE from modality/PACS" : ""}
+                  placeholder={nodeIsSource(form) ? "Calling AE from modality/PACS" : ""}
                 />
               </div>
             )}
-            {(form.protocol === "DICOMweb" || form.node_type === "source") && (
+            {(form.protocol === "DICOMweb" || nodeIsSource(form) || nodeIsDestination(form)) && (
               <div className="form-field full-width">
                 <label>DICOMweb URL</label>
                 <input
@@ -293,10 +301,18 @@ export default function Nodes() {
                   onChange={(e) => setForm({ ...form, dicomweb_url: e.target.value })}
                   placeholder="http://orthanc-onprem:8042/dicom-web"
                 />
-                {form.node_type === "source" && (
-                  <p style={{ fontSize: "0.8rem", color: "#64748b", margin: "0.25rem 0 0" }}>
-                    Required for migration jobs (QIDO/WADO). Orthanc sources often use DIMSE for intake and DICOMweb for migration.
+                {form.node_type === "both" && (
+                  <p className="form-field-hint">
+                    DICOMweb URL is used for Study Browser, migration, and routing on this node.
                   </p>
+                )}
+                {form.node_type === "source" && (
+                  <p className="form-field-hint">
+                    Required for migration jobs and Study Browser (QIDO/WADO). Orthanc sources often use DIMSE for intake and DICOMweb for migration.
+                  </p>
+                )}
+                {form.node_type === "destination" && (
+                  <p className="form-field-hint">Required for migration and routing (STOW-RS).</p>
                 )}
               </div>
             )}

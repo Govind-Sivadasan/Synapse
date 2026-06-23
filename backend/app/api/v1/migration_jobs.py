@@ -27,6 +27,7 @@ from app.services.migration_preflight import (
     ensure_no_other_active_migration_job,
     verify_migration_node_connectivity,
 )
+from app.services.node_pair_validation import ensure_distinct_endpoints
 from app.services.migration_job_counters import init_job_counters
 from app.services.migration_job_progress import build_job_progress, build_throughput_snapshot
 from app.services.migration_backpressure import wait_for_migration_queue_slot
@@ -143,6 +144,8 @@ async def create_migration_job(
         raise HTTPException(status_code=400, detail="Source node requires a DICOMweb URL for migration")
     if not dest.dicomweb_url:
         raise HTTPException(status_code=400, detail="Destination node requires a DICOMweb URL")
+
+    ensure_distinct_endpoints(payload.source_node_id, payload.destination_node_id)
 
     job = MigrationJob(
         name=payload.name,
